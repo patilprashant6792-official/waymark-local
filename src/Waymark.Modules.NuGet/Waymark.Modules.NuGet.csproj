@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><AssemblyName>Waymark.Modules.NuGet</AssemblyName><RootNamespace>Waymark.Modules.NuGet</RootNamespace></PropertyGroup>
+  <ItemGroup><ProjectReference Include="..\Waymark.Core\Waymark.Core.csproj" /></ItemGroup>
+  <ItemGroup><PackageReference Include="NuGet.Protocol" /><PackageReference Include="System.Reflection.MetadataLoadContext" /><PackageReference Include="System.Security.Cryptography.Pkcs" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Guide.md" LogicalName="Waymark.Guides.nuget.md" /></ItemGroup>
+</Project>

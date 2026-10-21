@@ -1,0 +1,28 @@
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <AssemblyName>Waymark.Host</AssemblyName>
+    <RootNamespace>Waymark.Host</RootNamespace>
+    <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\Waymark.Core\Waymark.Core.csproj" />
+    <ProjectReference Include="..\Waymark.Data\Waymark.Data.csproj" />
+    <ProjectReference Include="..\Waymark.Logging\Waymark.Logging.csproj" />
+    <ProjectReference Include="..\Waymark.Modules.Code\Waymark.Modules.Code.csproj" />
+    <ProjectReference Include="..\Waymark.Modules.NuGet\Waymark.Modules.NuGet.csproj" />
+    <ProjectReference Include="..\Waymark.Modules.Files\Waymark.Modules.Files.csproj" />
+    <ProjectReference Include="..\Waymark.Modules.Commands\Waymark.Modules.Commands.csproj" />
+    <ProjectReference Include="..\Waymark.Connectors.Abstractions\Waymark.Connectors.Abstractions.csproj" />
+    <ProjectReference Include="..\Waymark.Connectors\Waymark.Connectors.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
+    <PackageReference Include="MudBlazor" />
+    <PackageReference Include="Microsoft.ML.Tokenizers" />
+    <PackageReference Include="Microsoft.ML.Tokenizers.Data.O200kBase" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="Guide.md" LogicalName="Waymark.Guides.host.md" />
+  </ItemGroup>
+</Project>

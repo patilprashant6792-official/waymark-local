@@ -1,0 +1,212 @@
+@page "/nuget/{PackageId}/{Version}/{Framework}"
+@inherits LiveComponentBase
+@using MudBlazor
+@using Waymark.Core.NuGetIndex
+@using Waymark.Host.Components.Shared
+@using Waymark.Host.NuGetAdmin
+@using Waymark.Host.Ui
+
+<PageTitle>@PackageId - NuGet - Waymark</PageTitle>
+
+<div class="wm-page">
+    <p class="wm-muted"><a href="/nuget">NuGet packages</a> / @PackageId</p>
+    <h1 class="wm-title">@PackageId <span class="wm-muted wm-mono">@Version</span></h1>
+
+    @if (_error is not null)
+    {
+        <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
+    }
+
+    @if (_loading)
+    {
+        <p class="wm-muted" aria-live="polite">Loading...</p>
+    }
+    else if (_outline is null)
+    {
+        <EmptyState Icon="@Icons.Material.Filled.Inventory" Title="This package is not indexed" Text="It has not been looked up for this framework yet, or it was cleared. Ask Claude to look it up, or reload it from the NuGet page." />
+    }
+    else if (_outline.Package.State != NuGetIndexState.Ready)
+    {
+        <InlineAlert Severity="@(_outline.Package.State == NuGetIndexState.Failed ? Severity.Error : Severity.Info)">
+            @(_outline.Package.State == NuGetIndexState.Failed
+                ? $"The index of this package failed: {_outline.Package.Error}. Reload it from the NuGet page."
+                : "The package is still being indexed. This page updates when it is ready.")
+        </InlineAlert>
+    }
+    else
+    {
+        var package = _outline.Package;
+        <p class="wm-lead">
+            <span class="wm-mono">@Framework</span> - @DisplayFormat.Count(package.TypeCount) types, @DisplayFormat.Count(package.SymbolCount) symbols, @DisplayFormat.Count(_outline.Namespaces.Count) namespaces -
+            <a href="@NuGetLinks.OnNuGetOrg(Key)" target="_blank" rel="noopener noreferrer">nuget.org</a>.
+            This is the same index Claude searches, with the same matching and ranking.
+        </p>
+
+        <div class="wm-explorer">
+            <aside class="wm-card wm-ex-ns" aria-label="Namespaces">
+                <MudTextField T="string" @bind-Value="_nsFilter" Immediate="true" Label="Filter namespaces" Variant="Variant.Outlined" Margin="Margin.Dense" />
+                <ul class="wm-ex-list">
+                    <li><a class="@(string.IsNullOrEmpty(Ns) ? "on" : string.Empty)" href="@Href(ns: null, type: null)">All namespaces</a></li>
+                    @foreach (var item in VisibleNamespaces)
+                    {
+                        var label = NamespaceLabel(item.Namespace);
+                        <li><a class="@(string.Equals(Ns, label, StringComparison.Ordinal) ? "on" : string.Empty)" href="@Href(ns: label, type: null)"><span class="wm-mono">@label</span> <span class="wm-muted">@item.TypeCount</span></a></li>
+                    }
+                </ul>
+                @if (HiddenNamespaces > 0)
+                {
+                    <p class="wm-muted">@HiddenNamespaces more. Type in the filter to narrow the list.</p>
+                }
+            </aside>
+
+            <section class="wm-ex-results" aria-label="Search">
+                <div class="wm-row">
+                    <MudTextField T="string" @bind-Value="_text" Immediate="true" Label="Search types and methods" Placeholder="for example: http client, retry, JsonSerializer" Variant="Variant.Outlined" Margin="Margin.Dense" OnKeyDown="OnSearchKey" Style="flex:1" />
+                    <MudSelect T="string" Value="_kind" ValueChanged="OnKindChanged" Label="Kind" Variant="Variant.Outlined" Margin="Margin.Dense" Style="max-width:160px">
+                        @foreach (var kind in KindOptions)
+                        {
+                            <MudSelectItem T="string" Value="@kind">@(kind.Length == 0 ? "All kinds" : kind)</MudSelectItem>
+                        }
+                    </MudSelect>
+                    <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Search">Search</MudButton>
+                </div>
+
+                <p class="wm-muted" aria-live="polite">
+                    @Describe()
+                    @if (HasFilters)
+                    {
+                        <a href="@Href(q: null, ns: null, kind: null, type: null)">Clear filters</a>
+                    }
+                </p>
+
+                @if (_result is null || _result.Items.Count == 0)
+                {
+                    <EmptyState Icon="@Icons.Material.Filled.SearchOff" Title="Nothing found" Text="Try fewer or shorter words, or remove the kind and namespace filters. Words are matched as the start of a name part, so 'serial' finds JsonSerializer." />
+                }
+                else
+                {
+                    <ul class="wm-ex-hits">
+                        @foreach (var item in _result.Items)
+                        {
+                            <li class="@(string.Equals(item.Sid, Sid, StringComparison.Ordinal) ? "on" : string.Empty)">
+                                <a href="@Href(sid: item.Sid)"><span class="wm-ex-kind">@KindLabel(item.Kind)</span> <span class="wm-mono">@item.FullName</span></a>
+                                @if (!string.IsNullOrWhiteSpace(item.Card))
+                                {
+                                    <div class="wm-muted wm-ex-card">@item.Card</div>
+                                }
+                            </li>
+                        }
+                    </ul>
+                    @if (_result.Items.Count < _result.Total && _limit < MaxLimit)
+                    {
+                        <MudButton Variant="Variant.Outlined" OnClick="ShowMoreAsync">Show more</MudButton>
+                    }
+                }
+            </section>
+
+            <section class="wm-card wm-ex-detail" aria-label="Symbol">
+                @if (_detailLoading)
+                {
+                    <p class="wm-muted" aria-live="polite">Loading...</p>
+                }
+                else if (_detail is null)
+                {
+                    <EmptyState Icon="@Icons.Material.Filled.Code" Title="@(string.IsNullOrEmpty(Sid) ? "Pick a type or method" : "Symbol not found")" Text="@(string.IsNullOrEmpty(Sid) ? "Its constructors, members and documentation appear here, exactly as Claude receives them." : "It is not in this index. It may have been cleared or reloaded.")" />
+                }
+                else
+                {
+                    var detail = _detail;
+                    <h2 class="wm-section wm-mono">@detail.FullName</h2>
+                    <div class="wm-row">
+                        <span class="wm-ex-kind">@KindLabel(detail.Kind)</span>
+                        <a href="@Href(ns: NamespaceLabel(detail.Namespace), type: null, sid: null)" class="wm-mono">@NamespaceLabel(detail.Namespace)</a>
+                        <CopyButton Text="@detail.FullName" Label="Copy name" />
+                        <CopyButton Text="@detail.Sid" Label="Copy id" />
+                    </div>
+                    @if (detail.Owner is not null)
+                    {
+                        <p>Declared in <a href="@Href(sid: detail.Owner.Sid)" class="wm-mono">@detail.Owner.FullName</a></p>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(detail.Card))
+                    {
+                        <p class="wm-muted">@detail.Card</p>
+                    }
+                    @if (detail.MemberFilter is not null)
+                    {
+                        <p><a href="@Href(q: null, kind: null, type: detail.MemberFilter, sid: detail.Sid)">List the methods of this type</a></p>
+                    }
+
+                    @if (!string.IsNullOrWhiteSpace(detail.Documentation.Summary))
+                    {
+                        <h3 class="wm-section">Summary</h3>
+                        <p>@detail.Documentation.Summary</p>
+                    }
+                    @Block("Constructors and signatures", detail.Constructors)
+                    @Block("Methods", detail.Methods)
+                    @Block("Properties", detail.Properties)
+                    @Block(detail.Kind == NuGetSymbolKind.Enum ? "Values" : "Fields and events", detail.Fields)
+                    @if (detail.Documentation.Parameters.Count > 0)
+                    {
+                        <h3 class="wm-section">Parameters</h3>
+                        <dl class="wm-dl">
+                            @foreach (var parameter in detail.Documentation.Parameters)
+                            {
+                                <dt class="wm-mono">@parameter.Key</dt>
+                                <dd>@parameter.Value</dd>
+                            }
+                        </dl>
+                    }
+                    @if (!string.IsNullOrWhiteSpace(detail.Documentation.Returns))
+                    {
+                        <h3 class="wm-section">Returns</h3>
+                        <p>@detail.Documentation.Returns</p>
+                    }
+                    @if (detail.Documentation.Exceptions.Count > 0)
+                    {
+                        <h3 class="wm-section">Throws</h3>
+                        <dl class="wm-dl">
+                            @foreach (var exception in detail.Documentation.Exceptions)
+                            {
+                                <dt class="wm-mono">@exception.Key</dt>
+                                <dd>@exception.Value</dd>
+                            }
+                        </dl>
+                    }
+                    @if (detail.Related.Count > 0)
+                    {
+                        <h3 class="wm-section">Related</h3>
+                        <ul class="wm-ex-related">
+                            @foreach (var related in detail.Related)
+                            {
+                                <li><a href="@Href(sid: related.Sid)" class="wm-mono">@related.FullName</a> <span class="wm-muted">@related.Label</span></li>
+                            }
+                        </ul>
+                    }
+                    @if (IsBare(detail))
+                    {
+                        <p class="wm-muted">This package ships no documentation for this symbol. That is normal for many packages.</p>
+                    }
+                }
+            </section>
+        </div>
+    }
+</div>
+
+@code {
+    private RenderFragment Block(string title, IReadOnlyList<string> lines) => builder =>
+    {
+        if (lines.Count == 0)
+        {
+            return;
+        }
+
+        builder.OpenElement(0, "h3");
+        builder.AddAttribute(1, "class", "wm-section");
+        builder.AddContent(2, title);
+        builder.CloseElement();
+        builder.OpenElement(3, "pre");
+        builder.AddAttribute(4, "class", "wm-pre");
+        builder.AddContent(5, string.Join('\n', lines));
+        builder.CloseElement();
+    };
+}

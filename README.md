@@ -1,0 +1,78 @@
+# waymark
+
+Local MCP server for .NET developers: token-efficient code, NuGet and data context for claude.ai and Claude Code, over your own tunnel. Windows, SQLite, secrets stay on your machine.
+
+## Install
+
+### Before you start
+
+- Windows 10 or 11 (Windows only; macOS and Linux are not supported).
+- git, to get the code and to update it later.
+- An internet connection for the first build.
+- Nothing else for Waymark itself: the installer adds the .NET 10 SDK if you do not have it, using `winget` (included in current Windows 10 and 11). Without winget it tells you where to download the SDK by hand. Windows may ask for permission once while it installs. For claude.ai you also need an ngrok account (see "Use it").
+- Ports 47100 and 47101 free on this computer (they are the defaults; see [docs/install.md](docs/install.md) to change them).
+
+### Steps
+
+1. Open a terminal and get the code:
+   ```
+   git clone https://github.com/patilprashant6792-official/waymark.git
+   cd waymark
+   ```
+2. Run the installer. Type it in the terminal, or double-click `install.cmd` in the folder:
+   ```
+   install.cmd
+   ```
+3. Wait. The first run takes a minute or two (longer if the SDK has to be installed). It prints each step as it goes.
+4. When it finishes, your browser opens the Waymark admin page at <http://localhost:47100>. If it does not, open that address yourself.
+
+What the installer did for you:
+
+| | |
+|---|---|
+| Program | built into `%LOCALAPPDATA%\Waymark\app` |
+| Start | Waymark starts by itself, hidden, every time you sign in to Windows |
+| Start menu | a **Waymark** shortcut that starts it if needed and opens the admin page |
+| Your data | database, keys and secrets in `%LOCALAPPDATA%\Waymark`, separate from the program |
+
+If the build fails, nothing is changed and an earlier install keeps working. If the page does not open, see [Troubleshooting](docs/install.md#troubleshooting) and look at the last lines of the log the installer prints.
+
+### Day to day
+
+- Waymark is already running after you sign in. Use the Start menu shortcut **Waymark** to open the admin page at any time.
+- To stop it, in PowerShell: `& "$env:LOCALAPPDATA\Waymark\waymark.ps1" stop` (in Command Prompt: `powershell -File "%LOCALAPPDATA%\Waymark\waymark.ps1" stop`). To start it again, use the Start menu shortcut.
+- Admin page: <http://localhost:47100> (this computer only).
+
+### Update and remove
+
+```
+update.cmd                 gets the latest version and installs it; your data is not touched
+uninstall.cmd              removes Waymark; your data stays
+uninstall.cmd -RemoveData  removes the data too (database, keys and secrets; asks you to type DELETE)
+```
+
+`update.cmd` runs `git pull --ff-only` in your clone, so keep the clone where it is. If you changed files in it, commit or stash them first or the pull is refused. To reinstall the current code without pulling, run `install.cmd` again.
+
+## Use it
+
+1. Open **Workspaces** and add the folder of a project Claude may read.
+2. Connect Claude:
+   - **Claude Code**, on this computer, no tunnel needed: `claude mcp add --transport http waymark http://localhost:47101/mcp`. Waymark shows an approval card on **Approvals**; check the code and approve. See [docs/auth-and-setup.md](docs/auth-and-setup.md).
+   - **claude.ai**: needs a public address. Open **Setup**, enter your ngrok address and authtoken, and use the connector address it shows. See [docs/auth-and-setup.md](docs/auth-and-setup.md).
+3. Watch what happens on **Live** and **Console**. **Pause all** in the header stops every tool at once.
+
+## Before you connect Claude
+
+Waymark lets Claude read your code and, when you allow it, run commands on your computer. Running tests, `dotnet run`, EF commands and the shell can all execute code that can read your files, so they ask for your approval by default. Waymark hides secrets it recognises in tool output, but detection is shape-based and not a guarantee. The **Safety** page in the admin UI lists every risky operation and every redaction. If a secret ever reaches a chat, rotate it and delete the chat. Details: [docs/safety.md](docs/safety.md).
+
+## More
+
+- [docs/install.md](docs/install.md): what the installer does, where things live, ports, the start log, running from source, troubleshooting.
+- [docs/auth-and-setup.md](docs/auth-and-setup.md): how Claude connects and how the tunnel is set up.
+- [docs/error-handling.md](docs/error-handling.md) and [docs/live-log.md](docs/live-log.md): what happens when something fails, and what the Live page shows.
+- [docs/safety.md](docs/safety.md) and [docs/commands-policy.md](docs/commands-policy.md): the risks, what Waymark hides, and which operations ask first.
+- [docs/guides.md](docs/guides.md): how Claude learns to use each tool group, and the host prompt where you add your own instructions.
+
+## License
+
+Waymark is released under the [MIT License](LICENSE). Waymark gives an AI access to your computer; read [docs/safety.md](docs/safety.md) before you use it. The software is provided as is, without warranty.

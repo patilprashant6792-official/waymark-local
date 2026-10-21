@@ -1,0 +1,31 @@
+@using Waymark.Host.Terminal
+
+<div class="wm-term-block">
+    @foreach (var line in Block.Lines)
+    {
+        <div class="wm-term-line">@foreach (var run in Buffer.Runs(line)){<span class="@run.Style.CssClass" style="@run.Style.InlineStyle">@run.Text</span>}</div>
+    }
+</div>
+
+@code {
+    private long _renderedId = -1;
+    private int _renderedVersion = -1;
+
+    [Parameter, EditorRequired]
+    public TerminalBlock Block { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public AnsiBuffer Buffer { get; set; } = default!;
+
+    /// <summary>The version of the block when it was handed over. The block is drawn again only when this moved.</summary>
+    [Parameter, EditorRequired]
+    public int Version { get; set; }
+
+    protected override bool ShouldRender() => _renderedId != Block.Id || _renderedVersion != Version;
+
+    protected override void OnAfterRender(bool firstRender)
+    {
+        _renderedId = Block.Id;
+        _renderedVersion = Version;
+    }
+}

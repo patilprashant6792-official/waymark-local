@@ -1,0 +1,111 @@
+﻿@page "/setup"
+@inherits LiveComponentBase
+@using MudBlazor
+@using Waymark.Core.Edge
+@using Waymark.Host.Components.Shared
+
+<PageTitle>Setup - Waymark</PageTitle>
+
+<div class="wm-page">
+    <h1 class="wm-title">Setup</h1>
+    <p class="wm-lead">Four steps to let Claude reach this computer. You can come back and repeat any step.</p>
+
+    @if (_error is not null)
+    {
+        <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
+    }
+
+    <section class="wm-card" aria-labelledby="setup-1">
+        <h2 id="setup-1" class="wm-section">1. Public address</h2>
+        <p class="wm-muted">Create a free static domain at ngrok.com (Universal Gateway, Domains) and paste it here with your authtoken. Waymark installs and starts ngrok itself.</p>
+        <div class="wm-row">
+            <MudTextField T="string" Label="Address" @bind-Value="_address" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="For example https://your-name.ngrok-free.app" Style="min-width:360px" />
+            <MudTextField T="string" Label="ngrok authtoken" @bind-Value="_authtoken" InputType="InputType.Password" Variant="Variant.Outlined" Margin="Margin.Dense"
+                          HelperText="@(_authInfo.IsSet ? $"A token is saved (ends in {_authInfo.Hint}). Leave empty to keep it." : "Paste your authtoken. It is stored encrypted and never shown again.")" Style="min-width:320px" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@(_busy || string.IsNullOrWhiteSpace(_address))">Save and start tunnel</MudButton>
+        </div>
+        @if (SavedUrl is not null)
+        {
+            <p style="margin-top:8px">Saved address: <span class="wm-mono">@SavedUrl</span></p>
+        }
+    </section>
+
+    <section class="wm-card" aria-labelledby="setup-2" style="margin-top:16px">
+        <div class="wm-row spread">
+            <h2 id="setup-2" class="wm-section" style="margin:0">2. Check the tunnel</h2>
+            @{ var chip = TunnelChip(); }
+            <StateChip State="chip.State" Text="@chip.Text" />
+        </div>
+        <p class="wm-muted">@TunnelNow.Message</p>
+        <div class="wm-row">
+            <MudButton Variant="Variant.Outlined" OnClick="CheckAsync" Disabled="@(_busy || SavedUrl is null)">Check again</MudButton>
+            <MudButton Variant="Variant.Text" OnClick="StopAsync" Disabled="@(_busy || SavedUrl is null)">Stop tunnel</MudButton>
+            <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="DisconnectAsync" Disabled="@(_busy || SavedUrl is null)">Disconnect</MudButton>
+        </div>
+
+        @if (_check is { } check)
+        {
+            <ul class="wm-checks" aria-live="polite" style="list-style:none;padding:0;margin:12px 0 0">
+                @foreach (var step in check.Steps)
+                {
+                    <li style="margin:4px 0">
+                        <StateChip State="@(step.Passed ? StatusState.Healthy : StatusState.Failed)" Text="@(step.Passed ? "Passed" : "Failed")" />
+                        <strong>@step.Name</strong> <span class="wm-muted">@step.Detail</span>
+                    </li>
+                }
+            </ul>
+        }
+
+        @if (HasFailure)
+        {
+            <div class="wm-card" role="alert" style="margin-top:12px">
+                <strong>That did not work, and nothing is broken.</strong>
+                <p class="wm-muted">Read the failed line above. If ngrok could not start on its own, run this in a terminal on this computer, then choose Check again:</p>
+                <div class="wm-row">
+                    <code class="wm-code">@TunnelCommand</code>
+                    <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => CopyAsync(TunnelCommand)">Copy command</MudButton>
+                </div>
+            </div>
+        }
+    </section>
+
+    <section class="wm-card" aria-labelledby="setup-3" style="margin-top:16px">
+        <h2 id="setup-3" class="wm-section">3. Add Waymark to Claude</h2>
+        @if (ConnectorUnlocked)
+        {
+            <p class="wm-muted">In Claude, add a custom connector and paste this address. Claude will ask to pair; approve it on the Approvals page.</p>
+            <div class="wm-row">
+                <code class="wm-code">@ConnectorUrl</code>
+                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" OnClick="() => CopyAsync(ConnectorUrl!)">Copy connector address</MudButton>
+            </div>
+        }
+        else
+        {
+            <StateChip State="StatusState.Off" Text="Locked" />
+            <span class="wm-muted"> The address appears here once step 2 passes.</span>
+        }
+    </section>
+
+    <section class="wm-card" aria-labelledby="setup-4" style="margin-top:16px">
+        <h2 id="setup-4" class="wm-section">4. Add a workspace</h2>
+        @if (_workspaceCount > 0)
+        {
+            <StateChip State="StatusState.Healthy" Text="@($"{_workspaceCount} added")" />
+            <span class="wm-muted"> Manage them on the <a href="workspaces">Workspaces</a> page.</span>
+        }
+        else
+        {
+            <p class="wm-muted">Claude can only see folders you add. <a href="workspaces">Add your first workspace</a>.</p>
+        }
+    </section>
+
+    <section class="wm-card" aria-labelledby="setup-leaves" style="margin-top:16px">
+        <h2 id="setup-leaves" class="wm-section">What leaves this machine</h2>
+        <ul>
+            <li>Only what a tool returns to Claude: file text, search results, package signatures. Each call is limited in size and listed in the audit trail.</li>
+            <li>Your files stay on this computer. Nothing is uploaded in the background.</li>
+            <li>Secrets and your ngrok authtoken are stored encrypted here and are never sent to Claude.</li>
+            <li>The tunnel carries sign-in and tool traffic only; the admin pages are never reachable through it.</li>
+        </ul>
+    </section>
+</div>

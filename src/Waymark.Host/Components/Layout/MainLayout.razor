@@ -1,0 +1,145 @@
+﻿@inherits LayoutComponentBase
+@using MudBlazor
+@using Waymark.Core.Edge
+@using Waymark.Host.Components.Shared
+
+<MudThemeProvider @ref="_themeProvider" Theme="_theme" @bind-IsDarkMode="_dark" />
+<MudPopoverProvider />
+<MudDialogProvider />
+<MudSnackbarProvider />
+
+<a class="wm-skip" href="#main">Skip to content</a>
+
+<div class="wm-shell@(ShellClass)">
+    <header class="wm-header">
+        <button type="button" id="wm-nav-toggle" class="wm-nav-toggle" aria-controls="main-nav" aria-expanded="@(_navCollapsed ? "false" : "true")" aria-label="@(_navCollapsed ? "Expand menu" : "Collapse menu")" title="@(_navCollapsed ? "Expand menu ( [ )" : "Collapse menu ( [ )")" @onclick="ToggleNavAsync">
+            <MudIcon Icon="@Icons.Material.Outlined.ViewSidebar" />
+        </button>
+        <a class="wm-logo" href="">
+            <MudIcon Icon="@Icons.Material.Filled.Explore" />
+            <span>Waymark</span>
+        </a>
+
+        <div class="wm-header-chips">
+            <StateChip State="ServerChip.State" Text="@ServerChip.Text" />
+            <StateChip State="TunnelChip.State" Text="@TunnelChip.Text" Title="@Status.Tunnel.Message" />
+            @if (Status.PendingApprovals > 0)
+            {
+                <a class="wm-chip warn" href="approvals">
+                    <MudIcon Icon="@Icons.Material.Filled.HowToReg" Size="Size.Small" />
+                    <span>@ApprovalText</span>
+                </a>
+            }
+            @if (Status.PendingCommands > 0)
+            {
+                <a class="wm-chip warn" href="console">
+                    <MudIcon Icon="@Icons.Material.Filled.Computer" Size="Size.Small" />
+                    <span>@CommandText</span>
+                </a>
+            }
+            <a class="wm-chip info" href="live">
+                <MudIcon Icon="@Icons.Material.Filled.Terminal" Size="Size.Small" />
+                <span>@ActiveText</span>
+            </a>
+        </div>
+
+        <div class="wm-header-actions">
+            <CommandPalette />
+            <MudIconButton Icon="@(_dark ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
+                           aria-label="@(_dark ? "Switch to the light theme" : "Switch to the dark theme")"
+                           OnClick="ToggleThemeAsync" />
+            @if (Status.Paused)
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Success" StartIcon="@Icons.Material.Filled.PlayArrow" Disabled="_busy" OnClick="TogglePauseAsync">Resume</MudButton>
+            }
+            else
+            {
+                <MudButton Variant="Variant.Filled" Color="Color.Error" StartIcon="@Icons.Material.Filled.Pause" Disabled="_busy" OnClick="TogglePauseAsync">Pause all</MudButton>
+            }
+        </div>
+    </header>
+
+    <nav id="main-nav" class="wm-nav" aria-label="Main">
+        <div class="wm-nav-group">LIVE</div>
+        <NavLink class="wm-nav-item" ActiveClass="active" href="" Match="NavLinkMatch.All" title="@Tip("Home")">
+            <MudIcon Icon="@Icons.Material.Filled.Home" Size="Size.Small" /><span>Home</span>
+        </NavLink>
+        <NavLink class="wm-nav-item" ActiveClass="active" href="approvals" title="@Tip("Approvals")">
+            <MudIcon Icon="@Icons.Material.Filled.HowToReg" Size="Size.Small" /><span>Approvals</span>
+            @if (Status.PendingApprovals > 0)
+            {
+                <span class="wm-badge" aria-label="@ApprovalText">@Status.PendingApprovals</span>
+            }
+        </NavLink>
+        <NavLink class="wm-nav-item" ActiveClass="active" href="console" title="@Tip("Console")">
+            <MudIcon Icon="@Icons.Material.Filled.Computer" Size="Size.Small" /><span>Console</span>
+            @if (Status.PendingCommands > 0)
+            {
+                <span class="wm-badge" aria-label="@CommandText">@Status.PendingCommands</span>
+            }
+        </NavLink>
+        <NavLink class="wm-nav-item" ActiveClass="active" href="audit" title="@Tip("Audit")">
+            <MudIcon Icon="@Icons.Material.Filled.History" Size="Size.Small" /><span>Audit</span>
+        </NavLink>
+        <NavLink class="wm-nav-item" ActiveClass="active" href="live" title="@Tip("Live log")">
+            <MudIcon Icon="@Icons.Material.Filled.Terminal" Size="Size.Small" /><span>Live log</span>
+        </NavLink>
+
+        <div class="wm-nav-group">CONFIGURE</div>
+        <NavLink class="wm-nav-item" ActiveClass="active" href="workspaces" title="@Tip("Workspaces")">
+            <MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Small" /><span>Workspaces</span>
+        </NavLink>
+        <NavLink class="wm-nav-item" ActiveClass="active" href="tools" title="@Tip("Tools")">
+            <MudIcon Icon="@Icons.Material.Filled.Build" Size="Size.Small" /><span>Tools</span>
+        </NavLink>
+        <NavLink class="wm-nav-item" ActiveClass="active" href="guides" title="@Tip("Host prompt")">
+            <MudIcon Icon="@Icons.Material.Filled.MenuBook" Size="Size.Small" /><span>Host prompt</span>
+        </NavLink>
+        <NavLink class="wm-nav-item" ActiveClass="active" href="nuget" title="@Tip("NuGet")">
+            <MudIcon Icon="@Icons.Material.Filled.Inventory" Size="Size.Small" /><span>NuGet</span>
+        </NavLink>
+        <NavLink class="wm-nav-item" ActiveClass="active" href="commands" title="@Tip("Commands")">
+            <MudIcon Icon="@Icons.Material.Filled.Tune" Size="Size.Small" /><span>Commands</span>
+        </NavLink>
+        @* Connectors and Vault are hidden for now and kept for further implementation:
+        <NavLink class="wm-nav-item" ActiveClass="active" href="connectors" title="@Tip("Connectors")">
+            <MudIcon Icon="@Icons.Material.Filled.Extension" Size="Size.Small" /><span>Connectors</span>
+        </NavLink>
+        <NavLink class="wm-nav-item" ActiveClass="active" href="vault" title="@Tip("Vault")">
+            <MudIcon Icon="@Icons.Material.Filled.Lock" Size="Size.Small" /><span>Vault</span>
+        </NavLink>
+        *@
+        <NavLink class="wm-nav-item" ActiveClass="active" href="safety" title="@Tip("Safety")">
+            <MudIcon Icon="@Icons.Material.Filled.Shield" Size="Size.Small" /><span>Safety</span>
+        </NavLink>
+        <NavLink class="wm-nav-item" ActiveClass="active" href="access-keys" title="@Tip("Access keys")">
+            <MudIcon Icon="@Icons.Material.Filled.VpnKey" Size="Size.Small" /><span>Access keys</span>
+        </NavLink>
+
+        <div class="wm-nav-group">SETUP</div>
+        <NavLink class="wm-nav-item" ActiveClass="active" href="setup" title="@Tip("Setup")">
+            <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Small" /><span>Setup</span>
+        </NavLink>
+        <div class="wm-nav-foot">v0.1 &middot; local only</div>
+    </nav>
+
+    <main id="main" class="wm-main" tabindex="-1">
+        <PageErrorBoundary @ref="_boundary">
+            <ChildContent>@Body</ChildContent>
+            <ErrorContent>
+                <div class="wm-page">
+                    <InlineAlert Severity="Severity.Error">This page hit a problem and was stopped. It is written to the Live log, under Errors. Open another page, or <button type="button" class="wm-link-button" @onclick="RecoverPage">try this page again</button>.</InlineAlert>
+                </div>
+            </ErrorContent>
+        </PageErrorBoundary>
+    </main>
+</div>
+
+<div id="blazor-error-ui" class="blazor-error-boundary" style="display:none">
+    An unhandled error has occurred.
+    <a href="" class="reload">Reload</a>
+    <span class="dismiss">&#128473;</span>
+</div>
+
+<Waymark.Host.Components.Shared.ShortcutsPanel />
+

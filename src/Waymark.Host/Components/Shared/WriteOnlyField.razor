@@ -1,0 +1,110 @@
+﻿@using MudBlazor
+
+<div class="wm-stack">
+    <div class="wm-row">
+        <strong>@Label</strong>
+        @if (IsSet)
+        {
+            <StateChip State="StatusState.Healthy" Text="@StoredText" Icon="@Icons.Material.Filled.Lock" />
+        }
+        else
+        {
+            <StateChip State="StatusState.Off" Text="Not set" />
+        }
+    </div>
+
+    @if (!_editing && IsSet)
+    {
+        <div class="wm-row">
+            <MudButton Variant="Variant.Outlined" OnClick="StartEdit">Rotate</MudButton>
+            @if (OnClear.HasDelegate)
+            {
+                <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="ClearAsync">Remove</MudButton>
+            }
+        </div>
+    }
+    else
+    {
+        <MudTextField @bind-Value="_value" Label="@(IsSet ? "New value" : "Value")" InputType="InputType.Password"
+                      Variant="Variant.Outlined" Immediate="true" HelperText="@HelperText" Disabled="_busy" />
+        <div class="wm-row">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_busy || string.IsNullOrWhiteSpace(_value))" OnClick="SaveAsync">Save</MudButton>
+            @if (IsSet)
+            {
+                <MudButton Variant="Variant.Text" OnClick="Cancel">Cancel</MudButton>
+            }
+        </div>
+    }
+</div>
+
+@code {
+    private string? _value;
+    private bool _editing;
+    private bool _busy;
+
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool IsSet { get; set; }
+
+    /// <summary>The last characters of the stored value; nothing else about it is ever shown.</summary>
+    [Parameter]
+    public string? Hint { get; set; }
+
+    [Parameter]
+    public string? HelperText { get; set; }
+
+    [Parameter, EditorRequired]
+    public EventCallback<string> OnSave { get; set; }
+
+    [Parameter]
+    public EventCallback OnClear { get; set; }
+
+    private string StoredText => string.IsNullOrEmpty(Hint) ? "Stored" : $"Stored \u00b7 ends in {Hint}";
+
+    private void StartEdit()
+    {
+        _value = null;
+        _editing = true;
+    }
+
+    private void Cancel()
+    {
+        _value = null;
+        _editing = false;
+    }
+
+    private async Task SaveAsync()
+    {
+        if (string.IsNullOrWhiteSpace(_value))
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            await OnSave.InvokeAsync(_value);
+            _value = null;
+            _editing = false;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ClearAsync()
+    {
+        _busy = true;
+        try
+        {
+            await OnClear.InvokeAsync();
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

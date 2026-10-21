@@ -1,0 +1,39 @@
+﻿@using MudBlazor
+
+<span class="wm-chip @ClassName" title="@Title">
+    <MudIcon Icon="@IconName" Size="Size.Small" />
+    <span>@Text</span>
+</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public StatusState State { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    /// <summary>Replaces the icon that goes with the state.</summary>
+    [Parameter]
+    public string? Icon { get; set; }
+
+    private string ClassName => State switch
+    {
+        StatusState.Healthy => "ok",
+        StatusState.Attention => "warn",
+        StatusState.Failed => "err",
+        StatusState.Working => "info",
+        _ => "off"
+    };
+
+    private string IconName => Icon ?? State switch
+    {
+        StatusState.Healthy => Icons.Material.Filled.CheckCircle,
+        StatusState.Attention => Icons.Material.Filled.Warning,
+        StatusState.Failed => Icons.Material.Filled.Error,
+        StatusState.Working => Icons.Material.Filled.Sync,
+        _ => Icons.Material.Filled.RemoveCircleOutline
+    };
+}

@@ -1,0 +1,150 @@
+@page "/commands"
+@inherits LiveComponentBase
+@using MudBlazor
+@using Waymark.Core.Commands
+@using Waymark.Host.Components.Shared
+@using Waymark.Host.Ui
+
+<PageTitle>Commands - Waymark</PageTitle>
+
+<div class="wm-page">
+    <h1 class="wm-title">Commands</h1>
+    <p class="wm-lead">What Claude may run on this computer. Each operation is Off (refused), Ask (waits for you in the Console or on Home) or Auto (runs at once). Only you can approve, and only from this computer. Operations that run code ask by default - see <a href="safety">Safety</a> for why.</p>
+
+    @if (_error is not null)
+    {
+        <InlineAlert Severity="Severity.Warning">@_error</InlineAlert>
+    }
+
+    <section class="wm-card" aria-labelledby="cmd-scope">
+        <h2 id="cmd-scope" class="wm-section">Where the choices apply</h2>
+        <div class="wm-row">
+            <label class="wm-muted" for="cmd-scope-select">Settings for</label>
+            <select id="cmd-scope-select" class="wm-input" value="@_scope" @onchange="OnScopeChanged">
+                <option value="@CommandCatalog.AllWorkspaces">All workspaces</option>
+                @foreach (var workspace in _workspaces)
+                {
+                    <option value="@workspace.Id">@workspace.Name</option>
+                }
+            </select>
+            <MudButton Variant="Variant.Outlined" Disabled="@(_busy || OwnCount == 0)" OnClick="ResetScopeAsync">Reset @OwnCount @(OwnCount == 1 ? "choice" : "choices")</MudButton>
+        </div>
+        <p class="wm-muted" style="margin-bottom:0">@ScopeHelp</p>
+    </section>
+
+    @foreach (var family in Families)
+    {
+        var isShell = family.Key == CommandCatalog.ShellFamily;
+        var shellOn = isShell && family.Operations.Any(o => Effective(o) != CommandGate.Off);
+        <section class="wm-card@(shellOn ? " wm-risky" : string.Empty)" aria-labelledby="@($"cmd-family-{family.Key}")">
+            <h2 id="@($"cmd-family-{family.Key}")" class="wm-section">@family.Title</h2>
+            @if (isShell)
+            {
+                <InlineAlert Severity="Severity.Error" Title="Risky: this runs anything you could run">
+                    A shell script can delete files, read your keys and reach the internet, as you. Every script is shown to you and waits for your approval, and it can never run on its own. Read each one before you approve it. <a href="safety">Read the risks</a>.
+                </InlineAlert>
+            }
+            <ul class="wm-rows" aria-label="@family.Title">
+                @foreach (var operation in family.Operations)
+                {
+                    var gate = Effective(operation);
+                    var source = SourceOf(operation);
+                    <li>
+                        <div class="wm-row-main">
+                            <div class="wm-tier-row"><strong>@operation.Label</strong><RiskChip Operation="operation" /></div>
+                            <div class="wm-muted">@operation.Description</div>
+                            <div class="wm-muted">@source@(operation.DriftSensitive ? " - asks again when project files changed" : string.Empty)</div>
+                            @if (gate == CommandGate.Auto && RiskTiers.RunsProjectCode(operation))
+                            {
+                                <div class="wm-risk-note" role="note"><strong>Risk:</strong> this starts code from your project, including code Claude has just written, with your user rights. <a href="safety">Read the risks</a>.</div>
+                            }
+                        </div>
+                        <div class="wm-row">
+                            <div class="wm-seg" role="group" aria-label="@($"Gate for {operation.Label}")">
+                                @foreach (var choice in Choices)
+                                {
+                                    var allowed = choice <= operation.MaxGate;
+                                    <button type="button" class="wm-seg-btn @GateClass(choice)" aria-pressed="@(gate == choice ? "true" : "false")" disabled="@(_busy || !allowed)" title="@(allowed ? string.Empty : "A shell script is always approved by you")" @onclick="() => SetAsync(operation, choice)">@choice</button>
+                                }
+                            </div>
+                            @if (HasOwn(operation))
+                            {
+                                <MudButton Variant="Variant.Text" Size="Size.Small" Disabled="_busy" OnClick="() => ResetAsync(operation)">Reset</MudButton>
+                            }
+                        </div>
+                    </li>
+                }
+            </ul>
+            @if (isShell)
+            {
+                <h3 class="wm-card-title" style="margin-top:16px">Shells found on this computer</h3>
+                @if (Shells.Available.Count == 0)
+                {
+                    <InlineAlert Severity="Severity.Warning">No shell was found on this computer, so the system shell cannot be used. Typed commands still work.</InlineAlert>
+                }
+                else
+                {
+                    <p class="wm-muted">Claude gets the first shell below unless it names another one.</p>
+                    <ul class="wm-rows" aria-label="Shells found">
+                        @foreach (var shell in Shells.Available)
+                        {
+                            <li>
+                                <div class="wm-row-main">
+                                    <strong>@shell.DisplayName</strong> <span class="wm-muted wm-mono">(@shell.Id)</span>
+                                    <div class="wm-muted wm-mono wm-ellipsis" title="@shell.FileName">@shell.FileName</div>
+                                </div>
+                                @if (ReferenceEquals(shell, Shells.Available[0]))
+                                {
+                                    <StateChip State="StatusState.Healthy" Text="Automatic choice" />
+                                }
+                            </li>
+                        }
+                    </ul>
+                }
+            }
+        </section>
+    }
+
+    <section class="wm-card" aria-labelledby="cmd-trust">
+        <h2 id="cmd-trust" class="wm-section">Trusted project files</h2>
+        <p class="wm-muted">Project files (.csproj, .props, nuget.config, git hooks ...) can make a build run code. When they change after you last approved something, the next command asks again.</p>
+        @if (_workspaces.Count == 0)
+        {
+            <p class="wm-muted" style="margin-bottom:0">No workspaces yet.</p>
+        }
+        else
+        {
+            <ul class="wm-rows" aria-label="Trusted project files">
+                @foreach (var workspace in _workspaces)
+                {
+                    _trust.TryGetValue(workspace.Id, out var trust);
+                    <li>
+                        <div class="wm-row-main">
+                            <strong>@workspace.Name</strong>
+                            <div class="wm-muted">@(trust is null ? "Nothing approved yet. The first command will ask." : $"Approved {DisplayFormat.Ago(trust.ApprovedUtc, Time.GetUtcNow())}")</div>
+                        </div>
+                        @if (trust is not null)
+                        {
+                            <MudButton Variant="Variant.Outlined" Size="Size.Small" Disabled="_busy" OnClick="() => ForgetAsync(workspace)">Forget</MudButton>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    <section class="wm-card" aria-labelledby="cmd-limits">
+        <h2 id="cmd-limits" class="wm-section">Limits</h2>
+        <dl class="wm-dl">
+            <dt>Approval waits</dt>
+            <dd>@Options.ApprovalTimeout.TotalMinutes.ToString("0") minutes, then the request is denied</dd>
+            <dt>Runs at once</dt>
+            <dd>@Options.MaxParallelRuns (changing files in one workspace: one at a time)</dd>
+            <dt>Kept for</dt>
+            <dd>@Options.RetentionDays days</dd>
+            <dt>Outputs stored in</dt>
+            <dd class="wm-mono">@Options.RunsDirectory</dd>
+        </dl>
+        <p class="wm-muted" style="margin-bottom:0">Set with Waymark:Commands:ApprovalMinutes, MaxParallelRuns and RetentionDays in the configuration.</p>
+    </section>
+</div>

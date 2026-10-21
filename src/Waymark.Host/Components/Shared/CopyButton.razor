@@ -1,0 +1,26 @@
+﻿@using MudBlazor
+@inject Microsoft.JSInterop.IJSRuntime Js
+@inject ISnackbar Snackbar
+
+<MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="CopyAsync">@Label</MudButton>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    [Parameter]
+    public string Label { get; set; } = "Copy";
+
+    private async Task CopyAsync()
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("navigator.clipboard.writeText", Text);
+            Snackbar.Add("Copied.", Severity.Success);
+        }
+        catch (Exception ex) when (ex is Microsoft.JSInterop.JSException or Microsoft.JSInterop.JSDisconnectedException)
+        {
+            Snackbar.Add("Copying is blocked by the browser. Select the text and copy it by hand.", Severity.Warning);
+        }
+    }
+}

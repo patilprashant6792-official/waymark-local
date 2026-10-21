@@ -1,0 +1,25 @@
+﻿<div class="wm-stack">
+    <div class="wm-row spread">
+        <span>@Label</span>
+        <span class="wm-muted">@Used.ToString("N0") of @Max.ToString("N0")@(string.IsNullOrEmpty(Unit) ? "" : " " + Unit)</span>
+    </div>
+    <div class="wm-meter" role="meter" aria-label="@Label" aria-valuemin="0" aria-valuemax="@Max" aria-valuenow="@Math.Min(Used, Max)">
+        <div class="wm-meter-fill @(Percent >= 80 ? "high" : "")" style="width:@Percent%"></div>
+    </div>
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public int Used { get; set; }
+
+    [Parameter]
+    public int Max { get; set; } = 1;
+
+    [Parameter]
+    public string? Unit { get; set; }
+
+    private int Percent => Max <= 0 ? 0 : (int)Math.Clamp(Used * 100L / Max, 0, 100);
+}

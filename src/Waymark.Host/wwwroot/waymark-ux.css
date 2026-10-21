@@ -1,0 +1,160 @@
+/* Waymark UX layer. Loaded after waymark.css; it adds tokens, opt-in utility classes and the styles of the UX tools (console search, page picker). */
+:root {
+    /* type scale */
+    --wm-text-xs: 0.75rem;
+    --wm-text-sm: 0.857rem;
+    --wm-text-md: 1rem;
+    --wm-text-lg: 1.25rem;
+    --wm-text-xl: 1.625rem;
+    /* spacing scale (4px base) */
+    --wm-space-1: 4px;
+    --wm-space-2: 8px;
+    --wm-space-3: 12px;
+    --wm-space-4: 16px;
+    --wm-space-5: 24px;
+    --wm-space-6: 32px;
+    /* elevation: soft, neutral shadows that read in light and dark */
+    --wm-elev-1: 0 1px 2px rgba(0, 0, 0, 0.12);
+    --wm-elev-2: 0 4px 12px rgba(0, 0, 0, 0.16);
+    /* motion */
+    --wm-ease: cubic-bezier(0.2, 0, 0, 1);
+    --wm-dur-fast: 120ms;
+    --wm-dur-med: 220ms;
+}
+
+/* Numbers in tables, tiles and meters line up and do not jitter while live values change. */
+.wm-num, .wm-table td, .wm-table th {
+    font-variant-numeric: tabular-nums;
+}
+
+/* Anchors and focused rows keep clear of the sticky header. */
+[id] {
+    scroll-margin-top: calc(var(--wm-header-h) + var(--wm-space-4));
+}
+
+/* Opt-in helpers */
+.wm-elev-1 { box-shadow: var(--wm-elev-1); }
+.wm-elev-2 { box-shadow: var(--wm-elev-2); }
+
+.wm-kbd {
+    display: inline-block;
+    min-width: 1.6em;
+    padding: 1px 6px;
+    font-family: var(--wm-mono);
+    font-size: var(--wm-text-xs);
+    line-height: 1.5;
+    text-align: center;
+    color: var(--mud-palette-text-primary);
+    background: var(--mud-palette-background-gray);
+    border: 1px solid var(--mud-palette-lines-default);
+    border-bottom-width: 2px;
+    border-radius: 5px;
+}
+
+/* Loading placeholder: a calm pulse, replaced by a static block when motion is reduced. */
+.wm-skeleton {
+    display: block;
+    min-height: 1em;
+    background: var(--mud-palette-action-disabled-background);
+    border-radius: var(--wm-radius);
+    animation: wm-skeleton-pulse 1.4s var(--wm-ease) infinite;
+}
+
+@keyframes wm-skeleton-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.45; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .wm-skeleton { animation: none; }
+    html { scroll-behavior: auto; }
+}
+
+/* Windows high-contrast mode: keep borders and focus visible, since background colours are dropped. */
+@media (forced-colors: active) {
+    :focus-visible { outline: 2px solid Highlight; }
+    .wm-skeleton { border: 1px solid CanvasText; }
+}
+
+@media print {
+    .wm-skip { display: none; }
+}
+
+/* ---------- console tools: search, next error, wrap, exit banner, run filter ---------- */
+.wm-term { position: relative; }
+.wm-term.nowrap .wm-term-line { white-space: pre; word-break: normal; }
+.wm-term-line.hit { background: rgba(210, 153, 34, 0.16); }
+.wm-term-line.hit.current { background: rgba(88, 166, 255, 0.26); box-shadow: inset 3px 0 0 var(--a12); }
+
+.wm-term-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.wm-term-search { flex: 1 1 200px; max-width: 320px; margin-top: 0; }
+.wm-term-count { min-width: 9ch; font-variant-numeric: tabular-nums; }
+
+.wm-term-banner { padding: 8px 12px; font-weight: 600; border-left: 3px solid var(--mud-palette-text-secondary); border-radius: 6px; background: color-mix(in srgb, var(--mud-palette-text-secondary) 10%, transparent); }
+.wm-term-banner.ok { border-left-color: var(--mud-palette-success); background: color-mix(in srgb, var(--mud-palette-success) 10%, transparent); }
+.wm-term-banner.err { border-left-color: var(--mud-palette-error); background: color-mix(in srgb, var(--mud-palette-error) 10%, transparent); }
+
+.wm-console-filter { position: sticky; top: 0; z-index: 1; padding: 8px; background: var(--mud-palette-surface); border-bottom: 1px solid var(--mud-palette-lines-default); }
+.wm-console-filter .wm-input { width: 100%; margin-top: 0; box-sizing: border-box; }
+
+@media (forced-colors: active) {
+    .wm-term-line.hit { outline: 1px solid Highlight; }
+    .wm-term-line.hit.current { outline-width: 3px; }
+}
+
+/* ---------- page picker (Ctrl+K) ---------- */
+.wm-palette-trigger { display: inline-flex; align-items: center; gap: 8px; min-height: 34px; padding: 4px 10px; font: inherit; color: var(--mud-palette-text-secondary); background: transparent; border: 1px solid var(--mud-palette-lines-inputs); border-radius: 8px; cursor: pointer; }
+.wm-palette-trigger:hover { color: var(--mud-palette-text-primary); background: color-mix(in srgb, var(--mud-palette-primary) 8%, transparent); }
+
+.wm-palette-backdrop { position: fixed; inset: 0; z-index: 2100; display: flex; align-items: flex-start; justify-content: center; padding: 12vh 16px 16px; background: rgba(0, 0, 0, 0.45); }
+.wm-palette { display: flex; flex-direction: column; width: min(560px, 100%); max-height: 70vh; overflow: hidden; color: var(--mud-palette-text-primary); background: var(--mud-palette-surface); border: 1px solid var(--mud-palette-lines-default); border-radius: 12px; box-shadow: var(--wm-elev-2); }
+.wm-palette-search { display: flex; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid var(--mud-palette-lines-default); }
+.wm-palette-search:focus-within { box-shadow: inset 0 -2px 0 var(--mud-palette-primary); }
+.wm-palette-input { flex: 1; min-width: 0; font: inherit; font-size: var(--wm-text-md); color: inherit; background: transparent; border: 0; outline: none; }
+.wm-palette-list { margin: 0; padding: 6px; overflow-y: auto; list-style: none; }
+.wm-palette-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 8px; cursor: pointer; }
+.wm-palette-item .wm-muted { margin-left: auto; font-size: var(--wm-text-sm); }
+.wm-palette-item.active { background: color-mix(in srgb, var(--mud-palette-primary) 16%, transparent); }
+.wm-palette-empty { margin: 0; padding: 12px 16px; color: var(--mud-palette-text-secondary); }
+.wm-palette-foot { margin: 0; padding: 8px 14px; font-size: var(--wm-text-xs); color: var(--mud-palette-text-secondary); border-top: 1px solid var(--mud-palette-lines-default); }
+
+@media (max-width: 900px) {
+    .wm-palette-hint { display: none; }
+}
+
+@media (forced-colors: active) {
+    .wm-palette { border: 1px solid CanvasText; }
+    .wm-palette-item.active { outline: 2px solid Highlight; }
+}
+
+/* ---------- tools page: filter bar, and a visible choice in the profile switch ---------- */
+.wm-filter-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 8px 14px; margin: 16px 0 0; }
+.wm-filter-search { flex: 1 1 240px; max-width: 360px; margin-top: 0; }
+.wm-filter-field { display: flex; flex-direction: column; font-size: var(--wm-text-sm); color: var(--mud-palette-text-secondary); }
+.wm-filter-field .wm-select { margin-top: 2px; }
+
+/* The profile switch marks its choice with aria-checked and the class "on"; the gate switch uses aria-pressed. All look the same. */
+.wm-seg button[aria-checked="true"], .wm-seg button.on { background: var(--mud-palette-primary); color: var(--mud-palette-primary-text); font-weight: 600; }
+@media (forced-colors: active) {
+    .wm-seg button[aria-checked="true"], .wm-seg button.on, .wm-seg button[aria-pressed="true"] { outline: 2px solid Highlight; outline-offset: -2px; }
+}
+
+/* A link-looking button for a sentence that offers an action (for example "try this page again"). */
+.wm-link-button { padding: 0; font: inherit; color: var(--mud-palette-primary); text-decoration: underline; background: none; border: 0; cursor: pointer; }
+
+/* ---------- workspaces table: the name cell is a row header, so it must not take the column-header look ---------- */
+.wm-table th.wm-rowhead {
+    min-width: 14rem;
+    font-size: inherit;
+    font-weight: 600;
+    letter-spacing: normal;
+    text-transform: none;
+    white-space: normal;
+    color: var(--mud-palette-text-primary);
+    vertical-align: middle;
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+}
+.wm-table tr:last-child th.wm-rowhead { border-bottom: none; }
+.wm-table th.wm-rowhead .wm-mono { font-size: 12px; font-weight: 400; overflow-wrap: anywhere; }
+.wm-table td.wm-stats { min-width: 13rem; }
+.wm-actions { display: flex; flex-wrap: wrap; gap: 6px; }

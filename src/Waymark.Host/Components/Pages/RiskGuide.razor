@@ -1,0 +1,123 @@
+@page "/safety"
+@inherits LiveComponentBase
+@using Waymark.Core.Commands
+@using Waymark.Host.Ui
+
+<PageTitle>Safety - Waymark</PageTitle>
+
+<div class="wm-page">
+    <h1 class="wm-title">Safety</h1>
+    <p class="wm-lead">Waymark gives an AI agent real access to this computer. This page says what that means, what is switched on to limit the damage, and what was caught.</p>
+
+    @if (_error is not null)
+    {
+        <InlineAlert Severity="Severity.Warning">@_error</InlineAlert>
+    }
+
+    <section class="wm-danger" aria-labelledby="risk-title">
+        <h2 id="risk-title">Risk and responsible use</h2>
+        <p>Anything Claude reads can end up in your Claude chat, and anything it runs acts as you.</p>
+        <ul>
+            <li><strong>Code that runs is not sandboxed.</strong> A test, the app or a script can read your keys (<span class="wm-mono">.ssh</span>, <span class="wm-mono">.aws</span>, NuGet feed logins, user secrets) and reach the internet. That includes code Claude has just written.</li>
+            <li><strong>Deleting the chat does not take anything back.</strong> What already left this computer stays out there. If a secret reached the chat, rotate it.</li>
+            <li><strong>Text from repositories, packages and commit messages is untrusted.</strong> It can try to steer the agent. Read what you approve, and ask why Claude wants it.</li>
+            <li><strong>Keep "Runs code" on Ask</strong> unless the workspace is yours alone.</li>
+            <li><strong>A push sends your commits away.</strong> A secret that was ever committed goes with them.</li>
+        </ul>
+    </section>
+
+    @if (AutoProjectCode.Count > 0)
+    {
+        <div style="margin-top:12px">
+            <InlineAlert Severity="Severity.Error" Title="Code runs without asking">
+                @string.Join(", ", AutoProjectCode.Select(o => o.Label)) can start code from your project, including code Claude has just written, without waiting for you. Set them back to Ask on <a href="commands">Commands</a> unless you mean this.
+            </InlineAlert>
+        </div>
+    }
+
+    <h2 class="wm-section">What is switched on</h2>
+    <ul class="wm-rows" aria-label="Safeguards">
+        <li>
+            <div class="wm-row-main">
+                <strong>Hide secrets before they reach Claude</strong>
+                <div class="wm-muted">Private keys, cloud and source-host tokens, JWTs, passwords in connection strings and URLs, secret-named JSON values and environment lines, and every value in your Vault are replaced by a marker in each tool result, error messages included.</div>
+                <div class="wm-muted">Secrets are recognised by their shape, so one in an unusual form can still get through. Turn off with <span class="wm-mono">Waymark:Safety:RedactSecrets</span>.</div>
+            </div>
+            <StateChip State="@(Options.RedactSecrets ? StatusState.Healthy : StatusState.Failed)" Text="@(Options.RedactSecrets ? "On" : "Off")" />
+        </li>
+        <li>
+            <div class="wm-row-main">
+                <strong>Safety line on every result</strong>
+                <div class="wm-muted">One closing line asks Claude to discard a secret it was shown and to advise you to rotate it and delete the chat. Change it with <span class="wm-mono">Waymark:Safety:FooterText</span>, turn it off with <span class="wm-mono">Waymark:Safety:AppendFooter</span>.</div>
+                <div class="wm-code" style="margin-top:6px">@Options.FooterText</div>
+            </div>
+            <StateChip State="@(Options.AppendFooter ? StatusState.Healthy : StatusState.Off)" Text="@(Options.AppendFooter ? "On" : "Off")" />
+        </li>
+        <li>
+            <div class="wm-row-main">
+                <strong>Markers cannot be written back</strong>
+                <div class="wm-muted">A write or command that contains a finished marker is refused, so a hidden secret never ends up as text in your files.</div>
+            </div>
+            <StateChip State="StatusState.Healthy" Text="Always on" />
+        </li>
+        <li>
+            <div class="wm-row-main">
+                <strong>Operations that run code ask first</strong>
+                <div class="wm-muted">@AskingProjectCodeCount of @ProjectCodeCount operations that start the project's own code (tests, the app, EF, scripts) wait for your approval.</div>
+            </div>
+            <StateChip State="@(AutoProjectCode.Count == 0 ? StatusState.Healthy : StatusState.Failed)" Text="@(AutoProjectCode.Count == 0 ? "All ask" : $"{AutoProjectCode.Count} automatic")" />
+        </li>
+    </ul>
+
+    <h2 class="wm-section">Operations by risk</h2>
+    <div class="wm-table-wrap">
+        <table class="wm-table">
+            <caption class="visually-hidden">Every command operation, how risky it is and whether it runs on its own</caption>
+            <thead>
+                <tr><th scope="col">Operation</th><th scope="col">Risk</th><th scope="col">Default</th><th scope="col">Now, all workspaces</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var operation in Operations)
+                {
+                    var gate = GateOf(operation);
+                    <tr>
+                        <th scope="row">@operation.Label <span class="wm-muted wm-mono">@operation.Key</span></th>
+                        <td><RiskChip Operation="operation" /></td>
+                        <td>@operation.Default</td>
+                        <td><StateChip State="GateState(operation, gate)" Text="@gate.ToString()" /></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <p class="wm-muted">Reads is safe to run on its own. Changes, Runs code and Sends out are worth an approval until you trust the workspace. Per-workspace choices are made on <a href="commands">Commands</a>.</p>
+
+    <h2 class="wm-section">Exposure ledger</h2>
+    <p class="wm-muted">Each row is a time Waymark hid something before it reached Claude. Rotate the credential and remove it from the file or output so it stops showing up. Only kinds and counts are kept, never a value.</p>
+    @if (_ledger.Count == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.Shield" Title="Nothing hidden yet" Text="When Waymark hides a secret in a result, it is listed here." />
+    }
+    else
+    {
+        <div class="wm-table-wrap">
+            <table class="wm-table">
+                <caption class="visually-hidden">Secrets that were hidden before reaching Claude, newest first</caption>
+                <thead>
+                    <tr><th scope="col">When</th><th scope="col">Tool</th><th scope="col">Hidden</th><th scope="col">Client</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _ledger)
+                    {
+                        <tr>
+                            <th scope="row" title="@DisplayFormat.DateAndClock(row.Entry.TimestampUtc)">@DisplayFormat.Ago(row.Entry.TimestampUtc, Time.GetUtcNow())</th>
+                            <td class="wm-mono">@row.Entry.Target</td>
+                            <td class="wm-mono">@row.Entry.ArgsRedacted</td>
+                            <td>@row.Entry.Actor</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

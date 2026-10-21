@@ -1,0 +1,157 @@
+@page "/console/{RunId:long?}"
+@inherits LiveComponentBase
+@using Waymark.Core.Commands
+@using Waymark.Host.Ui
+
+<PageTitle>Console - Waymark</PageTitle>
+
+<div class="wm-page wide wm-console-page">
+    <header class="wm-home-head">
+        <div>
+            <h1 class="wm-title">Console</h1>
+            <p class="wm-lead" style="margin-bottom:0">Everything Claude runs on this computer shows up here as it happens. You can watch it and stop it; only Claude starts commands.</p>
+        </div>
+        <div class="wm-row">
+            <button type="button" class="wm-toggle @(_followNew ? "on" : "")" aria-pressed="@(_followNew ? "true" : "false")" @onclick="ToggleFollowAsync">
+                <MudIcon Icon="@Icons.Material.Filled.Bolt" Size="Size.Small" />
+                <span>@(_followNew ? "Following new commands" : "Follow new commands")</span>
+            </button>
+        </div>
+    </header>
+
+    @if (_error is not null)
+    {
+        <InlineAlert Severity="Severity.Warning">@_error</InlineAlert>
+    }
+
+    @foreach (var waiting in _pending)
+    {
+        <CommandApprovalCard @key="waiting.Id" Run="waiting" OnDecided="OnDecidedAsync" />
+    }
+
+    <div class="wm-tabs" role="tablist" aria-label="Where commands run">
+        @foreach (var tab in Tabs)
+        {
+            <button type="button" role="tab" class="wm-tab @(tab.Id == _tab ? "active" : "")" aria-selected="@(tab.Id == _tab ? "true" : "false")" @onclick="() => SelectTabAsync(tab.Id)">
+                <span>@tab.Name</span>
+                @if (tab.Active > 0)
+                {
+                    <span class="wm-badge" aria-label="@tab.Active running or waiting">@tab.Active</span>
+                }
+            </button>
+        }
+    </div>
+
+    <div class="wm-console">
+        <nav class="wm-console-list" aria-label="Commands">
+            <div class="wm-console-filter">
+                <input class="wm-input" type="search" placeholder="Filter commands" aria-label="Filter commands" @bind="_runFilter" @bind:event="oninput" />
+            </div>
+
+            @if (TabRuns.Count == 0)
+            {
+                <div class="wm-console-empty">@(_runFilter.Trim().Length > 0 ? "No command matches the filter." : "Nothing has run here yet.")</div>
+            }
+
+            @foreach (var commandRun in TabRuns)
+            {
+                <a class="wm-run @(commandRun.Id == _selected?.Id ? "active" : "")" href="console/@commandRun.Id" aria-current="@(commandRun.Id == _selected?.Id ? "true" : null)">
+                    <span class="wm-run-dot @DotClass(commandRun)" aria-hidden="true"></span>
+                    <span class="wm-run-main">
+                        <span class="wm-run-title">@Label(commandRun)</span>
+                        <span class="wm-run-cmd wm-mono">@Short(commandRun.CommandLine)</span>
+                    </span>
+                    <span class="wm-run-when">@DisplayFormat.Ago(commandRun.RequestedUtc, Time.GetUtcNow())</span>
+                </a>
+            }
+        </nav>
+
+        <section class="wm-console-main" aria-label="Output">
+            @if (_selected is not { } run)
+            {
+                <div class="wm-console-empty big">
+                    <MudIcon Icon="@Icons.Material.Outlined.Computer" Size="Size.Large" />
+                    <div>Pick a command on the left, or wait: the next one Claude starts appears here by itself.</div>
+                </div>
+            }
+            else
+            {
+                <div class="wm-term-head">
+                    <div class="wm-term-title">
+                        <StateChip State="Chip(run).State" Text="@Chip(run).Text" />
+                        <strong>@Label(run)</strong>
+                        <span class="wm-muted">in @run.WorkspaceName</span>
+                    </div>
+                    <div class="wm-term-tools">
+                        @if (run.Status.IsActive())
+                        {
+                            <MudButton Variant="Variant.Outlined" Color="Color.Error" Size="Size.Small" StartIcon="@Icons.Material.Filled.Stop" Disabled="_busy" OnClick="StopAsync">Stop</MudButton>
+                        }
+
+                        <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="CopyOutputAsync">Copy output</MudButton>
+                        <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Filled.Code" OnClick="CopyCommandAsync">Copy command</MudButton>
+                        <MudButton Variant="Variant.Text" Size="Size.Small" StartIcon="@Icons.Material.Filled.KeyboardDoubleArrowDown" OnClick="ToEndAsync">End</MudButton>
+                    </div>
+                </div>
+
+                <div class="wm-term-meta">
+                    <span>@Elapsed(run)</span>
+                    @if (run.ExitCode is { } exit)
+                    {
+                        <span>exit code @exit</span>
+                    }
+                    <span>asked by @run.Actor @DisplayFormat.Ago(run.RequestedUtc, Time.GetUtcNow())</span>
+                    @if (run.DecidedBy is not null)
+                    {
+                        <span>approved by you</span>
+                    }
+                    @if (run.Purpose.Length > 0)
+                    {
+                        <span class="wm-ellipsis" title="@run.Purpose">why: @run.Purpose</span>
+                    }
+                </div>
+
+                @if (!string.IsNullOrWhiteSpace(run.Note))
+                {
+                    <div class="wm-term-note">@run.Note</div>
+                }
+
+                @if (BannerText(run) is not null)
+                {
+                    <div class="wm-term-banner @BannerClass(run)" role="status">@BannerText(run)</div>
+                }
+
+                <div class="wm-term-bar" role="search" aria-label="Search this output">
+                    <input id="wm-term-search" class="wm-input wm-term-search" type="search" placeholder="Search output  ( / )" aria-label="Search this output" @bind="_query" @bind:event="oninput" @bind:after="OnQueryChangedAsync" @onkeydown="OnSearchKeyAsync" />
+                    <span class="wm-muted wm-term-count" aria-live="polite">@_findInfo</span>
+                    <MudIconButton id="wm-term-prev" Icon="@Icons.Material.Filled.KeyboardArrowUp" Size="Size.Small" Disabled="@(_query.Trim().Length == 0)" OnClick="() => StepAsync(false)" aria-label="Previous match" />
+                    <MudIconButton id="wm-term-next" Icon="@Icons.Material.Filled.KeyboardArrowDown" Size="Size.Small" Disabled="@(_query.Trim().Length == 0)" OnClick="() => StepAsync(true)" aria-label="Next match" />
+                    <button id="wm-term-error" type="button" class="wm-toggle" @onclick="NextErrorAsync">
+                        <MudIcon Icon="@Icons.Material.Filled.ErrorOutline" Size="Size.Small" />
+                        <span>Next error</span>
+                    </button>
+                    <button id="wm-term-wrap" type="button" class="wm-toggle @(_wrap ? "on" : "")" aria-pressed="@(_wrap ? "true" : "false")" @onclick="ToggleWrapAsync">
+                        <span>Wrap lines</span>
+                    </button>
+                </div>
+
+                <div id="wm-term" class="wm-term @(_wrap ? string.Empty : "nowrap")" tabindex="0" role="log" aria-label="Output of the command">
+                    @if (_buffer.DroppedLines > 0)
+                    {
+                        <div class="wm-term-gap">@DisplayFormat.Count(_buffer.DroppedLines) earlier lines are not shown here. The whole output is stored with the run.</div>
+                    }
+
+                    @foreach (var block in _buffer.Blocks)
+                    {
+                        <ConsoleBlock @key="block.Id" Block="block" Buffer="_buffer" Version="block.Version" />
+                    }
+
+                    @if (run.Status == CommandRunStatus.WaitingApproval)
+                    {
+                        <div class="wm-term-wait">Waiting for your decision above. Nothing has run.</div>
+                    }
+                </div>
+            }
+        </section>
+    </div>
+</div>

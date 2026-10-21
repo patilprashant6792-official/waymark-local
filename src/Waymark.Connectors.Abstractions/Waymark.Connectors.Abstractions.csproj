@@ -1,0 +1,3 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><AssemblyName>Waymark.Connectors.Abstractions</AssemblyName><RootNamespace>Waymark.Connectors.Abstractions</RootNamespace></PropertyGroup>
+</Project>

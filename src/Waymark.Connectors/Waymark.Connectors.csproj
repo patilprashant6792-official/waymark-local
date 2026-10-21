@@ -1,0 +1,7 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><AssemblyName>Waymark.Connectors</AssemblyName><RootNamespace>Waymark.Connectors</RootNamespace></PropertyGroup>
+  <ItemGroup>
+	<ProjectReference Include="..\Waymark.Core\Waymark.Core.csproj" />
+	<ProjectReference Include="..\Waymark.Connectors.Abstractions\Waymark.Connectors.Abstractions.csproj" />
+  </ItemGroup>
+</Project>

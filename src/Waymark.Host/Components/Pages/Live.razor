@@ -1,0 +1,96 @@
+﻿@page "/live"
+@inherits LiveComponentBase
+@using MudBlazor
+@using Waymark.Core.LiveFeed
+@using Waymark.Host.Ui
+@using Waymark.Logging
+
+<PageTitle>Live - Waymark</PageTitle>
+
+<div class="wm-page wide">
+    <h1 class="wm-title">Live</h1>
+    <p class="wm-lead">Tool calls, file changes, sign-ins and commands as they happen, plus errors. Kept in memory only: the last @MaxKept lines, gone after a restart.</p>
+
+    <section class="wm-now" aria-label="Happening now" aria-live="polite">
+        @if (_running.Count == 0)
+        {
+            <div class="wm-calm slim">
+                <MudIcon Icon="@Icons.Material.Filled.CheckCircle" Size="Size.Small" />
+                <span><strong>Idle.</strong> Nothing is running right now.</span>
+            </div>
+        }
+        else
+        {
+            <ul class="wm-now-list" aria-label="Running now">
+                @foreach (var item in _running)
+                {
+                    <li class="wm-now-item">
+                        <span class="wm-run-dot run" aria-hidden="true"></span>
+                        <span class="wm-now-kind">@KindWord(item.Kind)</span>
+                        <span>@item.Label</span>
+                        <span class="wm-now-time">@Elapsed(item)</span>
+                    </li>
+                }
+            </ul>
+        }
+    </section>
+
+    <div class="wm-tabs" role="tablist" aria-label="Streams">
+        @foreach (var tab in Tabs)
+        {
+            <button type="button" role="tab" class="wm-tab @(tab.Id == _tab ? "active" : "")" aria-selected="@(tab.Id == _tab ? "true" : "false")" @onclick="() => SelectTab(tab.Id)">
+                <span>@tab.Name</span>
+                @if (tab.Id == ErrorsTab && _problemCount > 0)
+                {
+                    <span class="wm-badge" aria-label="@_problemCount errors and warnings">@_problemCount</span>
+                }
+            </button>
+        }
+    </div>
+
+    <div class="wm-live-bar">
+        <input id="wm-live-search" class="wm-input wm-live-search" type="search" placeholder="Filter this tab" aria-label="Filter this tab" @bind="_text" @bind:event="oninput" @bind:after="Refresh" />
+        @if (_paused)
+        {
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.PlayArrow" OnClick="() => _paused = false">Resume</MudButton>
+            <span class="wm-muted">Paused: new lines are skipped.</span>
+        }
+        else
+        {
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Pause" OnClick="() => _paused = true">Pause</MudButton>
+        }
+
+        <MudButton Variant="Variant.Text" OnClick="Clear">Clear</MudButton>
+        @if (Dropped > 0)
+        {
+            <span class="wm-muted">@DisplayFormat.Count(Dropped) lines were skipped because this page could not keep up.</span>
+        }
+    </div>
+
+    <div id="wm-live-term" class="wm-term wm-live-term" tabindex="0" role="log" aria-label="Live activity">
+        @if (_rows.Count == 0)
+        {
+            <div class="wm-live-empty">Waiting for activity. Tool calls, file changes, sign-ins and commands show up here.</div>
+        }
+
+        @foreach (var entry in _rows)
+        {
+            <div class="wm-live-row" @key="entry.Id">
+                <div class="wm-term-line wm-live-line @LevelClass(entry.Level)">
+                    <span class="wm-live-time">@DisplayFormat.Clock(entry.TimestampUtc)</span>
+                    <span class="wm-live-kind @KindWord(entry.Kind)">@KindWord(entry.Kind)</span>
+                    <span class="wm-live-lvl">@LevelWord(entry.Level)</span>
+                    <span class="wm-live-msg">@entry.Message</span>
+                    @if (HasDetails(entry))
+                    {
+                        <button type="button" class="wm-live-more" aria-expanded="@(_open.Contains(entry.Id) ? "true" : "false")" @onclick="() => Toggle(entry.Id)">details</button>
+                    }
+                </div>
+                @if (HasDetails(entry) && _open.Contains(entry.Id))
+                {
+                    <pre class="wm-live-exc">@entry.Exception</pre>
+                }
+            </div>
+        }
+    </div>
+</div>

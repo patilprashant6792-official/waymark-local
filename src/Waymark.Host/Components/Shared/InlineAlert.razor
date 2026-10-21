@@ -1,0 +1,21 @@
+﻿@using MudBlazor
+
+<MudAlert Severity="Severity" Variant="Variant.Outlined" Dense="false" role="alert">
+    @if (!string.IsNullOrEmpty(Title))
+    {
+        <strong>@Title</strong>
+        <br />
+    }
+    @ChildContent
+</MudAlert>
+
+@code {
+    [Parameter]
+    public Severity Severity { get; set; } = Severity.Info;
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

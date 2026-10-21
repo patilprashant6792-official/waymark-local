@@ -1,0 +1,28 @@
+@inherits LiveComponentBase
+@using MudBlazor
+@using Waymark.Host.Ui
+
+<section class="wm-panel" aria-labelledby="live-card-title">
+    <header class="wm-panel-head">
+        <h2 id="live-card-title">Live log<ActivityDot Token="@_version.ToString()" /></h2>
+        <a class="wm-expand" href="live" title="Open the full live log" aria-label="Open the full live log">
+            <MudIcon Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" />
+        </a>
+    </header>
+    <div id="@TerminalId" class="wm-term wm-live-term wm-live-mini" tabindex="0" role="log" aria-live="off" aria-label="Latest live activity">
+        @if (_rows.Count == 0)
+        {
+            <div class="wm-live-empty">Waiting for activity. Tool calls, file changes, sign-ins and commands show up here.</div>
+        }
+
+        @foreach (var entry in _rows)
+        {
+            <div class="wm-term-line wm-live-line @LiveLineFormat.LevelClass(entry.Level)" @key="entry.Id">
+                <span class="wm-live-time">@DisplayFormat.Clock(entry.TimestampUtc)</span>
+                <span class="wm-live-kind @LiveLineFormat.KindWord(entry.Kind)">@LiveLineFormat.KindWord(entry.Kind)</span>
+                <span class="wm-live-lvl">@LiveLineFormat.LevelWord(entry.Level)</span>
+                <span class="wm-live-msg">@entry.Message</span>
+            </div>
+        }
+    </div>
+</section>

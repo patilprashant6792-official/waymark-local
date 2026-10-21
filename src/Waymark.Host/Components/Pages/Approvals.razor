@@ -1,0 +1,134 @@
+﻿@page "/approvals"
+@inherits LiveComponentBase
+@using Microsoft.AspNetCore.Components.Web
+@using MudBlazor
+@using Waymark.Core.Approvals
+@using Waymark.Host.Components.Shared
+@using Waymark.Host.Ui
+
+<PageTitle>Approvals - Waymark</PageTitle>
+
+<div class="wm-page">
+    <h1 class="wm-title">Approvals</h1>
+    <p class="wm-lead">Apps ask to connect here. Nothing connects until you say yes.</p>
+
+    @if (_error is not null)
+    {
+        <InlineAlert Severity="Severity.Warning">@_error</InlineAlert>
+    }
+
+    <h2 class="wm-section" style="margin-top:0">Waiting</h2>
+    @if (_pending.Count == 0)
+    {
+        <div class="wm-calm">
+            <MudIcon Icon="@Icons.Material.Outlined.CheckCircle" Size="Size.Large" />
+            <div>
+                <div class="wm-big">Nothing is waiting for you.</div>
+                <div>A pairing request stays open for five minutes.</div>
+            </div>
+        </div>
+    }
+    else
+    {
+        @foreach (var approval in _pending)
+        {
+            <section class="wm-card" aria-label="Pairing request @DisplayFormat.PairingCode(approval.PairingCode)">
+                <div class="wm-row spread">
+                    <div class="wm-pairing">@DisplayFormat.PairingCode(approval.PairingCode)</div>
+                    <StateChip State="StatusState.Attention" Text="@($"Expires in {SecondsLeft(approval)}")" Icon="@Icons.Material.Filled.Timer" />
+                </div>
+                <dl class="wm-dl">
+                    <dt>App</dt>
+                    <dd>@approval.ClientNameClaimed <span class="wm-muted">(the app names itself; Waymark cannot check it)</span></dd>
+                    <dt>Returns to</dt>
+                    <dd class="wm-mono">@approval.RedirectHost</dd>
+                    <dt>Connects to</dt>
+                    <dd class="wm-mono">@approval.Resource</dd>
+                    <dt>Asked</dt>
+                    <dd>@DisplayFormat.Ago(approval.RequestedUtc, Time.GetUtcNow())</dd>
+                </dl>
+                <div class="wm-row" style="margin-top:12px">
+                    <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy" OnClick="() => DecideAsync(approval, false)">Deny</MudButton>
+                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Disabled="_busy" OnClick="() => DecideAsync(approval, true)">Approve</MudButton>
+                </div>
+            </section>
+        }
+    }
+
+    <div class="wm-row spread">
+        <h2 class="wm-section">Connected apps</h2>
+        @if (HasDisconnected)
+        {
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" Disabled="_busy" OnClick="ClearDisconnectedAsync" title="Removes disconnected apps only; active apps stay">Clear disconnected</MudButton>
+        }
+    </div>
+    @if (_clients.Count == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.Link" Title="No apps registered" Text="An app appears here after it has asked to connect once." />
+    }
+    else
+    {
+        <div class="wm-table-wrap">
+            <table class="wm-table">
+                <caption class="visually-hidden">Apps that registered with Waymark</caption>
+                <thead>
+                    <tr><th scope="col">App</th><th scope="col">Returns to</th><th scope="col">Registered</th><th scope="col">Last used</th><th scope="col">State</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var client in _clients)
+                    {
+                        <tr>
+                            <td><strong>@client.ClientName</strong></td>
+                            <td class="wm-mono">@string.Join(", ", client.RedirectUris.Select(u => new Uri(u).Host).Distinct())</td>
+                            <td>@DisplayFormat.Ago(client.RegisteredUtc, Time.GetUtcNow())</td>
+                            <td>@DisplayFormat.Ago(client.LastUsedUtc, Time.GetUtcNow())</td>
+                            <td><StateChip State="@(client.IsRevoked ? StatusState.Off : StatusState.Healthy)" Text="@(client.IsRevoked ? "Disconnected" : "Active")" /></td>
+                            <td class="num">
+                                @if (!client.IsRevoked)
+                                {
+                                    <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" Disabled="_busy" OnClick="() => RevokeAsync(client)">Disconnect</MudButton>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+
+    <div class="wm-row spread">
+        <h2 class="wm-section">Recent decisions</h2>
+        @if (HasClearableHistory)
+        {
+            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" Disabled="_busy" OnClick="ClearHistoryAsync" title="Keeps waiting requests and approvals of active apps">Clear history</MudButton>
+        }
+    </div>
+    @if (_history.Count == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.History" Title="No decisions yet" />
+    }
+    else
+    {
+        <div class="wm-table-wrap">
+            <table class="wm-table">
+                <caption class="visually-hidden">The most recent pairing requests and what happened to them</caption>
+                <thead>
+                    <tr><th scope="col">When</th><th scope="col">Code</th><th scope="col">App</th><th scope="col">Returns to</th><th scope="col">Result</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var approval in _history)
+                    {
+                        var state = HistoryState(approval);
+                        <tr>
+                            <td>@DisplayFormat.DateAndClock(approval.RequestedUtc)</td>
+                            <td class="wm-mono">@DisplayFormat.PairingCode(approval.PairingCode)</td>
+                            <td>@approval.ClientNameClaimed</td>
+                            <td class="wm-mono">@approval.RedirectHost</td>
+                            <td><StateChip State="state.State" Text="@state.Text" /></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

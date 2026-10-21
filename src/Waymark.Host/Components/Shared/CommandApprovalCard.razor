@@ -1,0 +1,141 @@
+@using Waymark.Core.Commands
+@using Waymark.Host.Ui
+@using Waymark.Modules.Commands
+@inject ICommandRuns Runs
+@inject CommandsOptions Options
+@inject TimeProvider Time
+@inject ISnackbar Snackbar
+
+<section class="wm-card wm-cmd-card" aria-label="A command waits for your approval">
+    <div class="wm-row spread">
+        <h2 class="wm-card-title">Claude wants to run: @Title</h2>
+        <StateChip State="StatusState.Attention" Text="@ExpiresText" Icon="@Icons.Material.Filled.Timer" />
+    </div>
+    <p class="wm-muted">Nothing runs until you approve. You can read it first and, for a shell script, change it.</p>
+    <dl class="wm-dl">
+        <dt>Where</dt>
+        <dd>@Run.WorkspaceName <span class="wm-mono wm-muted">@Run.WorkingDirectory</span></dd>
+        <dt>Why</dt>
+        <dd>@Run.Purpose</dd>
+        <dt>Kind</dt>
+        <dd>@(Run.Tier == CommandTier.Shell ? $"Shell script ({Run.Shell})" : "Checked command, started without a shell")</dd>
+        @if (!string.IsNullOrWhiteSpace(Run.AskReason))
+        {
+            <dt>Asked because</dt>
+            <dd>@Run.AskReason</dd>
+        }
+    </dl>
+
+    @if (Operation is { } operation)
+    {
+        <div class="wm-tier-row"><RiskChip Operation="operation" /></div>
+        @if (RiskTiers.RunsProjectCode(operation))
+        {
+            <div class="wm-risk-note" role="note"><strong>Before you approve:</strong> this starts code with your user rights. If Claude wrote or changed that code, read it first. It can read your keys and reach the internet.</div>
+        }
+    }
+
+    @if (Run.Risks.Count > 0)
+    {
+        <ul class="wm-risks" aria-label="Things this script seems to do">
+            @foreach (var risk in Run.Risks)
+            {
+                <li><span class="wm-chip warn"><MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small" /><span>@risk</span></span></li>
+            }
+        </ul>
+    }
+
+    @if (_editing)
+    {
+        <label class="visually-hidden" for="@EditorId">Script to run</label>
+        <textarea id="@EditorId" class="wm-script-edit" rows="@EditorRows" spellcheck="false" @bind="_script" @bind:event="oninput"></textarea>
+    }
+    else
+    {
+        <pre class="wm-cmd-pre" tabindex="0">@Run.CommandLine</pre>
+    }
+
+    @if (_error is not null)
+    {
+        <InlineAlert Severity="Severity.Warning">@_error</InlineAlert>
+    }
+
+    <div class="wm-row wm-cmd-actions">
+        <input class="wm-input wm-reason" type="text" maxlength="200" placeholder="Reason for denying (optional)" aria-label="Reason for denying" @bind="_reason" @bind:event="oninput" />
+        <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy" OnClick="() => DecideAsync(false)">Deny</MudButton>
+        @if (Run.Tier == CommandTier.Shell)
+        {
+            <MudButton Variant="Variant.Text" Disabled="_busy" OnClick="ToggleEdit">@(_editing ? "Show original" : "Edit script")</MudButton>
+        }
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="() => DecideAsync(true)">@(IsEdited ? "Approve edited script" : "Approve and run")</MudButton>
+    </div>
+</section>
+
+@code {
+    private bool _editing;
+    private bool _busy;
+    private string _script = string.Empty;
+    private string _reason = string.Empty;
+    private string? _error;
+
+    [Parameter, EditorRequired]
+    public CommandRun Run { get; set; } = default!;
+
+    /// <summary>Raised after the decision was recorded (or found to be too late), so the page can reload.</summary>
+    [Parameter]
+    public EventCallback OnDecided { get; set; }
+
+    private string EditorId => $"script-edit-{Run.Id}";
+
+    private int EditorRows => Math.Clamp(_script.Count(c => c == '\n') + 2, 4, 18);
+
+    private bool IsEdited => _editing && !string.Equals(_script.Trim(), Run.CommandLine.Trim(), StringComparison.Ordinal);
+
+    private string Title => CommandCatalog.TryGet(Run.Operation, out var info) && info is not null ? info.Label : Run.Operation;
+
+    private OperationInfo? Operation => CommandCatalog.TryGet(Run.Operation, out var info) ? info : null;
+
+    private string ExpiresText
+    {
+        get
+        {
+            var left = Run.RequestedUtc + Options.ApprovalTimeout - Time.GetUtcNow();
+            var seconds = (int)Math.Max(0, left.TotalSeconds);
+            return $"Expires in {seconds / 60}:{seconds % 60:00}";
+        }
+    }
+
+    private void ToggleEdit()
+    {
+        _editing = !_editing;
+        if (_editing && _script.Length == 0)
+        {
+            _script = Run.CommandLine;
+        }
+    }
+
+    private async Task DecideAsync(bool approve)
+    {
+        _busy = true;
+        _error = null;
+        try
+        {
+            var edited = approve && IsEdited ? _script : null;
+            var done = await Runs.DecideAsync(Run.Id, approve, approve ? null : _reason, edited, CancellationToken.None);
+            if (!done)
+            {
+                Snackbar.Add("That command was no longer waiting.", Severity.Warning);
+            }
+
+            await OnDecided.InvokeAsync();
+        }
+        catch (ArgumentException ex)
+        {
+            _error = ex.Message;
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+}

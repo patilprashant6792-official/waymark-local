@@ -1,0 +1,83 @@
+﻿@page "/access-keys"
+@inherits LiveComponentBase
+@using Microsoft.AspNetCore.Components.Web
+@using MudBlazor
+@using Waymark.Host.Components.Shared
+@using Waymark.Host.Ui
+
+<PageTitle>Access keys - Waymark</PageTitle>
+
+<div class="wm-page">
+    <h1 class="wm-title">Access keys</h1>
+    <p class="wm-lead">Long-lived keys for scripts and tools that cannot sign in through the browser. Prefer the normal pairing flow for Claude.</p>
+
+    @if (_error is not null)
+    {
+        <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
+    }
+
+    @if (_created is { } created)
+    {
+        <section class="wm-card" aria-labelledby="created-title" style="margin-bottom:16px">
+            <h2 id="created-title" class="wm-card-title">Your new key</h2>
+            <p>Copy it now. Waymark keeps only a fingerprint, so this is the only time it can be shown.</p>
+            <div class="wm-code">@created.Value</div>
+            <div class="wm-row" style="margin-top:8px">
+                <CopyButton Text="@created.Value" Label="Copy key" />
+                <MudButton Variant="Variant.Text" OnClick="() => _created = null">I have saved it</MudButton>
+            </div>
+        </section>
+    }
+
+    <section class="wm-card" aria-labelledby="new-title">
+        <h2 id="new-title" class="wm-card-title">Create a key</h2>
+        <div class="wm-row">
+            <MudTextField @bind-Value="_name" Label="Name" Variant="Variant.Outlined" MaxLength="60" Immediate="true"
+                          HelperText="What it is for, so you can recognise it later." Style="min-width:260px" />
+            <MudSelect T="int" @bind-Value="_lifetimeDays" Label="Lasts" Variant="Variant.Outlined" Style="min-width:180px">
+                @foreach (var option in Lifetimes)
+                {
+                    <MudSelectItem T="int" Value="option.Days">@option.Text</MudSelectItem>
+                }
+            </MudSelect>
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_busy || string.IsNullOrWhiteSpace(_name))" OnClick="CreateAsync">Create key</MudButton>
+        </div>
+    </section>
+
+    <h2 class="wm-section">Keys</h2>
+    @if (_keys.Count == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.VpnKey" Title="No keys yet" Text="Created keys are listed here with the last four characters, never the whole key." />
+    }
+    else
+    {
+        <div class="wm-table-wrap">
+            <table class="wm-table">
+                <caption class="visually-hidden">Access keys</caption>
+                <thead>
+                    <tr><th scope="col">Name</th><th scope="col">Ends in</th><th scope="col">Created</th><th scope="col">Expires</th><th scope="col">Last used</th><th scope="col">State</th><th scope="col"><span class="visually-hidden">Actions</span></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var key in _keys)
+                    {
+                        var state = StateOf(key);
+                        <tr>
+                            <td><strong>@key.Name</strong></td>
+                            <td class="wm-mono">@key.Hint</td>
+                            <td>@DisplayFormat.Ago(key.CreatedUtc, Time.GetUtcNow())</td>
+                            <td>@(key.ExpiresUtc is { } expires ? DisplayFormat.DateAndClock(expires) : "never")</td>
+                            <td>@DisplayFormat.Ago(key.LastUsedUtc, Time.GetUtcNow())</td>
+                            <td><StateChip State="state.State" Text="@state.Text" /></td>
+                            <td class="num">
+                                @if (!key.IsRevoked)
+                                {
+                                    <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" Disabled="_busy" OnClick="() => RevokeAsync(key)">Revoke</MudButton>
+                                }
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

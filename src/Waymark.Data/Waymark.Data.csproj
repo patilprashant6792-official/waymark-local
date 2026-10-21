@@ -1,0 +1,9 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><AssemblyName>Waymark.Data</AssemblyName><RootNamespace>Waymark.Data</RootNamespace></PropertyGroup>
+  <ItemGroup><ProjectReference Include="..\Waymark.Core\Waymark.Core.csproj" /><ProjectReference Include="..\Waymark.Logging\Waymark.Logging.csproj" /></ItemGroup>
+	<ItemGroup>
+	<PackageReference Include="Microsoft.Data.Sqlite" />
+	<PackageReference Include="Dapper" />
+  </ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Migrations\*.sql" LogicalName="Waymark.Data.Migrations.%(Filename)%(Extension)" /></ItemGroup>
+</Project>

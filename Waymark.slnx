@@ -1,0 +1,12 @@
+﻿<Solution>
+  <Project Path="src/Waymark.Host/Waymark.Host.csproj" />
+  <Project Path="src/Waymark.Core/Waymark.Core.csproj" />
+  <Project Path="src/Waymark.Data/Waymark.Data.csproj" />
+  <Project Path="src/Waymark.Logging/Waymark.Logging.csproj" />
+  <Project Path="src/Waymark.Modules.Code/Waymark.Modules.Code.csproj" />
+  <Project Path="src/Waymark.Modules.NuGet/Waymark.Modules.NuGet.csproj" />
+  <Project Path="src/Waymark.Modules.Files/Waymark.Modules.Files.csproj" />
+  <Project Path="src/Waymark.Modules.Commands/Waymark.Modules.Commands.csproj" />
+  <Project Path="src/Waymark.Connectors.Abstractions/Waymark.Connectors.Abstractions.csproj" />
+  <Project Path="src/Waymark.Connectors/Waymark.Connectors.csproj" />
+</Solution>

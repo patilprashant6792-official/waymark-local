@@ -1,0 +1,174 @@
+@implements IAsyncDisposable
+@using MudBlazor
+@inject NavigationManager Navigation
+@inject IJSRuntime Js
+
+@* A way to jump to a page from the keyboard. It only navigates: nothing here runs, approves or changes anything. *@
+<button type="button" class="wm-palette-trigger" aria-haspopup="dialog" aria-label="Go to a page (Ctrl+K)" @onclick="Open">
+    <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" />
+    <span class="wm-palette-hint">Go to a page</span>
+    <kbd class="wm-kbd">Ctrl K</kbd>
+</button>
+
+@if (_open)
+{
+    <div class="wm-palette-backdrop" role="presentation" @onclick="Close">
+        <div class="wm-palette" role="dialog" aria-modal="true" aria-label="Go to a page" @onclick:stopPropagation="true" @onkeydown="OnKey">
+            <div class="wm-palette-search">
+                <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" />
+                <input id="wm-palette-input" class="wm-palette-input" type="text" role="combobox" aria-expanded="true" aria-controls="wm-palette-list" aria-activedescendant="@ActiveId" aria-label="Go to a page" placeholder="Go to a page..." autocomplete="off" spellcheck="false" @bind="_text" @bind:event="oninput" @bind:after="Filter" />
+            </div>
+            <ul id="wm-palette-list" class="wm-palette-list" role="listbox" aria-label="Pages">
+                @for (var i = 0; i < _matches.Count; i++)
+                {
+                    var index = i;
+                    var item = _matches[i];
+                    <li id="@OptionId(i)" class="wm-palette-item @(i == _selected ? "active" : "")" role="option" aria-selected="@(i == _selected ? "true" : "false")" @onclick="() => Go(item)" @onmouseover="() => _selected = index">
+                        <MudIcon Icon="@item.Icon" Size="Size.Small" />
+                        <span>@item.Title</span>
+                        <span class="wm-muted">@item.Hint</span>
+                    </li>
+                }
+            </ul>
+            @if (_matches.Count == 0)
+            {
+                <p class="wm-palette-empty">No page matches "@_text".</p>
+            }
+
+            <p class="wm-palette-foot">Up and down to move, Enter to open, Esc to close</p>
+        </div>
+    </div>
+}
+
+@code {
+    private static readonly PaletteItem[] Items =
+    [
+        new("Home", string.Empty, Icons.Material.Filled.Home, "Dashboard", "overview start"),
+        new("Approvals", "approvals", Icons.Material.Filled.HowToReg, "Pairings waiting for you", "pairing connect clients"),
+        new("Console", "console", Icons.Material.Filled.Computer, "Live terminal of commands", "terminal output shell run"),
+        new("Audit", "audit", Icons.Material.Filled.History, "Stored record of calls", "history log trail"),
+        new("Live log", "live", Icons.Material.Filled.Terminal, "Tool calls, file changes, sign-ins", "activity watcher auth errors"),
+        new("Workspaces", "workspaces", Icons.Material.Filled.Folder, "Folders Claude may read", "folders index access rules"),
+        new("Tools", "tools", Icons.Material.Filled.Build, "Switch tools on or off", "profiles token"),
+        new("Host prompt", "guides", Icons.Material.Filled.MenuBook, "Your instructions for every connected agent", "guides instructions skills teach prompts"),
+        new("NuGet", "nuget", Icons.Material.Filled.Inventory, "Package index", "packages explorer cache"),
+        new("Commands", "commands", Icons.Material.Filled.Tune, "What Claude may run", "gates off ask auto shell trust"),
+        // Connectors and Vault are hidden for now and kept for further implementation:
+        // new("Connectors", "connectors", Icons.Material.Filled.Extension, "Connected apps", "apps data"),
+        // new("Vault", "vault", Icons.Material.Filled.Lock, "Named secrets", "secrets passwords"),
+        new("Safety", "safety", Icons.Material.Filled.Shield, "Risks, safeguards, exposure ledger", "risk danger leak redact secrets exposure"),
+        new("Access keys", "access-keys", Icons.Material.Filled.VpnKey, "Keys for clients", "api tokens"),
+        new("Setup", "setup", Icons.Material.Filled.Settings, "Tunnel and public address", "ngrok tunnel domain"),
+    ];
+
+    private DotNetObjectReference<CommandPalette>? _self;
+    private List<PaletteItem> _matches = [.. Items];
+    private bool _open;
+    private bool _focus;
+    private string _text = string.Empty;
+    private int _selected;
+
+    private string? ActiveId => _matches.Count == 0 ? null : OptionId(_selected);
+
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        try
+        {
+            if (firstRender)
+            {
+                _self = DotNetObjectReference.Create(this);
+                await Js.InvokeVoidAsync("wmPalette.register", _self);
+            }
+
+            if (_focus)
+            {
+                _focus = false;
+                await Js.InvokeVoidAsync("waymark.focusById", "wm-palette-input");
+            }
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+            // The circuit ended or the page is not interactive yet; the trigger button still works.
+        }
+    }
+
+    // Called by the Ctrl+K shortcut.
+    [JSInvokable]
+    public Task ToggleAsync() => InvokeAsync(() =>
+    {
+        if (_open)
+        {
+            Close();
+        }
+        else
+        {
+            Open();
+        }
+
+        StateHasChanged();
+    });
+
+    private void Open()
+    {
+        _open = true;
+        _text = string.Empty;
+        _selected = 0;
+        _matches = [.. Items];
+        _focus = true;
+    }
+
+    private void Close() => _open = false;
+
+    private void Filter()
+    {
+        var terms = _text.Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
+        _matches = Items.Where(item => terms.All(term => item.SearchText.Contains(term, StringComparison.OrdinalIgnoreCase))).ToList();
+        _selected = 0;
+    }
+
+    private void OnKey(KeyboardEventArgs e)
+    {
+        switch (e.Key)
+        {
+            case "Escape":
+                Close();
+                break;
+            case "ArrowDown":
+                _selected = Math.Min(_selected + 1, Math.Max(_matches.Count - 1, 0));
+                break;
+            case "ArrowUp":
+                _selected = Math.Max(_selected - 1, 0);
+                break;
+            case "Enter" when _matches.Count > 0:
+                Go(_matches[_selected]);
+                break;
+        }
+    }
+
+    private void Go(PaletteItem item)
+    {
+        Close();
+        Navigation.NavigateTo(item.Href);
+    }
+
+    private static string OptionId(int index) => $"wm-palette-option-{index}";
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("wmPalette.unregister");
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)
+        {
+            // The circuit is already gone.
+        }
+
+        _self?.Dispose();
+    }
+
+    private sealed record PaletteItem(string Title, string Href, string Icon, string Hint, string Keywords)
+    {
+        public string SearchText => Title + " " + Hint + " " + Keywords;
+    }
+}

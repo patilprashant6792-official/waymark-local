@@ -1,0 +1,27 @@
+﻿@using MudBlazor
+
+<div class="wm-calm">
+    <MudIcon Icon="@Icon" Size="Size.Large" />
+    <div>
+        <div class="wm-big">@Title</div>
+        @if (!string.IsNullOrEmpty(Text))
+        {
+            <div>@Text</div>
+        }
+        @ChildContent
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string Icon { get; set; } = Icons.Material.Outlined.Inbox;
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Text { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+}

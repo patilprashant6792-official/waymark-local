@@ -1,0 +1,39 @@
+﻿@using MudBlazor
+
+<MudDialog>
+    <DialogContent>
+        <div class="wm-stack">
+            <div>@Message</div>
+            @if (!string.IsNullOrEmpty(Detail))
+            {
+                <div class="wm-muted">@Detail</div>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" OnClick="Cancel" autofocus="autofocus">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="@(Destructive ? Color.Error : Color.Primary)" OnClick="Confirm">@ConfirmText</MudButton>
+    </DialogActions>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; } = default!;
+
+    [Parameter, EditorRequired]
+    public string Message { get; set; } = string.Empty;
+
+    /// <summary>A second line, for example the cost of the change.</summary>
+    [Parameter]
+    public string? Detail { get; set; }
+
+    [Parameter]
+    public string ConfirmText { get; set; } = "Confirm";
+
+    [Parameter]
+    public bool Destructive { get; set; }
+
+    private void Cancel() => Dialog.Cancel();
+
+    private void Confirm() => Dialog.Close(DialogResult.Ok(true));
+}

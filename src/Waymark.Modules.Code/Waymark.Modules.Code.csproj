@@ -1,0 +1,6 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><AssemblyName>Waymark.Modules.Code</AssemblyName><RootNamespace>Waymark.Modules.Code</RootNamespace></PropertyGroup>
+  <ItemGroup><ProjectReference Include="..\Waymark.Core\Waymark.Core.csproj" /></ItemGroup>
+  <ItemGroup><PackageReference Include="Microsoft.CodeAnalysis.CSharp" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Guide.md" LogicalName="Waymark.Guides.code.md" /></ItemGroup>
+</Project>

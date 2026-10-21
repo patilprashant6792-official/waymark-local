@@ -1,0 +1,59 @@
+﻿@page "/vault"
+@inherits LiveComponentBase
+@using MudBlazor
+@using Waymark.Core.Vault
+@using Waymark.Host.Components.Shared
+@using Waymark.Host.Ui
+
+<PageTitle>Vault - Waymark</PageTitle>
+
+<div class="wm-page">
+    <h1 class="wm-title">Vault</h1>
+    <p class="wm-lead">Secrets such as tokens and passwords, kept encrypted on this computer. Claude refers to a secret by name and never sees its value; if a value shows up in a tool result, it is replaced with its name before the result leaves this machine. See <a href="safety">Safety</a>.</p>
+
+    @if (_error is not null)
+    {
+        <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
+    }
+
+    <section class="wm-card" aria-labelledby="vault-add">
+        <h2 id="vault-add" class="wm-section">Add or replace a secret</h2>
+        <div class="wm-row">
+            <MudTextField T="string" Label="Name" @bind-Value="_name" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="For example GITHUB_TOKEN" />
+            <MudTextField T="string" Label="Value" @bind-Value="_value" InputType="InputType.Password" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Shown once here, never again" Style="min-width:320px" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@(_busy || string.IsNullOrWhiteSpace(_name) || string.IsNullOrEmpty(_value))">Save secret</MudButton>
+        </div>
+    </section>
+
+    <h2 class="wm-section" style="margin-top:24px">Saved secrets</h2>
+    @if (_secrets.Count == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="No secrets yet" Text="Add one above. Values are encrypted with Windows data protection and cannot be read back." />
+    }
+    else
+    {
+        <div class="wm-table-wrap">
+            <table class="wm-table">
+                <caption class="visually-hidden">Saved secrets. Values are never shown.</caption>
+                <thead>
+                    <tr><th scope="col">Name</th><th scope="col">Ends in</th><th scope="col">Updated</th><th scope="col">Last used</th><th scope="col">Actions</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var secret in _secrets)
+                    {
+                        <tr>
+                            <th scope="row" class="wm-mono">@secret.Name</th>
+                            <td class="wm-mono">@(secret.Hint.Length == 0 ? "hidden" : secret.Hint)</td>
+                            <td>@DisplayFormat.Ago(secret.UpdatedUtc, Time.GetUtcNow())</td>
+                            <td>@DisplayFormat.Ago(secret.LastUsedUtc, Time.GetUtcNow())</td>
+                            <td>
+                                <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => Replace(secret)">Replace</MudButton>
+                                <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="() => DeleteAsync(secret)">Delete</MudButton>
+                            </td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>

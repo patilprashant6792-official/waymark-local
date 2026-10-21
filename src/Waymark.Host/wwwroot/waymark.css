@@ -1,0 +1,1039 @@
+﻿/* Waymark design tokens. Colours come from the MudBlazor palette (see WaymarkTheme.cs), so light and dark share one set of rules. */
+:root {
+    --wm-font: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --wm-mono: "Cascadia Mono", ui-monospace, Consolas, monospace;
+    --wm-radius: 10px;
+    --wm-gap: 16px;
+    --wm-header-h: 56px;
+    --wm-nav-w: 220px;
+}
+
+html, body {
+    font-family: var(--wm-font);
+    font-size: 14px;
+    background: var(--mud-palette-background);
+    color: var(--mud-palette-text-primary);
+}
+
+.mud-typography, .mud-input, .mud-button-root {
+    font-family: var(--wm-font);
+}
+
+.mono, .wm-mono {
+    font-family: var(--wm-mono);
+}
+
+.pairing-code {
+    font-family: var(--wm-mono);
+    font-weight: 700;
+    letter-spacing: 0.15em;
+}
+
+h1:focus, main:focus {
+    outline: none;
+}
+
+:focus-visible {
+    outline: 2px solid var(--mud-palette-primary);
+    outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+    * {
+        animation-duration: 0.01ms !important;
+        transition-duration: 0.01ms !important;
+    }
+}
+
+/* ---------- shell ---------- */
+.wm-skip {
+    position: absolute;
+    left: -9999px;
+    top: 0;
+    z-index: 2000;
+    padding: 8px 12px;
+    background: var(--mud-palette-primary);
+    color: var(--mud-palette-primary-text);
+}
+
+.wm-skip:focus {
+    left: 8px;
+    top: 8px;
+}
+
+.wm-shell {
+    /* The shell is as tall as the window: the header stays put, and the menu and the page each scroll on their own. */
+    height: 100vh;
+    height: 100dvh;
+    display: grid;
+    grid-template-columns: var(--wm-nav-w) minmax(0, 1fr);
+    grid-template-rows: var(--wm-header-h) minmax(0, 1fr);
+    grid-template-areas: "header header" "nav main";
+}
+
+.wm-header {
+    grid-area: header;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 0 16px;
+    background: var(--mud-palette-surface);
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.wm-logo {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 700;
+    font-size: 1.05rem;
+    color: var(--mud-palette-text-primary);
+    text-decoration: none;
+    /* Header padding 16 + toggle 36 + two gaps of 12 + this = the menu width, so the chips start where the page starts. */
+    min-width: max(0px, calc(var(--wm-nav-w) - 76px));
+}
+
+.wm-header-chips {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+    min-width: 0;
+}
+
+.wm-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.wm-nav {
+    grid-area: nav;
+    background: var(--mud-palette-surface);
+    border-right: 1px solid var(--mud-palette-lines-default);
+    padding: 16px 8px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    min-height: 0;
+    overflow-y: auto;
+}
+
+.wm-nav-group {
+    margin: 14px 12px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    color: var(--mud-palette-text-secondary);
+}
+
+.wm-nav-group:first-child {
+    margin-top: 0;
+}
+
+.wm-nav-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    color: var(--mud-palette-text-primary);
+    text-decoration: none;
+    font-weight: 500;
+    min-height: 36px;
+}
+
+.wm-nav-item:hover {
+    background: color-mix(in srgb, var(--mud-palette-primary) 8%, transparent);
+}
+
+.wm-nav-item.active {
+    background: color-mix(in srgb, var(--mud-palette-primary) 14%, transparent);
+    color: var(--mud-palette-primary);
+    font-weight: 600;
+}
+
+.wm-nav-item.disabled {
+    color: var(--mud-palette-text-secondary);
+    pointer-events: none;
+}
+
+.wm-badge {
+    margin-left: auto;
+    min-width: 20px;
+    padding: 0 6px;
+    border-radius: 10px;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 700;
+    line-height: 20px;
+    background: var(--mud-palette-warning);
+    color: #14171C;
+}
+
+.wm-nav-foot {
+    margin-top: auto;
+    padding: 12px;
+    font-size: 12px;
+    color: var(--mud-palette-text-secondary);
+}
+
+/* ---------- collapsible menu ---------- */
+/* The toggle is an icon button at the top left of the header, like the sidebar toggle in Claude. A narrow screen shows the menu as a strip and hides the toggle. */
+.wm-nav-toggle {
+    display: inline-flex;
+    flex: none;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    color: var(--mud-palette-text-secondary);
+    background: none;
+    border: 0;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.wm-nav-toggle:hover {
+    color: var(--mud-palette-text-primary);
+    background: color-mix(in srgb, var(--mud-palette-primary) 8%, transparent);
+}
+
+@media (min-width: 901px) {
+    /* The slide runs only after the person has clicked the toggle, never while the saved choice is restored. */
+    .wm-shell.nav-anim {
+        transition: grid-template-columns var(--wm-dur-med, 220ms) var(--wm-ease, ease);
+    }
+
+    .wm-shell.nav-anim .wm-logo {
+        transition: min-width var(--wm-dur-med, 220ms) var(--wm-ease, ease);
+    }
+
+    .wm-shell.nav-collapsed {
+        --wm-nav-w: 64px;
+    }
+
+    .nav-collapsed .wm-nav {
+        overflow-x: hidden;
+    }
+
+    .nav-collapsed .wm-nav-item {
+        position: relative;
+        justify-content: center;
+        padding: 8px 0;
+    }
+
+    /* The names stay in the page for screen readers; only the icon is drawn. */
+    .nav-collapsed .wm-nav-item > span:not(.wm-badge) {
+        position: absolute;
+        width: 1px;
+        height: 1px;
+        overflow: hidden;
+        clip: rect(0 0 0 0);
+        white-space: nowrap;
+    }
+
+    /* A group heading becomes a thin divider; its text stays for screen readers. */
+    .nav-collapsed .wm-nav-group {
+        height: 1px;
+        margin: 10px 12px;
+        padding: 0;
+        overflow: hidden;
+        font-size: 0;
+        background: var(--mud-palette-lines-default);
+    }
+
+    .nav-collapsed .wm-nav-group:first-child {
+        margin-top: 0;
+        background: none;
+    }
+
+    .nav-collapsed .wm-badge {
+        position: absolute;
+        top: 0;
+        right: 4px;
+        min-width: 16px;
+        padding: 0 4px;
+        margin: 0;
+        font-size: 10px;
+        line-height: 16px;
+    }
+
+    .nav-collapsed .wm-nav-foot {
+        display: none;
+    }
+}
+
+.wm-main {
+    grid-area: main;
+    min-width: 0;
+    min-height: 0;
+    overflow-y: auto;
+    /* Containing block for absolutely positioned content (for example the hidden table captions), so it scrolls and clips with the page and never makes the browser window scroll as well. */
+    position: relative;
+}
+
+.wm-page {
+    max-width: 1120px;
+    margin: 0 auto;
+    padding: 24px 24px 56px;
+}
+
+@media (max-width: 900px) {
+    /* On a narrow screen the menu is a strip above the page, so the whole page scrolls as one. */
+    .wm-shell {
+        height: auto;
+        grid-template-columns: 1fr;
+        grid-template-rows: auto auto 1fr;
+        grid-template-areas: "header" "nav" "main";
+    }
+
+    .wm-main {
+        overflow-y: visible;
+    }
+
+    .wm-header {
+        flex-wrap: wrap;
+        padding: 8px 16px;
+        height: auto;
+    }
+
+    .wm-logo {
+        min-width: 0;
+    }
+
+    .wm-nav {
+        flex-direction: row;
+        overflow-x: auto;
+        border-right: none;
+        border-bottom: 1px solid var(--mud-palette-lines-default);
+        padding: 8px 16px;
+    }
+
+    .wm-nav-group, .wm-nav-foot, .wm-nav-toggle {
+        display: none;
+    }
+
+    .wm-nav-item {
+        white-space: nowrap;
+    }
+
+    .wm-page {
+        padding: 16px;
+    }
+}
+
+/* ---------- page parts ---------- */
+.wm-title {
+    font-size: 1.6rem;
+    font-weight: 600;
+    margin: 0 0 4px;
+}
+
+.wm-lead {
+    margin: 0 0 20px;
+    color: var(--mud-palette-text-secondary);
+}
+
+.wm-section {
+    margin: 28px 0 10px;
+    font-size: 1.05rem;
+    font-weight: 600;
+}
+
+.wm-card {
+    background: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--wm-radius);
+    padding: var(--wm-gap);
+}
+
+.wm-card + .wm-card {
+    margin-top: 12px;
+}
+
+.wm-card-title {
+    margin: 0 0 6px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--mud-palette-text-secondary);
+}
+
+.wm-big {
+    font-size: 1.35rem;
+    font-weight: 600;
+}
+
+.wm-muted {
+    color: var(--mud-palette-text-secondary);
+}
+
+.wm-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+    gap: 12px;
+}
+
+.wm-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+.wm-row.spread {
+    justify-content: space-between;
+}
+
+.wm-stack > * + * {
+    margin-top: 12px;
+}
+
+.wm-calm {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 20px;
+    border: 1px dashed var(--mud-palette-lines-default);
+    border-radius: var(--wm-radius);
+    color: var(--mud-palette-text-secondary);
+}
+
+/* ---------- status chips: colour + icon + word, never colour alone ---------- */
+.wm-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 1px 10px 1px 8px;
+    border-radius: 999px;
+    border: 1px solid currentColor;
+    font-size: 12.5px;
+    font-weight: 600;
+    line-height: 20px;
+    white-space: nowrap;
+    text-decoration: none;
+}
+
+.wm-chip .mud-icon-root {
+    font-size: 16px;
+}
+
+.wm-chip.ok {
+    color: var(--mud-palette-success);
+    background: color-mix(in srgb, var(--mud-palette-success) 12%, transparent);
+}
+
+.wm-chip.warn {
+    color: var(--mud-palette-warning);
+    background: color-mix(in srgb, var(--mud-palette-warning) 14%, transparent);
+}
+
+.wm-chip.err {
+    color: var(--mud-palette-error);
+    background: color-mix(in srgb, var(--mud-palette-error) 12%, transparent);
+}
+
+.wm-chip.info {
+    color: var(--mud-palette-info);
+    background: color-mix(in srgb, var(--mud-palette-info) 12%, transparent);
+}
+
+.wm-chip.off {
+    color: var(--mud-palette-text-secondary);
+    background: color-mix(in srgb, var(--mud-palette-text-secondary) 10%, transparent);
+}
+
+/* ---------- token meter ---------- */
+.wm-meter {
+    height: 8px;
+    border-radius: 4px;
+    background: color-mix(in srgb, var(--mud-palette-text-secondary) 18%, transparent);
+    overflow: hidden;
+}
+
+.wm-meter-fill {
+    height: 100%;
+    background: var(--mud-palette-primary);
+    transition: width 0.2s;
+}
+
+.wm-meter-fill.high {
+    background: var(--mud-palette-warning);
+}
+
+/* ---------- tables ---------- */
+.wm-table-wrap {
+    overflow-x: auto;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--wm-radius);
+    background: var(--mud-palette-surface);
+}
+
+.wm-table {
+    width: 100%;
+    border-collapse: collapse;
+}
+
+.wm-table th {
+    text-align: left;
+    padding: 8px 12px;
+    font-size: 12px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--mud-palette-text-secondary);
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+    white-space: nowrap;
+}
+
+.wm-table td {
+    padding: 8px 12px;
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+    vertical-align: middle;
+}
+
+.wm-table tr:last-child td {
+    border-bottom: none;
+}
+
+.wm-table tr.clickable {
+    cursor: pointer;
+}
+
+.wm-table tr.clickable:hover td {
+    background: color-mix(in srgb, var(--mud-palette-primary) 6%, transparent);
+}
+
+.wm-table td.num, .wm-table th.num {
+    text-align: right;
+    white-space: nowrap;
+}
+
+/* ---------- code, pairing, steps ---------- */
+.wm-code {
+    font-family: var(--wm-mono);
+    font-size: 13px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: color-mix(in srgb, var(--mud-palette-text-secondary) 10%, transparent);
+    border: 1px solid var(--mud-palette-lines-default);
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+}
+
+.wm-pairing {
+    font-family: var(--wm-mono);
+    font-size: 2.4rem;
+    font-weight: 700;
+    letter-spacing: 0.18em;
+    padding: 4px 0;
+}
+
+.wm-step {
+    display: grid;
+    grid-template-columns: 32px 1fr;
+    gap: 12px;
+}
+
+.wm-mark {
+    width: 28px;
+    height: 28px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    border: 2px solid var(--mud-palette-lines-inputs);
+    color: var(--mud-palette-text-secondary);
+}
+
+.wm-mark.done {
+    border-color: var(--mud-palette-success);
+    color: var(--mud-palette-success);
+}
+
+.wm-mark.current {
+    border-color: var(--mud-palette-primary);
+    background: var(--mud-palette-primary);
+    color: var(--mud-palette-primary-text);
+}
+
+.wm-seg {
+    display: inline-flex;
+    border: 1px solid var(--mud-palette-lines-inputs);
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.wm-seg button {
+    border: none;
+    background: transparent;
+    color: var(--mud-palette-text-primary);
+    padding: 6px 14px;
+    font: inherit;
+    cursor: pointer;
+}
+
+.wm-seg button + button {
+    border-left: 1px solid var(--mud-palette-lines-inputs);
+}
+
+.wm-seg button[aria-pressed="true"] {
+    background: var(--mud-palette-primary);
+    color: var(--mud-palette-primary-text);
+    font-weight: 600;
+}
+
+.wm-drawer {
+    position: fixed;
+    top: 0;
+    right: 0;
+    bottom: 0;
+    width: min(460px, 100vw);
+    z-index: 1500;
+    padding: 20px;
+    overflow-y: auto;
+    background: var(--mud-palette-surface);
+    border-left: 1px solid var(--mud-palette-lines-default);
+    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.18);
+}
+
+.wm-dl {
+    display: grid;
+    grid-template-columns: 110px 1fr;
+    gap: 6px 12px;
+    margin: 0;
+}
+
+.wm-dl dt {
+    color: var(--mud-palette-text-secondary);
+}
+
+.wm-dl dd {
+    margin: 0;
+    word-break: break-word;
+}
+
+.wm-log {
+    font-family: var(--wm-mono);
+    font-size: 12.5px;
+}
+
+.blazor-error-boundary {
+    background: #b32121;
+    padding: 1rem;
+    color: white;
+}
+
+.blazor-error-boundary::after {
+    content: "An error has occurred.";
+}
+
+/* Form fields and table helpers */
+.wm-input, .wm-select { display: block; min-height: 36px; margin-top: 4px; padding: 6px 10px; font: inherit; color: var(--mud-palette-text-primary); background: var(--mud-palette-surface); border: 1px solid var(--mud-palette-lines-inputs); border-radius: 6px; }
+.wm-input:focus-visible, .wm-select:focus-visible { outline: 2px solid var(--mud-palette-primary); outline-offset: 1px; }
+.wm-table-wrap { overflow-x: auto; }
+.wm-table tr.clickable { cursor: pointer; }
+.wm-table tr.clickable:focus-visible { outline: 2px solid var(--mud-palette-primary); outline-offset: -2px; }
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+
+/* Keyboard shortcuts */
+.wm-shortcuts { position: fixed; right: 16px; bottom: 48px; z-index: 1300; width: min(360px, calc(100vw - 32px)); padding: 16px; background: var(--mud-palette-surface); color: var(--mud-palette-text-primary); border: 1px solid var(--mud-palette-lines-default); border-radius: 8px; box-shadow: var(--mud-elevation-8); }
+.wm-shortcuts[hidden] { display: none; }
+.wm-shortcut-hint { position: fixed; right: 16px; bottom: 12px; margin: 0; font-size: 12px; color: var(--mud-palette-text-secondary); }
+kbd { padding: 1px 6px; font: 12px ui-monospace, Consolas, monospace; border: 1px solid var(--mud-palette-lines-inputs); border-radius: 4px; background: var(--mud-palette-background-gray); }
+#blazor-error-ui { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2000; display: none; padding: 10px 16px; background: var(--mud-palette-error); color: var(--mud-palette-error-text); }
+#blazor-error-ui .dismiss { position: absolute; top: 8px; right: 12px; cursor: pointer; }
+
+
+/* ---------- key figures ---------- */
+.wm-kpis {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(170px, 1fr));
+    gap: 12px;
+    margin: 16px 0;
+}
+
+.wm-kpi {
+    padding: 12px 16px;
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: var(--wm-radius);
+    background: var(--mud-palette-surface);
+}
+
+.wm-kpi.bad {
+    border-color: var(--mud-palette-error);
+}
+
+.wm-kpi-label {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.85rem;
+}
+
+.wm-kpi-value {
+    font-size: 1.6rem;
+    font-weight: 600;
+    line-height: 1.3;
+}
+
+.wm-kpi-sub {
+    color: var(--mud-palette-text-secondary);
+    font-size: 0.85rem;
+}
+
+/* NuGet explorer */
+.wm-explorer { display: grid; grid-template-columns: 240px minmax(260px, 1fr) minmax(320px, 1.3fr); gap: var(--wm-gap); align-items: start; }
+@media (max-width: 1200px) { .wm-explorer { grid-template-columns: 1fr; } }
+.wm-ex-ns { max-height: 75vh; overflow: auto; }
+.wm-ex-list, .wm-ex-hits, .wm-ex-related { list-style: none; margin: 8px 0 0; padding: 0; }
+.wm-ex-list a { display: flex; justify-content: space-between; gap: 8px; padding: 4px 8px; border-radius: 6px; text-decoration: none; color: inherit; word-break: break-all; }
+.wm-ex-list a:hover, .wm-ex-list a.on { background: var(--mud-palette-action-default-hover); }
+.wm-ex-hits li { padding: 8px 10px; border-radius: 8px; border: 1px solid var(--mud-palette-lines-default); margin-bottom: 6px; }
+.wm-ex-hits li.on { border-color: var(--mud-palette-primary); }
+.wm-ex-hits a { text-decoration: none; color: inherit; word-break: break-all; }
+.wm-ex-card { margin-top: 2px; }
+.wm-ex-kind { display: inline-block; min-width: 4.5em; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.04em; color: var(--mud-palette-text-secondary); }
+.wm-ex-detail { max-height: 80vh; overflow: auto; }
+.wm-pre { font-family: var(--wm-mono); font-size: 0.85rem; white-space: pre-wrap; word-break: break-word; margin: 4px 0 12px; padding: 8px 10px; border-radius: 8px; background: var(--mud-palette-background-gray); }
+
+
+/* ---------- layout fixes shared by every page ---------- */
+/* Cards placed in a grid or flex row must not get the stacking margin, or the first one sits higher than its neighbours. */
+.wm-grid > .wm-card, .wm-grid > .wm-card + .wm-card { margin-top: 0; }
+.wm-page.wide { max-width: 1360px; }
+.wm-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.wm-unit { font-size: 0.95rem; font-weight: 500; color: var(--mud-palette-text-secondary); }
+
+/* ---------- home dashboard ---------- */
+.wm-home { display: flex; flex-direction: column; gap: 18px; }
+.wm-home > * { margin: 0; }
+.wm-home .wm-card + .wm-card { margin-top: 0; }
+
+.wm-home-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
+.wm-attn { display: flex; flex-wrap: wrap; gap: 8px; list-style: none; margin: 0; padding: 0; }
+.wm-attn a.wm-chip:hover { filter: brightness(1.15); }
+
+.wm-calm.slim { padding: 10px 14px; gap: 10px; border-style: solid; border-color: color-mix(in srgb, var(--mud-palette-success) 35%, var(--mud-palette-lines-default)); background: color-mix(in srgb, var(--mud-palette-success) 6%, transparent); }
+.wm-calm.slim .mud-icon-root { color: var(--mud-palette-success); }
+.wm-calm.slim strong { color: var(--mud-palette-text-primary); font-weight: 600; }
+
+.wm-pairing-card { border-color: var(--mud-palette-warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mud-palette-warning) 18%, transparent); }
+
+/* status tiles: equal height, accent bar in the colour of the state, link pinned to the bottom */
+.wm-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 16px; align-items: stretch; }
+.wm-tile { --accent: var(--mud-palette-text-secondary); position: relative; overflow: hidden; display: flex; flex-direction: column; gap: 8px; min-height: 176px; padding: 18px 18px 14px; background: var(--mud-palette-surface); border: 1px solid var(--mud-palette-lines-default); border-radius: 12px; transition: border-color 0.15s, box-shadow 0.15s; }
+.wm-tile::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 3px; background: var(--accent); }
+.wm-tile:hover { border-color: color-mix(in srgb, var(--accent) 55%, var(--mud-palette-lines-default)); box-shadow: 0 4px 18px color-mix(in srgb, var(--accent) 12%, transparent); }
+.wm-tile.ok { --accent: var(--mud-palette-success); }
+.wm-tile.warn { --accent: var(--mud-palette-warning); }
+.wm-tile.err { --accent: var(--mud-palette-error); }
+.wm-tile.info { --accent: var(--mud-palette-info); }
+.wm-tile-head { display: flex; align-items: center; gap: 10px; }
+.wm-tile-head .wm-chip { margin-left: auto; }
+.wm-ico { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 8px; color: var(--accent); background: color-mix(in srgb, var(--accent) 14%, transparent); }
+.wm-tile-label { margin: 0; font-size: 12px; font-weight: 700; letter-spacing: 0.07em; text-transform: uppercase; color: var(--mud-palette-text-secondary); }
+.wm-tile-value { font-size: 1.75rem; font-weight: 650; line-height: 1.15; font-variant-numeric: tabular-nums; margin-top: 4px; }
+.wm-tile-sub { margin: 0; color: var(--mud-palette-text-secondary); line-height: 1.4; flex: 1; }
+.wm-tile .wm-meter { margin-top: 2px; }
+.wm-tile-link, .wm-panel-head a { display: inline-flex; align-items: center; gap: 4px; font-weight: 600; text-decoration: none; color: var(--mud-palette-primary); }
+.wm-tile-link { margin-top: auto; padding-top: 10px; border-top: 1px solid var(--mud-palette-lines-default); }
+.wm-tile-link:hover, .wm-panel-head a:hover { text-decoration: underline; }
+.wm-tile-link .mud-icon-root, .wm-panel-head a .mud-icon-root { font-size: 16px; transition: transform 0.15s; }
+.wm-tile-link:hover .mud-icon-root, .wm-panel-head a:hover .mud-icon-root { transform: translateX(3px); }
+
+/* live log card: the terminal sits flush inside the panel, and the expand icon is a small link in its header */
+.wm-live-term.wm-live-mini { flex: 1 1 0; min-height: 0; overflow: auto; padding: 8px 12px; font-size: 12px; line-height: 1.4; border: 0; border-radius: 0; }
+.wm-panel-head a.wm-expand { justify-content: center; width: 28px; height: 28px; margin: -4px -6px -4px 0; color: var(--mud-palette-text-secondary); border-radius: 8px; }
+.wm-panel-head a.wm-expand:hover { color: var(--mud-palette-text-primary); text-decoration: none; background: color-mix(in srgb, var(--mud-palette-primary) 8%, transparent); }
+.wm-panel-head a.wm-expand .mud-icon-root { font-size: 18px; }
+.wm-panel-head a.wm-expand:hover .mud-icon-root { transform: none; }
+
+.wm-panel { background: var(--mud-palette-surface); border: 1px solid var(--mud-palette-lines-default); border-radius: 12px; overflow: hidden; }
+.wm-panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px 16px; border-bottom: 1px solid var(--mud-palette-lines-default); }
+.wm-panel-head h2 { margin: 0; font-size: 0.98rem; font-weight: 600; }
+.wm-panel-body { padding: 16px; }
+.wm-panel .wm-table-wrap { border: 0; border-radius: 0; background: transparent; }
+.wm-panel .wm-table tbody tr:hover td { background: color-mix(in srgb, var(--mud-palette-primary) 5%, transparent); }
+
+.wm-mkpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--mud-palette-lines-default); border-bottom: 1px solid var(--mud-palette-lines-default); }
+.wm-mkpis > div { padding: 12px 16px; background: var(--mud-palette-surface); }
+.wm-mkpis > div.bad { background: color-mix(in srgb, var(--mud-palette-error) 8%, var(--mud-palette-surface)); }
+.wm-mkpis > div.bad .wm-mk-value { color: var(--mud-palette-error); }
+.wm-mk-value { font-size: 1.5rem; font-weight: 650; line-height: 1.25; font-variant-numeric: tabular-nums; }
+
+.wm-rows { list-style: none; margin: 0; padding: 0; }
+.wm-rows > li { display: flex; align-items: center; gap: 12px; padding: 10px 16px; }
+.wm-rows > li + li { border-top: 1px solid var(--mud-palette-lines-default); }
+.wm-rows > li:hover { background: color-mix(in srgb, var(--mud-palette-primary) 5%, transparent); }
+.wm-row-main { flex: 1; min-width: 0; line-height: 1.4; }
+.wm-row-main a { color: inherit; text-decoration: none; }
+.wm-row-main a:hover { color: var(--mud-palette-primary); text-decoration: underline; }
+
+
+/* ---------- commands: console page ---------- */
+.wm-toggle { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; padding: 6px 14px; font: inherit; color: var(--mud-palette-text-primary); background: transparent; border: 1px solid var(--mud-palette-lines-inputs); border-radius: 999px; cursor: pointer; }
+.wm-toggle:hover { background: color-mix(in srgb, var(--mud-palette-primary) 8%, transparent); }
+.wm-toggle.on { color: var(--mud-palette-primary); font-weight: 600; border-color: var(--mud-palette-primary); background: color-mix(in srgb, var(--mud-palette-primary) 14%, transparent); }
+.wm-toggle .mud-icon-root { font-size: 18px; }
+
+.wm-tabs { display: flex; gap: 4px; margin: 16px 0 12px; overflow-x: auto; border-bottom: 1px solid var(--mud-palette-lines-default); }
+.wm-tab { display: inline-flex; align-items: center; gap: 8px; margin-bottom: -1px; padding: 8px 14px; font: inherit; font-weight: 500; white-space: nowrap; color: var(--mud-palette-text-secondary); background: transparent; border: 0; border-bottom: 2px solid transparent; cursor: pointer; }
+.wm-tab:hover { color: var(--mud-palette-text-primary); }
+.wm-tab.active { color: var(--mud-palette-primary); font-weight: 600; border-bottom-color: var(--mud-palette-primary); }
+.wm-tab:focus-visible { outline-offset: -2px; }
+.wm-tab .wm-badge { margin-left: 0; }
+
+.wm-console { display: grid; grid-template-columns: 300px minmax(0, 1fr); height: clamp(460px, calc(100vh - 340px), 900px); overflow: hidden; background: var(--mud-palette-surface); border: 1px solid var(--mud-palette-lines-default); border-radius: var(--wm-radius); }
+.wm-console-list { overflow-y: auto; border-right: 1px solid var(--mud-palette-lines-default); }
+.wm-console-main { display: flex; flex-direction: column; gap: 8px; min-width: 0; min-height: 0; padding: 12px; }
+.wm-console-empty { padding: 16px; color: var(--mud-palette-text-secondary); }
+.wm-console-empty.big { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: 12px; min-height: 260px; text-align: center; }
+
+/* run list: status is the dot's shape as well as its colour */
+.wm-run { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px 12px; color: inherit; text-decoration: none; border-left: 3px solid transparent; }
+.wm-run + .wm-run { border-top: 1px solid var(--mud-palette-lines-default); }
+.wm-run:hover { background: color-mix(in srgb, var(--mud-palette-primary) 6%, transparent); }
+.wm-run.active { border-left-color: var(--mud-palette-primary); background: color-mix(in srgb, var(--mud-palette-primary) 12%, transparent); }
+.wm-run:focus-visible { outline-offset: -2px; }
+.wm-run-main { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
+.wm-run-title { font-weight: 600; }
+.wm-run-cmd { display: block; overflow: hidden; font-size: 12.5px; color: var(--mud-palette-text-secondary); text-overflow: ellipsis; white-space: nowrap; }
+.wm-run-when { font-size: 12px; white-space: nowrap; color: var(--mud-palette-text-secondary); }
+.wm-run-dot { width: 10px; height: 10px; box-sizing: border-box; border-radius: 50%; background: var(--mud-palette-text-secondary); }
+.wm-run-dot.ok { background: var(--mud-palette-success); }
+.wm-run-dot.err { border-radius: 2px; background: var(--mud-palette-error); }
+.wm-run-dot.warn { background: transparent; border: 2px solid var(--mud-palette-warning); }
+.wm-run-dot.off { background: transparent; border: 2px solid var(--mud-palette-text-secondary); }
+.wm-run-dot.run { background: var(--mud-palette-info); animation: wm-pulse 1.2s ease-in-out infinite; }
+@keyframes wm-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+.wm-term-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.wm-term-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
+.wm-term-tools { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.wm-term-meta { display: flex; flex-wrap: wrap; gap: 2px 16px; font-size: 12.5px; color: var(--mud-palette-text-secondary); }
+.wm-term-meta > .wm-ellipsis { max-width: 100%; }
+.wm-term-note { padding: 8px 12px; border-left: 3px solid var(--mud-palette-info); border-radius: 6px; background: color-mix(in srgb, var(--mud-palette-info) 10%, transparent); }
+
+/* ---------- commands: terminal (always dark, in light and dark theme, so the 16 colours keep their contrast) ---------- */
+.wm-term { --term-bg: #0d1117; --term-fg: #e6edf3; --a0: #484f58; --a1: #ff7b72; --a2: #3fb950; --a3: #d29922; --a4: #58a6ff; --a5: #bc8cff; --a6: #39c5cf; --a7: #b1bac4; --a8: #8b949e; --a9: #ffa198; --a10: #56d364; --a11: #e3b341; --a12: #79c0ff; --a13: #d2a8ff; --a14: #56d4dd; --a15: #f0f6fc; flex: 1; min-height: 0; padding: 12px 14px; overflow: auto; font-family: var(--wm-mono); font-size: 12.5px; line-height: 1.45; color: var(--term-fg); background: var(--term-bg); border: 1px solid #30363d; border-radius: var(--wm-radius); scrollbar-color: #484f58 transparent; }
+.wm-term ::selection { background: #264f78; }
+.wm-term-line { min-height: 1.45em; white-space: pre-wrap; word-break: break-all; }
+.wm-term-gap, .wm-term-wait { padding: 4px 0 8px; font-style: italic; color: var(--a8); }
+
+/* Light backgrounds get dark text by default. This block comes before the fg rules, so a foreground colour set by the program still wins. */
+.wm-term .bg3, .wm-term .bg7, .wm-term .bg8, .wm-term .bg9, .wm-term .bg10, .wm-term .bg11, .wm-term .bg12, .wm-term .bg13, .wm-term .bg14, .wm-term .bg15 { color: var(--term-bg); }
+.wm-term .fg0 { color: var(--a0); } .wm-term .fg1 { color: var(--a1); } .wm-term .fg2 { color: var(--a2); } .wm-term .fg3 { color: var(--a3); }
+.wm-term .fg4 { color: var(--a4); } .wm-term .fg5 { color: var(--a5); } .wm-term .fg6 { color: var(--a6); } .wm-term .fg7 { color: var(--a7); }
+.wm-term .fg8 { color: var(--a8); } .wm-term .fg9 { color: var(--a9); } .wm-term .fg10 { color: var(--a10); } .wm-term .fg11 { color: var(--a11); }
+.wm-term .fg12 { color: var(--a12); } .wm-term .fg13 { color: var(--a13); } .wm-term .fg14 { color: var(--a14); } .wm-term .fg15 { color: var(--a15); }
+.wm-term .bg0 { background-color: var(--a0); } .wm-term .bg1 { background-color: var(--a1); } .wm-term .bg2 { background-color: var(--a2); } .wm-term .bg3 { background-color: var(--a3); }
+.wm-term .bg4 { background-color: var(--a4); } .wm-term .bg5 { background-color: var(--a5); } .wm-term .bg6 { background-color: var(--a6); } .wm-term .bg7 { background-color: var(--a7); }
+.wm-term .bg8 { background-color: var(--a8); } .wm-term .bg9 { background-color: var(--a9); } .wm-term .bg10 { background-color: var(--a10); } .wm-term .bg11 { background-color: var(--a11); }
+.wm-term .bg12 { background-color: var(--a12); } .wm-term .bg13 { background-color: var(--a13); } .wm-term .bg14 { background-color: var(--a14); } .wm-term .bg15 { background-color: var(--a15); }
+.wm-term .inv { color: var(--term-bg); background-color: var(--term-fg); }
+.wm-term .b { font-weight: 700; }
+.wm-term .d { opacity: 0.65; }
+.wm-term .i { font-style: italic; }
+.wm-term .u { text-decoration: underline; }
+
+/* ---------- commands: approval card ---------- */
+.wm-cmd-card { border-color: var(--mud-palette-warning); box-shadow: 0 0 0 3px color-mix(in srgb, var(--mud-palette-warning) 18%, transparent); }
+.wm-cmd-card .wm-card-title { margin: 0; text-transform: none; letter-spacing: 0; font-size: 1rem; color: var(--mud-palette-text-primary); }
+.wm-cmd-pre { max-height: 260px; margin: 8px 0; padding: 10px 12px; overflow: auto; font-family: var(--wm-mono); font-size: 13px; white-space: pre-wrap; word-break: break-word; background: color-mix(in srgb, var(--mud-palette-text-secondary) 10%, transparent); border: 1px solid var(--mud-palette-lines-default); border-radius: 8px; }
+.wm-script-edit { display: block; width: 100%; min-height: 96px; box-sizing: border-box; margin: 8px 0; padding: 10px 12px; font-family: var(--wm-mono); font-size: 13px; line-height: 1.45; tab-size: 4; color: var(--mud-palette-text-primary); background: var(--mud-palette-surface); border: 1px solid var(--mud-palette-lines-inputs); border-radius: 8px; resize: vertical; }
+.wm-risks { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0; padding: 0; list-style: none; }
+.wm-risks .wm-chip { white-space: normal; }
+.wm-cmd-actions { justify-content: flex-end; margin-top: 8px; }
+.wm-cmd-actions .wm-input { margin-top: 0; }
+.wm-reason { flex: 1 1 220px; min-width: 0; }
+
+/* ---------- commands: gate switch (Off / Ask / Auto) ---------- */
+.wm-seg-btn { min-height: 32px; }
+.wm-seg button:hover:not(:disabled):not([aria-pressed="true"]) { background: color-mix(in srgb, var(--mud-palette-primary) 8%, transparent); }
+.wm-seg button:focus-visible { outline-offset: -2px; }
+.wm-seg button:disabled { opacity: 0.45; cursor: not-allowed; }
+.wm-seg .wm-seg-btn.off[aria-pressed="true"] { color: var(--mud-palette-text-primary); background: color-mix(in srgb, var(--mud-palette-text-secondary) 28%, transparent); }
+.wm-seg .wm-seg-btn.ask[aria-pressed="true"] { color: var(--mud-palette-warning-text); background: var(--mud-palette-warning); }
+.wm-seg .wm-seg-btn.auto[aria-pressed="true"] { color: var(--mud-palette-success-text); background: var(--mud-palette-success); }
+
+@media (max-width: 900px) {
+    .wm-console { grid-template-columns: minmax(0, 1fr); height: auto; }
+    .wm-console-list { max-height: 220px; border-right: 0; border-bottom: 1px solid var(--mud-palette-lines-default); }
+    .wm-term { flex: none; height: 60vh; }
+}
+
+
+/* ---------- live page: happening now, and the terminal of tool calls, file changes, sign-ins and commands ---------- */
+.wm-now { margin: 0 0 12px; }
+.wm-now-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.wm-now-item { display: inline-flex; align-items: center; gap: 8px; padding: 6px 14px; border: 1px solid var(--mud-palette-info); border-radius: 999px; background: color-mix(in srgb, var(--mud-palette-info) 10%, transparent); }
+.wm-now-kind { font-size: 12px; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; color: var(--mud-palette-text-secondary); }
+.wm-now-time { font-variant-numeric: tabular-nums; color: var(--mud-palette-text-secondary); }
+
+.wm-live-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 8px; }
+.wm-live-search { flex: 1 1 220px; max-width: 360px; margin-top: 0; }
+.wm-live-term { flex: none; height: clamp(360px, calc(100vh - 420px), 820px); }
+.wm-live-empty { font-style: italic; color: var(--a8); }
+/* One compact row per line: time, kind, level and message in columns. A long message wraps under its own start, not under the time. */
+.wm-live-line { display: flex; align-items: baseline; padding: 1px 0; }
+.wm-live-time { flex: none; margin-right: 1ch; color: var(--a8); }
+.wm-live-kind { flex: none; min-width: 5ch; margin-right: 1ch; font-weight: 700; }
+.wm-live-kind.tool { color: var(--a4); }
+.wm-live-kind.watch { color: var(--a6); }
+.wm-live-kind.auth { color: var(--a5); }
+.wm-live-kind.cmd { color: var(--a3); }
+.wm-live-kind.app { color: var(--a8); }
+.wm-live-lvl { flex: none; margin-right: 1ch; font-weight: 700; }
+.wm-live-lvl:empty { display: none; }
+.wm-live-msg { flex: 1 1 auto; min-width: 0; }
+.wm-live-line.warn .wm-live-lvl, .wm-live-line.warn .wm-live-msg { color: var(--a11); }
+.wm-live-line.err .wm-live-lvl, .wm-live-line.err .wm-live-msg { color: var(--a9); }
+.wm-live-more { flex: none; margin-left: 1ch; padding: 0 6px; font: inherit; font-size: 11.5px; color: var(--a12); background: transparent; border: 1px solid #30363d; border-radius: 4px; cursor: pointer; }
+.wm-live-more:hover { border-color: var(--a12); }
+.wm-live-exc { margin: 2px 0 6px 4ch; padding: 6px 10px; overflow-x: auto; font: inherit; font-size: 12px; white-space: pre-wrap; word-break: break-all; color: var(--a9); background: rgba(255, 123, 114, 0.08); border-left: 3px solid var(--a1); border-radius: 4px; }
+
+/* ---------- home: compact, close together ---------- */
+.wm-home { gap: 12px; }
+.wm-tiles { gap: 12px; }
+.wm-tile { min-height: 0; gap: 4px; padding: 12px 16px 10px; }
+.wm-tile-value { margin-top: 0; font-size: 1.45rem; }
+.wm-tile-sub { line-height: 1.3; }
+.wm-tile-link { padding-top: 8px; }
+.wm-panel-head { padding: 9px 14px; }
+.wm-rows > li { padding: 7px 14px; }
+.wm-mkpis > div { padding: 8px 14px; }
+.wm-mk-value { font-size: 1.3rem; line-height: 1.2; }
+.wm-panel .wm-table th, .wm-panel .wm-table td { padding: 6px 12px; }
+
+/* ---------- risk and safety ---------- */
+/* The red block on the Safety page, in the spirit of a danger zone: it states the risk plainly and is the only place that uses a red surface. */
+.wm-danger {
+    padding: 16px 20px;
+    border: 1px solid var(--mud-palette-error);
+    border-left-width: 4px;
+    border-radius: var(--wm-radius);
+    background: color-mix(in srgb, var(--mud-palette-error) 8%, transparent);
+}
+
+.wm-danger h2 {
+    margin: 0 0 8px;
+    font-size: 1.05rem;
+    font-weight: 600;
+    color: var(--mud-palette-error);
+}
+
+.wm-danger p {
+    margin: 0;
+}
+
+.wm-danger ul {
+    margin: 8px 0 0;
+    padding-left: 20px;
+}
+
+.wm-danger li + li {
+    margin-top: 6px;
+}
+
+/* A name with its risk chip beside it. */
+.wm-tier-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+}
+
+/* One red line under an operation or a request that starts code. */
+.wm-risk-note {
+    margin-top: 6px;
+    font-size: 13px;
+    color: var(--mud-palette-error);
+}
+
+.wm-risk-note a {
+    color: inherit;
+    text-decoration: underline;
+}
+
+/* A card for an operation that can do anything the user can. The red edge is there while the operation is switched on. */
+.wm-card.wm-risky {
+    border-color: var(--mud-palette-error);
+    border-left-width: 4px;
+    background: color-mix(in srgb, var(--mud-palette-error) 5%, var(--mud-palette-surface));
+}
+
+.wm-card.wm-risky .mud-alert {
+    margin-bottom: 12px;
+}
+
+/* ---------- home: the card grid and its Rearrange mode ---------- */
+/* Cards flow left to right in 12 columns. Each card spans its saved number of columns and rows; --wm-* are the temporary values the Rearrange script sets. */
+.wm-home-tools { margin-left: auto; }
+.wm-grid { --wm-row: 44px; display: grid; grid-template-columns: repeat(12, minmax(0, 1fr)); grid-auto-rows: var(--wm-row); grid-auto-flow: row dense; gap: 12px; }
+.wm-cell { position: relative; min-width: 0; min-height: 0; border-radius: 12px; order: var(--wm-o, var(--o, 0)); grid-column: span var(--wm-w, var(--w, 4)); grid-row: span var(--wm-h, var(--h, 4)); }
+.wm-cell-body { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.wm-cell-body > * { flex: 1 1 auto; min-height: 0; margin: 0; }
+.wm-cell .wm-tile { min-height: 0; overflow: auto; }
+.wm-cell .wm-panel { display: flex; flex-direction: column; overflow: auto; }
+.wm-cell .wm-panel > .wm-panel-head { position: sticky; top: 0; z-index: 1; flex: none; background: var(--mud-palette-surface); }
+.wm-cell .wm-panel:has(.wm-live-term) { overflow: hidden; }
+
+.wm-grid.editing .wm-cell { cursor: grab; touch-action: none; user-select: none; outline: 2px dashed color-mix(in srgb, var(--mud-palette-primary) 55%, transparent); outline-offset: 2px; }
+.wm-grid.editing .wm-cell:hover, .wm-grid.editing .wm-cell:focus-visible { outline-color: var(--mud-palette-primary); }
+.wm-grid.editing .wm-cell-body { pointer-events: none; opacity: 0.9; }
+.wm-grid.editing .wm-cell.dragging { z-index: 20; cursor: grabbing; transition: none; box-shadow: var(--wm-elev-2), 0 0 0 2px var(--mud-palette-primary); }
+.wm-grid.editing .wm-cell.resizing { z-index: 10; }
+.wm-cell-tag { position: absolute; top: 6px; left: 8px; z-index: 2; padding: 2px 8px; font-size: 11.5px; font-weight: 600; color: var(--mud-palette-primary-text); background: var(--mud-palette-primary); border-radius: 999px; pointer-events: none; }
+.wm-resize { position: absolute; right: 2px; bottom: 2px; z-index: 3; width: 22px; height: 22px; cursor: nwse-resize; touch-action: none; border-radius: 6px; background: linear-gradient(135deg, transparent 0 50%, var(--mud-palette-primary) 50% 56%, transparent 56% 66%, var(--mud-palette-primary) 66% 72%, transparent 72%); }
+.wm-cell.resizing::after { content: attr(data-size); position: absolute; right: 8px; bottom: 28px; z-index: 4; padding: 2px 8px; font-size: 12px; font-weight: 600; font-variant-numeric: tabular-nums; color: var(--mud-palette-primary-text); background: var(--mud-palette-primary); border-radius: 6px; pointer-events: none; }
+
+.wm-edit-bar { position: sticky; top: calc(var(--wm-header-h, 0px) + 8px); z-index: 30; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px 16px; padding: 10px 14px; background: var(--mud-palette-surface); border: 1px solid var(--mud-palette-primary); border-radius: 12px; box-shadow: var(--wm-elev-2); }
+.wm-edit-text { flex: 1 1 320px; color: var(--mud-palette-text-secondary); line-height: 1.5; }
+.wm-edit-bar .mud-alert { flex: 1 1 100%; }
+
+/* Narrow screens: one column, cards as tall as their content, and no rearranging. */
+@media (max-width: 900px) {
+    .wm-grid { grid-template-columns: minmax(0, 1fr); grid-auto-rows: auto; }
+    .wm-cell { grid-column: 1; grid-row: auto; }
+    .wm-cell-body { height: auto; }
+    .wm-cell .wm-tile, .wm-cell .wm-panel { overflow: visible; }
+    .wm-cell .wm-live-term.wm-live-mini { flex: none; height: 240px; }
+    .wm-edit-open { display: none; }
+}
+
+@media (forced-colors: active) {
+    .wm-grid.editing .wm-cell { outline: 2px dashed CanvasText; }
+    .wm-cell-tag, .wm-resize { border: 1px solid CanvasText; }
+}
+
+/* ---------- home: a card's dot lights up while its content is changing ---------- */
+.wm-ping { position: relative; display: inline-block; flex: none; width: 8px; height: 8px; margin-left: 8px; vertical-align: middle; border-radius: 50%; background: var(--mud-palette-primary); }
+.wm-ping::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--mud-palette-primary); animation: wm-ping-ring 1.3s ease-out infinite; }
+@keyframes wm-ping-ring { from { transform: scale(1); opacity: 0.7; } to { transform: scale(3.2); opacity: 0; } }
+
+@media (prefers-reduced-motion: reduce) {
+    .wm-ping::after { animation: none; }
+}
+
+@media (forced-colors: active) {
+    .wm-ping { forced-color-adjust: none; background: Highlight; }
+    .wm-ping::after { display: none; }
+}
+
+/* ---------- home: the tokens card ---------- */
+.wm-mkpis.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.wm-tok-num { font-variant-numeric: tabular-nums; font-weight: 650; }
+.wm-tok-note { margin: 0; padding: 8px 14px 10px; font-size: 12px; line-height: 1.4; }
+
+@media (max-width: 560px) {
+    .wm-mkpis.three { grid-template-columns: minmax(0, 1fr); }
+}

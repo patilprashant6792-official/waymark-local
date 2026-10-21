@@ -1,0 +1,171 @@
+﻿@page "/audit"
+@inherits LiveComponentBase
+@using Microsoft.AspNetCore.Components.Web
+@using MudBlazor
+@using Waymark.Core.Audit
+@using Waymark.Host.Components.Shared
+@using Waymark.Host.Ui
+
+<PageTitle>Audit - Waymark</PageTitle>
+
+<div class="wm-page">
+    <div class="wm-row spread">
+        <div>
+            <h1 class="wm-title">Audit</h1>
+            <p class="wm-lead" style="margin-bottom:12px">Everything that was asked of Waymark, and what happened. Arguments are listed by name only.</p>
+        </div>
+        <div class="wm-row">
+            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download" OnClick="ExportAsync">Export JSON</MudButton>
+        </div>
+    </div>
+
+    @if (_error is not null)
+    {
+        <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
+    }
+
+    <section class="wm-card" aria-label="Filters">
+        <div class="wm-row">
+            <label>Search
+                <input id="audit-search" class="wm-input" type="search" placeholder="Press / to search" @bind="_text" @bind:event="onchange" @bind:after="ApplyFiltersAsync" @onkeydown="OnSearchKeyAsync" />
+            </label>
+            <label>Kind
+                <select class="wm-select" @bind="_kind" @bind:after="ApplyFiltersAsync">
+                    <option value="">Everything</option>
+                    <option value="tool">Tool calls</option>
+                    <option value="approval">Approvals</option>
+                    <option value="auth">Sign-ins and keys</option>
+                    <option value="config">Settings</option>
+                </select>
+            </label>
+            <label>Tool
+                <select class="wm-select" @bind="_tool" @bind:after="ApplyFiltersAsync">
+                    <option value="">All tools</option>
+                    @foreach (var tool in _tools)
+                    {
+                        <option value="@tool">@tool</option>
+                    }
+                </select>
+            </label>
+            <label>Workspace
+                <select class="wm-select" @bind="_workspace" @bind:after="ApplyFiltersAsync">
+                    <option value="">All workspaces</option>
+                    @foreach (var workspace in _workspaces)
+                    {
+                        <option value="@workspace">@workspace</option>
+                    }
+                </select>
+            </label>
+            <label>Outcome
+                <select class="wm-select" @bind="_outcome" @bind:after="ApplyFiltersAsync">
+                    <option value="">Any</option>
+                    <option value="ok">OK</option>
+                    <option value="denied">Denied</option>
+                    <option value="error">Error</option>
+                </select>
+            </label>
+            <label>Range
+                <select class="wm-select" @bind="_range" @bind:after="ApplyFiltersAsync">
+                    <option value="1h">Last hour</option>
+                    <option value="24h">Last 24 hours</option>
+                    <option value="7d">Last 7 days</option>
+                    <option value="all">Everything kept</option>
+                </select>
+            </label>
+            <MudButton Variant="Variant.Text" OnClick="ClearFiltersAsync">Clear filters</MudButton>
+        </div>
+    </section>
+
+    <div class="wm-row spread" style="margin:12px 0">
+        <div class="wm-row">
+            @if (IsTailing)
+            {
+                <StateChip State="StatusState.Working" Text="Live" />
+                <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Pause" OnClick="() => _live = false">Pause</MudButton>
+            }
+            else if (_page == 0)
+            {
+                <StateChip State="StatusState.Off" Text="Paused" />
+                <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.PlayArrow" OnClick="() => _live = true">Resume</MudButton>
+            }
+            else
+            {
+                <StateChip State="StatusState.Off" Text="Older entries" />
+            }
+        </div>
+        <span class="wm-muted" aria-live="polite">Showing @DisplayFormat.Count(FirstShown)&ndash;@DisplayFormat.Count(LastShown) of @DisplayFormat.Count(_total) &middot; kept for @AuditRetentionService.DefaultRetentionDays days</span>
+    </div>
+
+    @if (_rows.Count == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.History" Title="Nothing matches" Text="Change the filters, or wait for the next call." />
+    }
+    else
+    {
+        <div class="wm-table-wrap">
+            <table class="wm-table">
+                <caption class="visually-hidden">Audit entries, newest first. Select a row for details.</caption>
+                <thead>
+                    <tr><th scope="col">When</th><th scope="col">Tool or event</th><th scope="col">Workspace or target</th><th scope="col">Outcome</th><th scope="col" class="num">Time</th><th scope="col" class="num">Size</th><th scope="col" class="num">Tokens</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var row in _rows)
+                    {
+                        var outcome = DisplayFormat.Outcome(row.Entry.Outcome);
+                        <tr class="clickable" tabindex="0" @onclick="() => Open(row)" @onkeydown="e => OnRowKey(e, row)">
+                            <td>@DisplayFormat.DateAndClock(row.Entry.TimestampUtc)</td>
+                            <td class="wm-mono">@row.Entry.Action</td>
+                            <td>@(row.Entry.Target ?? "-")</td>
+                            <td><StateChip State="outcome.State" Text="@outcome.Text" /></td>
+                            <td class="num">@DisplayFormat.Duration(row.Entry.DurationMs)</td>
+                            <td class="num">@DisplayFormat.Bytes(row.Entry.ResultBytes)</td>
+                            <td class="num">@DisplayFormat.Tokens(row.Entry.ResultTokens, row.Entry.ResultBytes)</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+
+        <div class="wm-row" style="margin-top:12px">
+            <MudButton Variant="Variant.Outlined" Disabled="@(_page == 0)" OnClick="NewerAsync">Newer</MudButton>
+            <MudButton Variant="Variant.Outlined" Disabled="@(!HasOlder)" OnClick="OlderAsync">Older</MudButton>
+        </div>
+    }
+</div>
+
+@if (_selected is { } selected)
+{
+    var selectedOutcome = DisplayFormat.Outcome(selected.Entry.Outcome);
+    <aside class="wm-drawer" role="dialog" aria-modal="false" aria-labelledby="audit-detail-title" tabindex="-1" @onkeydown="OnDrawerKey">
+        <div class="wm-row spread">
+            <h2 id="audit-detail-title" class="wm-section" style="margin:0">@selected.Entry.Action</h2>
+            <MudIconButton Icon="@Icons.Material.Filled.Close" aria-label="Close details" OnClick="Close" />
+        </div>
+        <p><StateChip State="selectedOutcome.State" Text="@selectedOutcome.Text" /></p>
+        <dl class="wm-dl">
+            <dt>Reference</dt>
+            <dd class="wm-mono">@selected.Id</dd>
+            <dt>When</dt>
+            <dd>@DisplayFormat.DateAndClock(selected.Entry.TimestampUtc) (your time)</dd>
+            <dt>Kind</dt>
+            <dd>@selected.Entry.Category</dd>
+            <dt>Client</dt>
+            <dd class="wm-mono">@ClientOf(selected.Entry)</dd>
+            <dt>Workspace</dt>
+            <dd>@(selected.Entry.Target ?? "-")</dd>
+            <dt>Arguments</dt>
+            <dd class="wm-mono">@(selected.Entry.ArgsRedacted ?? "-") <span class="wm-muted">(names only; values are never stored)</span></dd>
+            <dt>Time</dt>
+            <dd>@DisplayFormat.Duration(selected.Entry.DurationMs)</dd>
+            <dt>Output size</dt>
+            <dd>@DisplayFormat.Bytes(selected.Entry.ResultBytes)</dd>
+            <dt>Tokens</dt>
+            <dd>@DisplayFormat.Tokens(selected.Entry.ResultTokens, selected.Entry.ResultBytes) <span class="wm-muted">(@(selected.Entry.ResultTokens is null ? "estimated from the size" : "OpenAI o200k_base"))</span></dd>
+            @if (selected.Entry.Error is { Length: > 0 } error)
+            {
+                <dt>Problem</dt>
+                <dd>@error</dd>
+            }
+        </dl>
+    </aside>
+}

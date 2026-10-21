@@ -1,0 +1,96 @@
+@page "/guides"
+@inherits LiveComponentBase
+@using MudBlazor
+@using Waymark.Core.Guides
+@using Waymark.Host.Components.Shared
+@using Waymark.Host.Ui
+
+<PageTitle>Host prompt - Waymark</PageTitle>
+
+<div class="wm-page">
+    <h1 class="wm-title">Host prompt</h1>
+    <p class="wm-lead">The first thing a connected agent reads about Waymark, and the one place where you speak to every agent at once.</p>
+
+    <section class="wm-card" aria-labelledby="about-heading">
+        <h2 id="about-heading" class="wm-section" style="margin-top:0">What this is</h2>
+        <p>When an agent connects, Waymark asks it to load a short <strong>overview</strong> before its first tool call. Waymark writes that overview itself. It has three parts:</p>
+        <ul>
+            <li>what each group of tools is for (code, nuget, files, commands), and how an agent asks for the group's own guide;</li>
+            <li>a few rules: a refusal is a decision, not a glitch; never write a hidden-secret marker into a file; what to do if a secret shows up;</li>
+            <li>what is different right now: tools switched off, workspaces, and the commands that ask you first.</li>
+        </ul>
+        <p>The details of the tools, shells, approvals and long-running commands live in the group guides, which are built into Waymark and update with it. <strong>You do not edit any of that.</strong></p>
+        <p><strong>Your text below is placed inside the overview</strong>, under &ldquo;Instructions from the owner&rdquo;, and wins wherever it disagrees with Waymark's defaults. Waymark's gates and approvals still apply, whatever the text says.</p>
+        <p class="wm-muted" style="margin-bottom:0">Good things to write: how you like work done, your conventions and project rules, what to ask before touching, what never to do, and your own workflows: a script the project ships, how to run it, and when to stop and wait for you. Agents load the overview once per conversation. After you save, every agent that holds the old text is told on its next call. Do not put secrets here: every agent that loads it receives it.</p>
+    </section>
+
+    @if (_error is not null)
+    {
+        <div style="margin-top:16px"><InlineAlert Severity="Severity.Error">@_error</InlineAlert></div>
+    }
+
+    <section class="wm-card" aria-labelledby="owner-heading" style="margin-top:16px">
+        <div class="wm-row spread">
+            <h2 id="owner-heading" class="wm-section" style="margin:0">Your instructions</h2>
+            <div class="wm-row">
+                @if (_saved.ChangedUtc is null)
+                {
+                    <StateChip State="StatusState.Off" Text="Empty" />
+                }
+                else
+                {
+                    <StateChip State="StatusState.Healthy" Text="In use" />
+                }
+                <span class="wm-chip info">Your text: about @DisplayFormat.Count(_draftTokens) tokens</span>
+                <span class="wm-chip info">Whole overview as sent: about @DisplayFormat.Count(_overviewTokens) tokens</span>
+            </div>
+        </div>
+        <p class="wm-muted" style="margin:8px 0">@HolderText()</p>
+        <textarea class="wm-input wm-mono" style="width:100%" rows="24" spellcheck="false" maxlength="@(HostPromptRules.MaxOwnerChars + 2_000)"
+                  aria-label="Your instructions for every connected agent" placeholder="@Placeholder"
+                  value="@_draft" @oninput="e => OnInput(e.Value?.ToString())" disabled="@_busy"></textarea>
+        <div class="wm-row spread" style="margin-top:4px">
+            <span class="wm-muted">@DisplayFormat.Count(DraftChars) of @DisplayFormat.Count(HostPromptRules.MaxOwnerChars) characters</span>
+            <span class="wm-muted">@LastChange()</span>
+        </div>
+        @if (_draftTokens > HostPromptRules.WarnTokens)
+        {
+            <div style="margin-top:8px"><InlineAlert Severity="Severity.Warning">Every agent that loads the overview reads all of this. Past a few thousand tokens it starts to crowd out the work; consider trimming.</InlineAlert></div>
+        }
+        <div class="wm-row" style="margin-top:8px">
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@(_busy || !IsDirty || TooLong)">Save</MudButton>
+            <MudButton Variant="Variant.Outlined" OnClick="Revert" Disabled="@(_busy || !IsDirty)">Undo edits</MudButton>
+            <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="ClearAsync" Disabled="@(_busy || _saved.ChangedUtc is null)">Clear my instructions</MudButton>
+        </div>
+    </section>
+
+    <section class="wm-card" aria-labelledby="preview-heading" style="margin-top:16px">
+        <div class="wm-row spread">
+            <h2 id="preview-heading" class="wm-section" style="margin:0">What agents receive</h2>
+            <MudButton Variant="Variant.Outlined" OnClick="() => _showPreview = !_showPreview">@(_showPreview ? "Hide" : "Show")</MudButton>
+        </div>
+        <p class="wm-muted" style="margin:8px 0 0">The overview exactly as saved, with the live setup of this moment. Your text sits under &ldquo;Instructions from the owner&rdquo;.</p>
+        @if (_showPreview)
+        {
+            <pre class="wm-mono" style="white-space:pre-wrap;margin-top:12px">@_preview</pre>
+        }
+    </section>
+
+    <section class="wm-card" aria-labelledby="groups-heading" style="margin-top:16px">
+        <h2 id="groups-heading" class="wm-section" style="margin-top:0">Group guides</h2>
+        <p class="wm-muted">Each group of tools also has a manual that is built into Waymark and updates with it, so there is nothing to edit. An agent asks for one when it first uses the group, so a group it never uses costs nothing.</p>
+        <div class="wm-table-wrap"><table class="wm-table">
+            <thead><tr><th>Group</th><th>Size when sent</th><th>Who holds it</th></tr></thead>
+            <tbody>
+                @foreach (var guide in _groupGuides)
+                {
+                    <tr>
+                        <td style="text-transform:capitalize">@guide.Module</td>
+                        <td>About @DisplayFormat.Count(TokensOf(guide)) tokens</td>
+                        <td>@GroupHolders(guide)</td>
+                    </tr>
+                }
+            </tbody>
+        </table></div>
+    </section>
+</div>

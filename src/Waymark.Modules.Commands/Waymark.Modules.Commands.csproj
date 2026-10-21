@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><AssemblyName>Waymark.Modules.Commands</AssemblyName><RootNamespace>Waymark.Modules.Commands</RootNamespace></PropertyGroup>
+  <ItemGroup><ProjectReference Include="..\Waymark.Core\Waymark.Core.csproj" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Guide.md" LogicalName="Waymark.Guides.commands.md" /></ItemGroup>
+</Project>

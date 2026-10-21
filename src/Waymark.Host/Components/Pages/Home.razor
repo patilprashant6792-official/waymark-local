@@ -1,0 +1,393 @@
+﻿@page "/"
+@inherits LiveComponentBase
+@using Microsoft.AspNetCore.Components.Web
+@using MudBlazor
+@using Waymark.Core.Approvals
+@using Waymark.Core.Commands
+@using Waymark.Core.Audit
+@using Waymark.Core.Edge
+@using Waymark.Core.NuGetIndex
+@using Waymark.Host.Components.Shared
+@using Waymark.Host.NuGetAdmin
+@using Waymark.Host.Ui
+
+<PageTitle>Home - Waymark</PageTitle>
+
+<div class="wm-page wide wm-home">
+    <header class="wm-home-head">
+        <div>
+            <h1 class="wm-title">Home</h1>
+            <p class="wm-lead" style="margin-bottom:0">What is happening on this machine right now.</p>
+        </div>
+        @if (Attention.Count > 0)
+        {
+            <ul class="wm-attn" aria-label="Needs attention">
+                @foreach (var item in Attention)
+                {
+                    <li>
+                        @if (item.Href is not null)
+                        {
+                            <a class="wm-chip @(item.State == StatusState.Failed ? "err" : "warn")" href="@item.Href"><MudIcon Icon="@(item.State == StatusState.Failed ? Icons.Material.Filled.Error : Icons.Material.Filled.Warning)" Size="Size.Small" /><span>@item.Text</span></a>
+                        }
+                        else
+                        {
+                            <span class="wm-chip @(item.State == StatusState.Failed ? "err" : "warn")"><MudIcon Icon="@(item.State == StatusState.Failed ? Icons.Material.Filled.Error : Icons.Material.Filled.Warning)" Size="Size.Small" /><span>@item.Text</span></span>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+        @if (!_editing)
+        {
+            <div class="wm-home-tools">
+                <MudButton Class="wm-edit-open" Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Outlined.DashboardCustomize" OnClick="StartEditing">Rearrange</MudButton>
+            </div>
+        }
+    </header>
+
+    @if (_error is not null)
+    {
+        <InlineAlert Severity="Severity.Warning">@_error</InlineAlert>
+    }
+
+    @foreach (var waitingCommand in _commandsWaiting)
+    {
+        <CommandApprovalCard @key="waitingCommand.Id" Run="waitingCommand" OnDecided="LoadAsync" />
+    }
+    @if (First is { } approval)
+    {
+        <section class="wm-card wm-pairing-card" aria-labelledby="pairing-title">
+            <div class="wm-row spread">
+                <h2 id="pairing-title" class="wm-card-title">An app wants to connect</h2>
+                <StateChip State="StatusState.Attention" Text="@($"Expires in {SecondsLeft(approval)}")" Icon="@Icons.Material.Filled.Timer" />
+            </div>
+            <div class="wm-pairing" aria-label="Pairing code">@DisplayFormat.PairingCode(approval.PairingCode)</div>
+            <p class="wm-muted">Approve only if this exact code is shown in the app that is asking. Anyone who can see this page can approve.</p>
+            <dl class="wm-dl">
+                <dt>App</dt>
+                <dd>@approval.ClientNameClaimed <span class="wm-muted">(the app names itself; Waymark cannot check it)</span></dd>
+                <dt>Returns to</dt>
+                <dd class="wm-mono">@approval.RedirectHost</dd>
+                <dt>Connects to</dt>
+                <dd class="wm-mono">@approval.Resource</dd>
+                <dt>Access asked</dt>
+                <dd>@DescribeScope(approval.Scope)</dd>
+            </dl>
+            <div class="wm-row" style="margin-top:16px">
+                <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="_deciding" OnClick="() => DecideAsync(approval, false)">Deny</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_deciding" OnClick="() => DecideAsync(approval, true)">Approve</MudButton>
+                @if (_pending.Count > 1)
+                {
+                    <a href="approvals">@(_pending.Count - 1) more waiting</a>
+                }
+            </div>
+        </section>
+    }
+    else
+    {
+        <div class="wm-calm slim">
+            <MudIcon Icon="@Icons.Material.Outlined.CheckCircle" />
+            <span><strong>Nothing is waiting for you.</strong> New pairing requests show up here and in the header.</span>
+        </div>
+    }
+
+    @if (_editing)
+    {
+        <section class="wm-edit-bar" aria-label="Rearranging the dashboard">
+            <div class="wm-edit-text">
+                <strong>Rearranging.</strong> Drag a card to move it and drag its corner to resize it.
+                With the keyboard, focus a card, then use <span class="wm-kbd">Alt</span> + arrows to move and <span class="wm-kbd">Shift</span> + arrows to resize.
+                Nothing is kept until you press Done.
+            </div>
+            <div class="wm-row">
+                <MudButton Variant="Variant.Text" Disabled="_savingLayout" OnClick="ResetLayoutAsync">Reset to default</MudButton>
+                <MudButton Variant="Variant.Outlined" Disabled="_savingLayout" OnClick="CancelEditing">Cancel</MudButton>
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_savingLayout" OnClick="SaveLayoutAsync">Done</MudButton>
+            </div>
+            @if (_layoutError is not null)
+            {
+                <InlineAlert Severity="Severity.Warning">@_layoutError</InlineAlert>
+            }
+            <div id="wm-grid-status" class="visually-hidden" role="status" aria-live="polite"></div>
+        </section>
+    }
+
+    <div id="@GridId" class="wm-grid@(_editing ? " editing" : string.Empty)">
+        @for (var index = 0; index < _layout.Cards.Count; index++)
+        {
+            var card = _layout.Cards[index];
+            var info = DashboardLayout.Info(card.Id);
+            <div class="wm-cell" @key="card.Id"
+                 data-id="@card.Id" data-title="@info.Title" data-w="@card.Width" data-h="@card.Height" data-min-w="@info.MinWidth" data-min-h="@info.MinHeight"
+                 style="@CellStyle(card, index)"
+                 tabindex="@(_editing ? "0" : null)" role="@(_editing ? "group" : null)" aria-label="@(_editing ? EditLabel(info) : null)">
+                <div class="wm-cell-body">@RenderCard(card.Id)</div>
+                @if (_editing)
+                {
+                    <span class="wm-cell-tag" aria-hidden="true">@info.Title</span>
+                    <span class="wm-resize" aria-hidden="true"></span>
+                }
+            </div>
+        }
+    </div>
+</div>
+
+@code {
+    private RenderFragment RenderCard(string id) => id switch
+    {
+        DashboardCards.Server => ServerTile,
+        DashboardCards.Tunnel => TunnelTile,
+        DashboardCards.CodeIndex => CodeIndexTile,
+        DashboardCards.Tools => ToolsTile,
+        DashboardCards.Tokens => TokensPanel,
+        DashboardCards.LiveLog => LiveLogPanel,
+        DashboardCards.Commands => CommandsPanel,
+        DashboardCards.RecentCalls => RecentCallsPanel,
+        DashboardCards.NuGet => NuGetPanel,
+        DashboardCards.Workspaces => WorkspacesPanel,
+        _ => (builder => { })
+    };
+
+    private RenderFragment LiveLogPanel => @<LiveLogCard />;
+
+    private RenderFragment TokensPanel => @<section class="wm-panel" aria-labelledby="tokens-title">
+        <header class="wm-panel-head">
+            <h2 id="tokens-title">Tokens sent to the AI<ActivityDot Token="@CardToken(DashboardCards.Tokens)" /></h2>
+            <a href="audit">Call history <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" /></a>
+        </header>
+        @if (_tokens is not { } tokens)
+        {
+            <div class="wm-panel-body"><p class="wm-muted" style="margin:0" aria-live="polite">Loading...</p></div>
+        }
+        else
+        {
+            <div class="wm-mkpis three">
+                <div><div class="wm-kpi-label">Since Waymark started</div><div class="wm-mk-value">@DisplayFormat.Count(tokens.Session.Tokens)</div><div class="wm-kpi-sub">@CallsText(tokens.Session.Calls)</div></div>
+                <div><div class="wm-kpi-label">Today</div><div class="wm-mk-value">@DisplayFormat.Count(tokens.Today.Tokens)</div><div class="wm-kpi-sub">@CallsText(tokens.Today.Calls)</div></div>
+                <div><div class="wm-kpi-label">All recorded</div><div class="wm-mk-value">@DisplayFormat.Count(tokens.Recorded.Tokens)</div><div class="wm-kpi-sub">@CallsText(tokens.Recorded.Calls)</div></div>
+            </div>
+            @if (tokens.TopToolsToday.Count == 0)
+            {
+                <div class="wm-panel-body"><p class="wm-muted" style="margin:0">No tool calls yet today. Each call's tokens show here and on its live log line.</p></div>
+            }
+            else
+            {
+                <ul class="wm-rows" aria-label="Tools that sent the most tokens today">
+                    @foreach (var top in tokens.TopToolsToday)
+                    {
+                        <li>
+                            <div class="wm-row-main"><strong class="wm-mono">@top.Tool</strong> <span class="wm-muted">@CallsText(top.Usage.Calls) today</span></div>
+                            <span class="wm-tok-num">@DisplayFormat.Count(top.Usage.Tokens)</span>
+                        </li>
+                    }
+                </ul>
+            }
+            <p class="wm-tok-note wm-muted">Counted with OpenAI's o200k_base tokenizer on the text each tool returned. Calls recorded before this was added are estimated from their size. Claude counts a little differently, so treat the numbers as a steady yardstick.</p>
+        }
+    </section>;
+
+    private RenderFragment ServerTile => @<article class="wm-tile @TileClass(Status.Paused ? StatusState.Attention : StatusState.Healthy)">
+        <div class="wm-tile-head">
+            <span class="wm-ico"><MudIcon Icon="@Icons.Material.Filled.Dns" Size="Size.Small" /></span>
+            <h2 class="wm-tile-label">Server<ActivityDot Token="@CardToken(DashboardCards.Server)" /></h2>
+            <StateChip State="@(Status.Paused ? StatusState.Attention : StatusState.Healthy)" Text="@(Status.Paused ? "Paused" : "Running")" />
+        </div>
+        <div class="wm-tile-value">@(Status.Paused ? "Paused" : "Accepting calls")</div>
+        <p class="wm-tile-sub">Admin on port @Edge.AdminPort, tools on port @Edge.McpPort.@(Status.Paused ? " Every tool call is refused until you resume." : string.Empty)</p>
+        <a class="wm-tile-link" href="live">Open the live log <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" /></a>
+    </article>;
+
+    private RenderFragment TunnelTile => @<article class="wm-tile @TileClass(TunnelState.State)">
+        <div class="wm-tile-head">
+            <span class="wm-ico"><MudIcon Icon="@Icons.Material.Filled.Cloud" Size="Size.Small" /></span>
+            <h2 class="wm-tile-label">Tunnel<ActivityDot Token="@CardToken(DashboardCards.Tunnel)" /></h2>
+            <StateChip State="TunnelState.State" Text="@TunnelState.Text" Title="@Status.Tunnel.Message" />
+        </div>
+        @if (Status.Tunnel.Domain is { Length: > 0 } domain)
+        {
+            <div class="wm-tile-value">Public address</div>
+            <p class="wm-tile-sub wm-mono wm-ellipsis" title="@domain">@domain</p>
+        }
+        else if (Status.PublicUrl is null)
+        {
+            <div class="wm-tile-value">No address yet</div>
+            <p class="wm-tile-sub">Claude cannot reach this machine until the tunnel is set up.</p>
+        }
+        else
+        {
+            <div class="wm-tile-value">@TunnelState.Text</div>
+            <p class="wm-tile-sub">@Status.Tunnel.Message</p>
+        }
+        <a class="wm-tile-link" href="setup">View tunnel setup <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" /></a>
+    </article>;
+
+    private RenderFragment CodeIndexTile => @<article class="wm-tile @TileClass(CodeIndexState.State)">
+        <div class="wm-tile-head">
+            <span class="wm-ico"><MudIcon Icon="@Icons.Material.Filled.Code" Size="Size.Small" /></span>
+            <h2 class="wm-tile-label">Code index<ActivityDot Token="@CardToken(DashboardCards.CodeIndex)" /></h2>
+            <StateChip State="CodeIndexState.State" Text="@CodeIndexState.Text" />
+        </div>
+        <div class="wm-tile-value">@DisplayFormat.Count(IndexedFiles) <span class="wm-unit">files</span></div>
+        <p class="wm-tile-sub">@DisplayFormat.Count(IndexedTypes) types in @_workspaces.Count @(_workspaces.Count == 1 ? "workspace" : "workspaces")</p>
+        <a class="wm-tile-link" href="workspaces">View all workspaces <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" /></a>
+    </article>;
+
+    private RenderFragment ToolsTile => @<article class="wm-tile @TileClass(StatusState.Healthy)">
+        <div class="wm-tile-head">
+            <span class="wm-ico"><MudIcon Icon="@Icons.Material.Filled.Build" Size="Size.Small" /></span>
+            <h2 class="wm-tile-label">What the AI sees<ActivityDot Token="@CardToken(DashboardCards.Tools)" /></h2>
+        </div>
+        <div class="wm-tile-value">@EnabledTools <span class="wm-unit">of @_tools.Count tools</span></div>
+        <div class="wm-meter" role="meter" aria-label="Tool descriptions" aria-valuemin="0" aria-valuemax="@AllTokens" aria-valuenow="@EnabledTokens">
+            <div class="wm-meter-fill @(ToolPercent >= 80 ? "high" : string.Empty)" style="width:@ToolPercent%"></div>
+        </div>
+        <p class="wm-tile-sub">@DisplayFormat.Count(EnabledTokens) of @DisplayFormat.Count(AllTokens) tokens of tool descriptions</p>
+        <a class="wm-tile-link" href="tools">View all tools <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" /></a>
+    </article>;
+
+    private RenderFragment RecentCallsPanel => @<section class="wm-panel" aria-labelledby="calls-title">
+        <header class="wm-panel-head">
+            <h2 id="calls-title">Recent calls<ActivityDot Token="@CardToken(DashboardCards.RecentCalls)" /></h2>
+            <a href="audit">View all <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" /></a>
+        </header>
+        @if (_recent.Count == 0)
+        {
+            <div class="wm-panel-body">
+                <EmptyState Icon="@Icons.Material.Outlined.History" Title="No calls yet" Text="Calls from connected apps will appear here as they happen." />
+            </div>
+        }
+        else
+        {
+            <div class="wm-table-wrap">
+                <table class="wm-table">
+                    <caption class="visually-hidden">The five most recent tool calls</caption>
+                    <thead>
+                        <tr><th scope="col">When</th><th scope="col">Tool</th><th scope="col">Workspace</th><th scope="col">Outcome</th><th scope="col" class="num">Time</th><th scope="col" class="num">Tokens</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var call in _recent)
+                        {
+                            var outcome = DisplayFormat.Outcome(call.Entry.Outcome);
+                            <tr>
+                                <td class="wm-muted">@DisplayFormat.Clock(call.Entry.TimestampUtc)</td>
+                                <td class="wm-mono">@call.Entry.Action</td>
+                                <td>@(call.Entry.Target ?? "-")</td>
+                                <td><StateChip State="outcome.State" Text="@outcome.Text" /></td>
+                                <td class="num wm-muted">@DisplayFormat.Duration(call.Entry.DurationMs)</td>
+                                <td class="num wm-muted">@DisplayFormat.Tokens(call.Entry.ResultTokens, call.Entry.ResultBytes)</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </section>;
+
+    private RenderFragment WorkspacesPanel => @<section class="wm-panel" aria-labelledby="workspaces-title">
+        <header class="wm-panel-head">
+            <h2 id="workspaces-title">Workspaces<ActivityDot Token="@CardToken(DashboardCards.Workspaces)" /></h2>
+            <a href="workspaces">View all <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" /></a>
+        </header>
+        @if (_workspaces.Count == 0)
+        {
+            <div class="wm-panel-body">
+                <EmptyState Icon="@Icons.Material.Outlined.FolderOpen" Title="No workspaces yet" Text="A workspace is a folder the AI may read. Add the one you work in.">
+                    <a href="workspaces">Add a workspace</a>
+                </EmptyState>
+            </div>
+        }
+        else
+        {
+            <ul class="wm-rows" aria-label="Workspaces">
+                @foreach (var workspace in _workspaces)
+                {
+                    <li>
+                        <div class="wm-row-main">
+                            <strong>@workspace.Name</strong>
+                            <div class="wm-muted wm-mono wm-ellipsis" title="@workspace.Path">@ShownPath(workspace.Path)</div>
+                            <div class="wm-muted">@FilesOf(workspace) - indexed @DisplayFormat.Ago(workspace.LastIndexedUtc, Time.GetUtcNow())</div>
+                        </div>
+                        <StateChip State="@(workspace.Enabled ? StatusState.Healthy : StatusState.Off)" Text="@(workspace.Enabled ? "On" : "Off")" />
+                    </li>
+                }
+            </ul>
+        }
+    </section>;
+
+    private RenderFragment CommandsPanel => @<section class="wm-panel" aria-labelledby="commands-title">
+        <header class="wm-panel-head">
+            <h2 id="commands-title">Commands<ActivityDot Token="@CardToken(DashboardCards.Commands)" /></h2>
+            <a href="console">Open console <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" /></a>
+        </header>
+        @if (_commandsRecent.Count == 0)
+        {
+            <div class="wm-panel-body"><p class="wm-muted" style="margin:0">Nothing has run yet. When Claude builds, tests or uses git, it shows here and live in the Console.</p></div>
+        }
+        else
+        {
+            <ul class="wm-rows" aria-label="Recent commands">
+                @foreach (var command in _commandsRecent)
+                {
+                    var commandState = CommandState(command);
+                    <li>
+                        <div class="wm-row-main">
+                            <a href="console/@command.Id"><strong>@CommandLabel(command)</strong></a>
+                            <span class="wm-muted"> in @command.WorkspaceName</span>
+                            <div class="wm-muted wm-mono wm-ellipsis" title="@command.CommandLine">@FirstLine(command.CommandLine)</div>
+                        </div>
+                        <StateChip State="commandState.State" Text="@commandState.Text" />
+                    </li>
+                }
+            </ul>
+        }
+    </section>;
+
+    private RenderFragment NuGetPanel => @<section class="wm-panel" aria-labelledby="nuget-title">
+        <header class="wm-panel-head">
+            <h2 id="nuget-title">NuGet packages<ActivityDot Token="@CardToken(DashboardCards.NuGet)" /></h2>
+            <a href="nuget">View all <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" /></a>
+        </header>
+        @if (_nuget is not { } nuget)
+        {
+            <div class="wm-panel-body"><p class="wm-muted" style="margin:0" aria-live="polite">Loading...</p></div>
+        }
+        else
+        {
+            <div class="wm-mkpis">
+                <div><div class="wm-kpi-label">Ready</div><div class="wm-mk-value">@DisplayFormat.Count(nuget.Ready)</div><div class="wm-kpi-sub">@(nuget.Building > 0 ? $"{nuget.Building} building" : "packages searchable")</div></div>
+                <div class="@(nuget.Failed > 0 ? "bad" : string.Empty)"><div class="wm-kpi-label">Failed</div><div class="wm-mk-value">@DisplayFormat.Count(nuget.Failed)</div><div class="wm-kpi-sub">@(nuget.Failed > 0 ? "reload or clear them" : "all good")</div></div>
+                <div><div class="wm-kpi-label">Types</div><div class="wm-mk-value">@DisplayFormat.Count(nuget.Types)</div><div class="wm-kpi-sub">@DisplayFormat.Count(nuget.Symbols) symbols</div></div>
+                <div><div class="wm-kpi-label">Index size</div><div class="wm-mk-value">@DisplayFormat.Size(nuget.IndexBytes)</div><div class="wm-kpi-sub">@DisplayFormat.Count(nuget.CachedResults) stored results</div></div>
+            </div>
+            @if (_nugetRecent.Count == 0)
+            {
+                <div class="wm-panel-body"><p class="wm-muted" style="margin:0">Nothing stored yet. Packages appear here the first time Claude looks one up.</p></div>
+            }
+            else
+            {
+                <ul class="wm-rows" aria-label="Recently indexed packages">
+                    @foreach (var entry in _nugetRecent)
+                    {
+                        var package = entry.Package;
+                        var state = PackageState(package.State);
+                        <li>
+                            <div class="wm-row-main">
+                                @if (package.State == NuGetIndexState.Ready)
+                                {
+                                    <a href="@NuGetLinks.Explore(package.Key)"><strong>@package.Key.PackageId</strong></a>
+                                }
+                                else
+                                {
+                                    <strong>@package.Key.PackageId</strong>
+                                }
+                                <span class="wm-muted wm-mono"> @package.Key.Version</span>
+                                <div class="wm-muted wm-ellipsis">@package.Key.TargetFramework - indexed @DisplayFormat.Ago(package.IndexedUtc ?? package.StartedUtc, Time.GetUtcNow())</div>
+                            </div>
+                            <StateChip State="state.State" Text="@state.Text" />
+                        </li>
+                    }
+                </ul>
+            }
+        }
+    </section>;
+}

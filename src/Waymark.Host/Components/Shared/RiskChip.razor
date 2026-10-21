@@ -1,0 +1,29 @@
+@using Waymark.Core.Commands
+
+<span class="wm-chip @ClassName" title="@RiskTiers.Hint(Tier)">
+    <MudIcon Icon="@IconName" Size="Size.Small" />
+    <span>@RiskTiers.Label(Tier)</span>
+</span>
+
+@code {
+    /// <summary>The operation whose risk is shown: what it can do to this computer and the data on it.</summary>
+    [Parameter, EditorRequired]
+    public OperationInfo Operation { get; set; } = default!;
+
+    private RiskTier Tier => RiskTiers.Of(Operation);
+
+    private string ClassName => Tier switch
+    {
+        RiskTier.Look => "ok",
+        RiskTier.Change => "info",
+        _ => "warn"
+    };
+
+    private string IconName => Tier switch
+    {
+        RiskTier.Look => Icons.Material.Filled.Visibility,
+        RiskTier.Change => Icons.Material.Filled.Edit,
+        RiskTier.RunsCode => Icons.Material.Filled.Code,
+        _ => Icons.Material.Filled.CloudUpload
+    };
+}

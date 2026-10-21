@@ -1,0 +1,170 @@
+@page "/workspaces/{WorkspaceId:long}/access"
+@inherits LiveComponentBase
+@using MudBlazor
+@using Waymark.Core.Security
+@using Waymark.Host.Components.Shared
+@using Waymark.Host.Security
+@using Waymark.Host.Ui
+
+<PageTitle>Access rules - Waymark</PageTitle>
+
+<div class="wm-page">
+    <p><a href="/workspaces">Back to workspaces</a></p>
+
+    @if (!_loaded)
+    {
+        <p class="wm-lead" aria-live="polite">Loading...</p>
+    }
+    else if (_workspace is null)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.FolderOpen" Title="Workspace not found" Text="It may have been removed. Go back to the list of workspaces." />
+    }
+    else
+    {
+        <h1 class="wm-title">Access rules: @_workspace.Name</h1>
+        <p class="wm-lead">Decide which files and folders Claude cannot open in this workspace. Your rules are added to the built-in protection and take effect at once. They never lift a built-in block, so secrets, keys, databases and version control stay protected.</p>
+
+        @if (_error is not null)
+        {
+            <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
+        }
+
+        <section class="wm-card" aria-labelledby="ar-explore">
+            <h2 id="ar-explore" class="wm-section">Explore this workspace</h2>
+            <p class="wm-muted">See what Claude can and cannot open. Open folders to browse, or search by name; use * and ? for patterns such as *.sql. Block anything that is still allowed with one click.</p>
+            <div class="wm-row">
+                <MudTextField T="string" Label="Search by name" @bind-Value="_query" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="For example Legacy or *.sql" MaxLength="AccessBrowser.MaxQueryLength" Style="min-width:320px" OnKeyUp="OnSearchKey" />
+                <MudButton Variant="Variant.Outlined" OnClick="SearchAsync" Disabled="@(_exploring || string.IsNullOrWhiteSpace(_query))">Search</MudButton>
+                @if (_searching)
+                {
+                    <MudButton Variant="Variant.Text" OnClick="ClearSearchAsync">Back to folders</MudButton>
+                }
+            </div>
+
+            @if (_searching)
+            {
+                <p class="wm-muted" aria-live="polite" style="margin-top:12px">Search results for '@_searchedFor'</p>
+            }
+            else
+            {
+                <nav class="wm-row" aria-label="Folder path" style="margin-top:12px">
+                    <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => OpenAsync(string.Empty)">@_workspace.Name</MudButton>
+                    @foreach (var crumb in Crumbs())
+                    {
+                        <span aria-hidden="true">/</span>
+                        <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => OpenAsync(crumb.Path)">@crumb.Name</MudButton>
+                    }
+                </nav>
+            }
+
+            @if (_listing is null)
+            {
+                <p class="wm-muted" aria-live="polite">@(_exploring ? "Loading..." : string.Empty)</p>
+            }
+            else if (_listing.Entries.Count == 0)
+            {
+                <EmptyState Icon="@Icons.Material.Outlined.FolderOpen" Title="@(_searching ? "Nothing found" : "Empty folder")" Text="@(_searching ? "No file or folder name matches. Folders that are always blocked are not searched inside." : "There are no files or folders here.")" />
+            }
+            else
+            {
+                <div class="wm-table-wrap">
+                    <table class="wm-table">
+                        <caption class="visually-hidden">Files and folders with the access Claude has to each</caption>
+                        <thead>
+                            <tr><th scope="col">Name</th><th scope="col">Access</th><th scope="col">Why</th><th scope="col">Actions</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var entry in _listing.Entries)
+                            {
+                                <tr>
+                                    <th scope="row">
+                                        @if (entry.IsFolder)
+                                        {
+                                            <MudIcon Icon="@Icons.Material.Outlined.Folder" Size="Size.Small" />
+                                            <MudButton Size="Size.Small" Variant="Variant.Text" OnClick="() => OpenAsync(entry.RelativePath)">@(_searching ? entry.RelativePath : entry.Name)</MudButton>
+                                        }
+                                        else
+                                        {
+                                            <MudIcon Icon="@Icons.Material.Outlined.Description" Size="Size.Small" />
+                                            <span class="wm-mono">@(_searching ? entry.RelativePath : entry.Name)</span>
+                                        }
+                                    </th>
+                                    <td><StateChip State="@(entry.Allowed ? StatusState.Healthy : StatusState.Failed)" Text="@(entry.Allowed ? "Allowed" : "Blocked")" /></td>
+                                    <td class="wm-muted">@entry.Reason</td>
+                                    <td>
+                                        @if (entry.Allowed)
+                                        {
+                                            <MudButton Size="Size.Small" Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy" OnClick="() => BlockAsync(entry)">Block</MudButton>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+                @if (_listing.Truncated)
+                {
+                    <InlineAlert Severity="Severity.Info">Only the first @(_searching ? AccessBrowser.MaxResults : AccessBrowser.MaxEntries) entries are shown. @(_searching ? "Search for something more specific." : "Search by name to find the rest.")</InlineAlert>
+                }
+            }
+        </section>
+
+        <section class="wm-card" style="margin-top:24px" aria-labelledby="ar-add">
+            <h2 id="ar-add" class="wm-section">Add a rule</h2>
+            <div class="wm-row">
+                <MudSelect T="AccessRuleKind" Label="Rule" @bind-Value="_kind" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:240px">
+                    <MudSelectItem Value="AccessRuleKind.BlockFolder">Block a folder or path</MudSelectItem>
+                    <MudSelectItem Value="AccessRuleKind.BlockFileName">Block a file name</MudSelectItem>
+                    <MudSelectItem Value="AccessRuleKind.BlockKeyword">Block a word in the path</MudSelectItem>
+                    <MudSelectItem Value="AccessRuleKind.AllowExtension">Allow a file type</MudSelectItem>
+                </MudSelect>
+                <MudTextField T="string" Label="Pattern" @bind-Value="_pattern" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="@AccessRulesText.Help(_kind)" MaxLength="AccessRuleRules.MaxPatternLength" Style="min-width:300px" />
+                <MudTextField T="string" Label="Note (optional)" @bind-Value="_note" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Why this rule exists" MaxLength="AccessRuleRules.MaxNoteLength" Style="min-width:260px" />
+                <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddAsync" Disabled="@(_busy || string.IsNullOrWhiteSpace(_pattern))">Add rule</MudButton>
+            </div>
+        </section>
+
+        <h2 class="wm-section" style="margin-top:24px">Your rules</h2>
+        @if (_rules.Count == 0)
+        {
+            <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="No rules yet" Text="Only the built-in protection applies. Block something above or add a rule." />
+        }
+        else
+        {
+            <div class="wm-table-wrap">
+                <table class="wm-table">
+                    <caption class="visually-hidden">Access rules of this workspace</caption>
+                    <thead>
+                        <tr><th scope="col">Rule</th><th scope="col">Pattern</th><th scope="col">Note</th><th scope="col">On</th><th scope="col">Actions</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var rule in _rules)
+                        {
+                            <tr>
+                                <td>@AccessRulesText.Label(rule.Kind)</td>
+                                <th scope="row" class="wm-mono">@rule.Pattern</th>
+                                <td>@rule.Note</td>
+                                <td><MudSwitch T="bool" Value="rule.Enabled" ValueChanged="v => ToggleAsync(rule, v)" Color="Color.Primary" aria-label="@($"Enable rule {rule.Pattern}")" /></td>
+                                <td><MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" OnClick="() => RemoveAsync(rule)">Remove</MudButton></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        <section class="wm-card" style="margin-top:24px" aria-labelledby="ar-base">
+            <h2 id="ar-base" class="wm-section">Always blocked (built in)</h2>
+            <dl class="wm-dl">
+                <dt>Folders</dt>
+                <dd class="wm-mono">@string.Join(", ", FileAccessPolicy.BaselineFolders.Order())</dd>
+                <dt>Files</dt>
+                <dd class="wm-mono">@string.Join(", ", FileAccessPolicy.BaselineFileNames.Order())</dd>
+                <dt>Words in a path</dt>
+                <dd class="wm-mono">@string.Join(", ", FileAccessPolicy.BaselineKeywords.Order())</dd>
+                <dt>File types allowed</dt>
+                <dd class="wm-mono">@string.Join(" ", Policy.AllowedExtensions.Order())</dd>
+            </dl>
+        </section>
+    }
+</div>
