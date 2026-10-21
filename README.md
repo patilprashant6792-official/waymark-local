@@ -1,6 +1,8 @@
-# waymark
+# Waymark
 
 Local MCP server for .NET developers: token-efficient code, NuGet and data context for claude.ai and Claude Code, over your own tunnel. Windows, SQLite, secrets stay on your machine.
+
+> **Read this first.** Waymark gives an AI assistant real access to this computer: what it reads can reach your Claude chat, and what it runs acts as you. Changes and commands wait for your approval by default, approvals can only be given on this computer, and secrets in tool results are hidden before they leave. None of that is perfect, so read [docs/safety.md](docs/safety.md) before you install, and see [SECURITY.md](SECURITY.md) to report a problem. This is early software (v0.1), provided as is under the [MIT License](LICENSE).
 
 ## Install
 
@@ -16,8 +18,8 @@ Local MCP server for .NET developers: token-efficient code, NuGet and data conte
 
 1. Open a terminal and get the code:
    ```
-   git clone https://github.com/patilprashant6792-official/waymark.git
-   cd waymark
+git clone https://github.com/patilprashant6792-official/waymark-local.git
+cd waymark-local
    ```
 2. Run the installer. Type it in the terminal, or double-click `install.cmd` in the folder:
    ```
