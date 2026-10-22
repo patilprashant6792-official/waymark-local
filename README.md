@@ -1,8 +1,20 @@
 # Waymark
 
+![License: MIT](https://img.shields.io/badge/license-MIT-blue) ![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D4) ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4) ![MCP server](https://img.shields.io/badge/MCP-server-black) ![Status: v0.1](https://img.shields.io/badge/status-v0.1-orange)
+
 Local MCP server for .NET developers: token-efficient code, NuGet and data context for claude.ai and Claude Code, over your own tunnel. Windows, SQLite, secrets stay on your machine.
 
 > **Read this first.** Waymark gives an AI assistant real access to this computer: what it reads can reach your Claude chat, and what it runs acts as you. Changes and commands wait for your approval by default, approvals can only be given on this computer, and secrets in tool results are hidden before they leave. None of that is perfect, so read [docs/safety.md](docs/safety.md) before you install, and see [SECURITY.md](SECURITY.md) to report a problem. This is early software (v0.1), provided as is under the [MIT License](LICENSE).
+
+## What it does
+
+| | |
+|---|---|
+| **Real NuGet APIs** | `nuget_find` and `nuget_expand` show exact signatures from the package at the version your project pins. A member that was not confirmed there does not exist. |
+| **Your C# code** | `code_skeleton`, `code_search`, `code_outline`, `code_method`, `code_callers` and `code_types` read a syntax index (Roslyn, no source text stored) that a file watcher keeps current. |
+| **Text in any file** | `code_grep` finds literal text in any readable file, read from disk on every call, so it is never stale. `code_read` reads files and line ranges. |
+| **Edit and build** | `file_edit_lines` and `file_write` change files (off until you switch them on); `cmd_dotnet`, `cmd_git`, `cmd_proc` and `cmd_shell` run commands, each operation set to Off, Ask or Auto. |
+| **Safety** | Approvals only on this computer, never by Claude. Secrets are hidden in tool output, every call is audited, and **Pause all** stops every tool at once. There is no sandbox: read the note above. |
 
 ## Install
 
@@ -17,14 +29,18 @@ Local MCP server for .NET developers: token-efficient code, NuGet and data conte
 ### Steps
 
 1. Open a terminal and get the code:
+
+   ```powershell
+   git clone https://github.com/patilprashant6792-official/waymark-local.git
+   cd waymark-local
    ```
-git clone https://github.com/patilprashant6792-official/waymark-local.git
-cd waymark-local
-   ```
+
 2. Run the installer. Type it in the terminal, or double-click `install.cmd` in the folder:
-   ```
+
+   ```bat
    install.cmd
    ```
+
 3. Wait. The first run takes a minute or two (longer if the SDK has to be installed). It prints each step as it goes.
 4. When it finishes, your browser opens the Waymark admin page at <http://localhost:47100>. If it does not, open that address yourself.
 
@@ -47,7 +63,7 @@ If the build fails, nothing is changed and an earlier install keeps working. If 
 
 ### Update and remove
 
-```
+```text
 update.cmd                 gets the latest version and installs it; your data is not touched
 uninstall.cmd              removes Waymark; your data stays
 uninstall.cmd -RemoveData  removes the data too (database, keys and secrets; asks you to type DELETE)
@@ -74,6 +90,10 @@ Waymark lets Claude read your code and, when you allow it, run commands on your 
 - [docs/error-handling.md](docs/error-handling.md) and [docs/live-log.md](docs/live-log.md): what happens when something fails, and what the Live page shows.
 - [docs/safety.md](docs/safety.md) and [docs/commands-policy.md](docs/commands-policy.md): the risks, what Waymark hides, and which operations ask first.
 - [docs/guides.md](docs/guides.md): how Claude learns to use each tool group, and the host prompt where you add your own instructions.
+
+## Try it and tell me what you think
+
+Waymark is early, and honest feedback is what improves it most. If you work in .NET, please try it once on a real project, then tell me what worked, what broke and what is missing: open an [issue](https://github.com/patilprashant6792-official/waymark-local/issues), or see [CONTRIBUTING.md](CONTRIBUTING.md). Found a way past the secret hiding or the approvals? Please report it privately, as described in [SECURITY.md](SECURITY.md).
 
 ## License
 
