@@ -1,4 +1,8 @@
-# Waymark
+<p align="center">
+  <img src="src/Waymark.Host/wwwroot/brand/waymark-logo.svg" alt="Waymark logo" width="96" height="96">
+</p>
+
+<h1 align="center">Waymark</h1>
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue) ![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D4) ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4) ![MCP server](https://img.shields.io/badge/MCP-server-black) ![Status: v0.1](https://img.shields.io/badge/status-v0.1-orange)
 
