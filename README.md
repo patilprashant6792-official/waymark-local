@@ -5,6 +5,12 @@
 Local MCP server for .NET developers: token-efficient code, NuGet and data context for claude.ai and Claude Code, over your own tunnel. Windows, SQLite, secrets stay on your machine.
 
 > **Read this first.** Waymark gives an AI assistant real access to this computer: what it reads can reach your Claude chat, and what it runs acts as you. Changes and commands wait for your approval by default, approvals can only be given on this computer, and secrets in tool results are hidden before they leave. None of that is perfect, so read [docs/safety.md](docs/safety.md) before you install, and see [SECURITY.md](SECURITY.md) to report a problem. This is early software (v0.1), provided as is under the [MIT License](LICENSE).
+>
+> <img width="800" height="754" alt="image" src="https://github.com/user-attachments/assets/fb4312cc-4147-4892-aa36-41e63a7aea57" />
+
+<img width="798" height="217" alt="image" src="https://github.com/user-attachments/assets/f3a9f039-6bac-4fae-9e9c-42412f3b049f" />
+
+
 
 ## What it does
 
