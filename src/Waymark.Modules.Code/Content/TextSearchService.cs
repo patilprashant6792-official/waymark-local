@@ -1,6 +1,7 @@
 using System.Globalization;
 using Waymark.Core.Security;
 using Waymark.Core.Tools;
+using Waymark.Core.Text;
 using Waymark.Core.Workspaces;
 using Waymark.Modules.Code.Reading;
 

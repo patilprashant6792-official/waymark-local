@@ -1,4 +1,5 @@
 using Waymark.Core.Security;
+using Waymark.Core.Text;
 using Waymark.Modules.Code.Scheduling;
 
 namespace Waymark.Modules.Code.Content;

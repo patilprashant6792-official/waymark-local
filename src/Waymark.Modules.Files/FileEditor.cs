@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Globalization;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Waymark.Core.Events;
 using Waymark.Core.Security;
@@ -11,9 +12,12 @@ internal sealed class FileEditor(
     IEventBus events,
     FileWriteGate gate,
     FilesOptions options,
+    CopySourceReader copyReader,
+    CopyResolver copyResolver,
+    FolderCopyPlanner folderPlanner,
     ILogger<FileEditor> logger) : IFileEditor
 {
-    public async Task<IReadOnlyList<FileWriteResult>> WriteAsync(string? workspaceName, IReadOnlyList<WriteFileEntry> files, CancellationToken ct)
+    public async Task<IReadOnlyList<FileWriteResult>> WriteAsync(string? workspaceName, IReadOnlyList<WriteFileEntry> files, bool dryRun, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(files);
         if (files.Count == 0)
@@ -28,19 +32,26 @@ internal sealed class FileEditor(
 
         var workspace = await guard.GetWorkspaceAsync(workspaceName, ct).ConfigureAwait(false);
         var results = new List<FileWriteResult>(files.Count);
+        var session = new CopySession();
         using (await gate.EnterAsync(ct).ConfigureAwait(false))
         {
             foreach (var entry in files)
             {
                 ct.ThrowIfCancellationRequested();
-                results.Add(await WriteOneAsync(workspace, entry, ct).ConfigureAwait(false));
+                if (entry.FromFolder is not null)
+                {
+                    results.AddRange(await FolderCopyAsync(workspace, entry, session, dryRun, ct).ConfigureAwait(false));
+                    continue;
+                }
+
+                results.Add(await WriteOneAsync(workspace, entry, session, dryRun, ct).ConfigureAwait(false));
             }
         }
 
         return results;
     }
 
-    public async Task<FileWriteResult> EditLinesAsync(string? workspaceName, string? relativeFilePath, IReadOnlyList<PatchOperation> patches, CancellationToken ct)
+    public async Task<FileWriteResult> EditLinesAsync(string? workspaceName, string? relativeFilePath, IReadOnlyList<PatchOperation> patches, bool dryRun, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(patches);
         if (patches.Count == 0)
@@ -56,11 +67,11 @@ internal sealed class FileEditor(
         var workspace = await guard.GetWorkspaceAsync(workspaceName, ct).ConfigureAwait(false);
         using (await gate.EnterAsync(ct).ConfigureAwait(false))
         {
-            return await EditOneAsync(workspace, relativeFilePath, patches, ct).ConfigureAwait(false);
+            return await EditOneAsync(workspace, relativeFilePath, patches, dryRun, ct).ConfigureAwait(false);
         }
     }
 
-    private async Task<FileWriteResult> EditOneAsync(Workspace workspace, string? relativeFilePath, IReadOnlyList<PatchOperation> patches, CancellationToken ct)
+    private async Task<FileWriteResult> EditOneAsync(Workspace workspace, string? relativeFilePath, IReadOnlyList<PatchOperation> patches, bool dryRun, CancellationToken ct)
     {
         var label = relativeFilePath ?? string.Empty;
         try
@@ -90,19 +101,26 @@ internal sealed class FileEditor(
 
             var original = await File.ReadAllBytesAsync(target.AbsolutePath, ct).ConfigureAwait(false);
             var format = TextFileFormat.Detect(original);
-            var document = LineDocument.Parse(format.DecodeStrict(original));
-            var affected = LinePatcher.Apply(document.Lines, patches);
+            var text = format.DecodeStrict(original);
+            var document = LineDocument.Parse(text);
+            var session = new CopySession();
+            CopySourceReader.Seed(session, workspace, target, original, format, text);
+            var plan = await copyResolver.ResolveAsync(session, workspace, target, patches, ct).ConfigureAwait(false);
+            var affected = LinePatcher.Apply(document.Lines, plan.Patches);
             var bytes = format.Encode(document.ToText());
             if (bytes.Length > options.MaxWriteBytes)
             {
                 return FileWriteResult.Failure(label, $"The edited file would be larger than the limit of {options.MaxWriteBytes} bytes.");
             }
 
-            await ReplaceAtomicallyAsync(target.AbsolutePath, bytes, ct).ConfigureAwait(false);
+            var note = plan.Notes.Count == 0 ? null : string.Join("; ", plan.Notes);
+            if (dryRun)
+            {
+                return new FileWriteResult(target.RelativePath, true, null, document.Lines.Count, bytes.Length, null, affected, note);
+            }
 
-            logger.LogInformation("file_edit_lines {Workspace}/{Path} ({Patches} patches, {Lines} lines)", workspace.Name, target.RelativePath, patches.Count, document.Lines.Count);
-            await events.PublishAsync(new FileChanged(workspace.Id, target.RelativePath, FileChangeKind.Modified)).ConfigureAwait(false);
-
+            await CommitEditAsync(workspace, target, original, bytes, plan, ct).ConfigureAwait(false);
+            logger.LogInformation("file_edit_lines {Workspace}/{Path} ({Patches} patches, {Lines} lines, {Cuts} other file(s) cut)", workspace.Name, target.RelativePath, patches.Count, document.Lines.Count, plan.Cuts.Count);
             return new FileWriteResult(
                 target.RelativePath,
                 true,
@@ -110,7 +128,8 @@ internal sealed class FileEditor(
                 document.Lines.Count,
                 bytes.Length,
                 new DateTimeOffset(File.GetLastWriteTimeUtc(target.AbsolutePath), TimeSpan.Zero),
-                affected);
+                affected,
+                note);
         }
         catch (PatchValidationException ex)
         {
@@ -140,7 +159,28 @@ internal sealed class FileEditor(
         }
     }
 
-    private async Task<FileWriteResult> WriteOneAsync(Workspace workspace, WriteFileEntry entry, CancellationToken ct)
+    // The edited file is written first, then the files that lost lines; if any write fails, all of them are restored.
+    private async Task CommitEditAsync(Workspace workspace, GuardedPath target, byte[] original, byte[] bytes, ResolvedEdit plan, CancellationToken ct)
+    {
+        if (plan.Cuts.Count == 0)
+        {
+            await AtomicFile.ReplaceAsync(target.AbsolutePath, bytes, ct).ConfigureAwait(false);
+        }
+        else
+        {
+            var files = new List<PendingFile>(plan.Cuts.Count + 1) { new(workspace, target, original, bytes) };
+            files.AddRange(plan.Cuts);
+            await CopyTransaction.CommitAsync(files, logger, ct).ConfigureAwait(false);
+        }
+
+        await events.PublishAsync(new FileChanged(workspace.Id, target.RelativePath, FileChangeKind.Modified)).ConfigureAwait(false);
+        foreach (var cut in plan.Cuts)
+        {
+            await events.PublishAsync(new FileChanged(cut.Workspace.Id, cut.Path.RelativePath, FileChangeKind.Modified)).ConfigureAwait(false);
+        }
+    }
+
+    private async Task<FileWriteResult> WriteOneAsync(Workspace workspace, WriteFileEntry entry, CopySession session, bool dryRun, CancellationToken ct)
     {
         var label = entry.RelativeFilePath ?? string.Empty;
         try
@@ -150,14 +190,10 @@ internal sealed class FileEditor(
                 return FileWriteResult.Failure(label, "relativeFilePath is required.");
             }
 
-            if (entry.Content is null)
+            var early = ValidateSourceChoice(entry, label);
+            if (early is not null)
             {
-                return FileWriteResult.Failure(label, "content is required; use an empty string for an empty file.");
-            }
-
-            if (Encoding.UTF8.GetByteCount(entry.Content) > options.MaxWriteBytes)
-            {
-                return FileWriteResult.Failure(label, $"The content is larger than the limit of {options.MaxWriteBytes} bytes.");
+                return early;
             }
 
             var target = guard.Resolve(workspace, entry.RelativeFilePath);
@@ -178,10 +214,33 @@ internal sealed class FileEditor(
                 return FileWriteResult.Failure(label, "The file does not exist. Use mode create or upsert.");
             }
 
+            var content = entry.Content;
+            TextFileFormat? sourceFormat = null;
+            string? note = null;
+            if (entry.From is not null)
+            {
+                var piece = await copyReader.ReadAsync(session, workspace, null, entry.From, keepWholeFileExact: true, ct).ConfigureAwait(false);
+                content = piece.Text;
+                sourceFormat = piece.Source.Format;
+                note = piece.Summary;
+            }
+
+            if (Encoding.UTF8.GetByteCount(content!) > options.MaxWriteBytes)
+            {
+                return FileWriteResult.Failure(label, $"The content is larger than the limit of {options.MaxWriteBytes} bytes.");
+            }
+
+            // A copy keeps the encoding, byte order mark and line endings of its source; typed content on a new file is UTF-8.
+            var format = exists ? TextFileFormat.Detect(target.AbsolutePath) : sourceFormat ?? TextFileFormat.ForNewFile;
+            var bytes = format.Encode(content!);
+            if (dryRun)
+            {
+                return new FileWriteResult(target.RelativePath, true, null, CountLines(content!), bytes.Length, null, Note: note);
+            }
+
             Directory.CreateDirectory(Path.GetDirectoryName(target.AbsolutePath)!);
-            var format = exists ? TextFileFormat.Detect(target.AbsolutePath) : TextFileFormat.ForNewFile;
-            var bytes = format.Encode(entry.Content);
-            await ReplaceAtomicallyAsync(target.AbsolutePath, bytes, ct).ConfigureAwait(false);
+            await AtomicFile.ReplaceAsync(target.AbsolutePath, bytes, ct).ConfigureAwait(false);
+            session.Snapshots.Remove(target.AbsolutePath);
 
             logger.LogInformation("file_write {Workspace}/{Path} ({Mode}, {Bytes} bytes)", workspace.Name, target.RelativePath, entry.Mode, bytes.Length);
             await events.PublishAsync(new FileChanged(workspace.Id, target.RelativePath, exists ? FileChangeKind.Modified : FileChangeKind.Created)).ConfigureAwait(false);
@@ -190,9 +249,14 @@ internal sealed class FileEditor(
                 target.RelativePath,
                 true,
                 null,
-                CountLines(entry.Content),
+                CountLines(content!),
                 bytes.Length,
-                new DateTimeOffset(File.GetLastWriteTimeUtc(target.AbsolutePath), TimeSpan.Zero));
+                new DateTimeOffset(File.GetLastWriteTimeUtc(target.AbsolutePath), TimeSpan.Zero),
+                Note: note);
+        }
+        catch (PatchValidationException ex)
+        {
+            return FileWriteResult.Failure(label, ex.Message);
         }
         catch (FileAccessDeniedException ex)
         {
@@ -214,22 +278,69 @@ internal sealed class FileEditor(
         }
     }
 
-    // The new content is written next to the target and then moved over it, so a failure never leaves a half-written file.
-    private static async Task ReplaceAtomicallyAsync(string absolutePath, byte[] bytes, CancellationToken ct)
+    // Plans the whole folder first (nothing is read yet), checks the caller's confirmCount, then copies file by file through the same path as a single copy.
+    // The first result describes the copy as a whole; each file after it succeeds or fails on its own.
+    private async Task<List<FileWriteResult>> FolderCopyAsync(Workspace workspace, WriteFileEntry entry, CopySession session, bool dryRun, CancellationToken ct)
     {
-        var temp = Path.Combine(Path.GetDirectoryName(absolutePath)!, $".waymark-{Guid.NewGuid():N}.tmp");
+        var copy = entry.FromFolder!;
+        var label = string.IsNullOrWhiteSpace(copy.Folder) ? "fromFolder" : $"{copy.Folder.Trim().TrimEnd('/', '\\')}/**";
         try
         {
-            await File.WriteAllBytesAsync(temp, bytes, ct).ConfigureAwait(false);
-            File.Move(temp, absolutePath, overwrite: true);
-        }
-        finally
-        {
-            if (File.Exists(temp))
+            if (entry.Content is not null || entry.From is not null || !string.IsNullOrWhiteSpace(entry.RelativeFilePath))
             {
-                File.Delete(temp);
+                return [FileWriteResult.Failure(label, "fromFolder cannot be combined with relativeFilePath, content or from.")];
             }
+
+            var plan = await folderPlanner.PlanAsync(workspace, copy, ct).ConfigureAwait(false);
+            if (!dryRun && copy.ConfirmCount != plan.Items.Count)
+            {
+                var given = copy.ConfirmCount?.ToString(CultureInfo.InvariantCulture) ?? "none";
+                return [FileWriteResult.Failure(label, $"confirmCount must equal the number of files to copy, which is {plan.Items.Count} (given: {given}). Run with dryRun=true first and pass its count. Nothing was copied.")];
+            }
+
+            var from = plan.SourceFolder.Length == 0 ? "." : plan.SourceFolder;
+            var to = plan.TargetFolder.Length == 0 ? "." : plan.TargetFolder;
+            var results = new List<FileWriteResult>(plan.Items.Count + 1)
+            {
+                new(label, true, null, null, null, null, Note: $"{plan.Items.Count} file(s) from {plan.SourceWorkspace.Name}:{from} to {to}; {plan.SkippedItems} blocked or linked item(s) left out; confirmCount={plan.Items.Count}"),
+            };
+            foreach (var item in plan.Items)
+            {
+                ct.ThrowIfCancellationRequested();
+                var source = new CopySource(copy.Workspace, item.SourceFile, Replace: copy.Replace, Csharp: copy.Csharp, Indent: copy.Indent);
+                results.Add(await WriteOneAsync(workspace, new WriteFileEntry(item.TargetFile, null, copy.Mode, source), session, dryRun, ct).ConfigureAwait(false));
+                session.Snapshots.Clear();
+            }
+
+            return results;
         }
+        catch (PatchValidationException ex)
+        {
+            return [FileWriteResult.Failure(label, ex.Message)];
+        }
+        catch (FileAccessDeniedException ex)
+        {
+            return [FileWriteResult.Failure(label, ex.Message)];
+        }
+    }
+    // Exactly one source of text: content or from.
+    private static FileWriteResult? ValidateSourceChoice(WriteFileEntry entry, string label)
+    {
+        if (entry.From is null)
+        {
+            return entry.Content is null
+                ? FileWriteResult.Failure(label, "content is required (or from, to copy a file); use an empty string for an empty file.")
+                : null;
+        }
+
+        if (entry.Content is not null)
+        {
+            return FileWriteResult.Failure(label, "Give content or from, not both.");
+        }
+
+        return entry.From.Remove
+            ? FileWriteResult.Failure(label, "from.remove works only with file_edit_lines; use file_move to move a whole file.")
+            : null;
     }
 
     // A trailing line break does not start another line.

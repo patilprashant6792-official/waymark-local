@@ -15,5 +15,8 @@ public enum PatchAction
     Append,
 }
 
-/// <summary>One line edit. Line numbers are 1-based and refer to the file as it was before any edit of the call.</summary>
-public sealed record PatchOperation(PatchAction? Action, int StartLine = 0, int EndLine = 0, string? Content = null);
+/// <summary>
+/// One line edit. Line numbers are 1-based and refer to the file as it was before any edit of the call.
+/// Patch, insert and append take their text from either Content or From (a copy of lines of a file), never both.
+/// </summary>
+public sealed record PatchOperation(PatchAction? Action, int StartLine = 0, int EndLine = 0, string? Content = null, CopySource? From = null);

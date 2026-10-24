@@ -18,6 +18,7 @@ Pin `version` (from the skeleton) and `targetFramework` (the project's, e.g. net
 - The first call for a package version downloads and indexes it, which takes a few seconds; later calls are instant.
 - `additionalPackageIds` only after an error that names a missing assembly.
 - Adding a package: `cmd_dotnet` action `package_add` (commands guide). Pick the latest stable that fits the project's target framework, and prefer the version other projects in the workspace already pin.
+- Copied or migrated code brings its package usage with it. Check the packages the target project pins (`code_skeleton(ws, path=<project folder>)`) and confirm the API of the pinned version with `nuget_expand` before adding or upgrading a package.
 
 ## Errors
 

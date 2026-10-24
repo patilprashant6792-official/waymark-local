@@ -44,6 +44,7 @@ Builds and many git commands load files that can run code (props and targets, Di
 5. The same error after two attempts: stop, re-read the surrounding code and the callers; do not loop.
 6. Several projects: build the solution (leave `target` out) so dependents compile too.
 7. A clean build is not proof that it works. For behavior, run `test` with `filter`.
+8. After code was copied or migrated (`from` / `fromFolder` in the files tools), build the target solution at once. Typical errors are CS0246 / CS0234 (a using, namespace or project reference the copied code needs) and duplicate definitions; fix them with small patches, not by copying again.
 
 ### Adding a package
 
