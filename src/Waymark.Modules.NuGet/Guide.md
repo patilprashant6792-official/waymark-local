@@ -4,7 +4,7 @@ They show what a package exposes, read from the compiled package at the version 
 
 ## Flow
 
-1. Package id and version: the NuGet section of `code_skeleton(ws)`. Id unknown: `nuget_packages(query)`.
+1. Package id and version: the NuGet section of `code_skeleton(ws)`; with many projects it is a summary, so use `code_skeleton(ws, path=<project folder>)` for that project's pins. Id unknown: `nuget_packages(query)`.
 2. `nuget_find(packageId, query)` returns ranked symbols with ids. An empty query browses the most prominent ones. Filters: `kind`, `namespace` (exact), `declaringType` (lists that type's methods).
 3. `nuget_expand(packageId, identifiers)` returns exact constructors, overloads, properties, enum values, XML docs and related type ids. Up to 5 ids per call; pass related ids straight back. `sections`: sig, methods, props, data, doc, rel, all.
 4. `nuget_outline(packageId)` returns the namespace map only. Use it for a completely unfamiliar package, or with `refresh: true` after a version bump.

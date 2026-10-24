@@ -12,17 +12,26 @@ public sealed class CodeSkeletonTools(ISkeletonService skeleton, ILogger<CodeSke
 {
     [McpServerTool(Name = "code_skeleton", ReadOnly = true, Destructive = false, Idempotent = true)]
     [Description(
-        "Retrieves the structure of a workspace: ASCII folder tree with file sizes and line counts, solution files, and a NuGet summary per project " +
-        "(package versions, SDK, target framework). " +
+        "Retrieves the structure of a workspace, or of one folder in it: ASCII folder tree with file sizes and line counts, solution files, " +
+        "and a NuGet summary per project (package versions, SDK, target framework). " +
         "WILDCARD: pass workspace='*' to list all registered workspaces. " +
-        "Folders with many files are collapsed; list them with code_folder_files. " +
+        "OVERVIEW (no depth): folders open level by level until a size budget is used; every folder left closed is marked ▸ with a one-line " +
+        "summary (folders, files, size, large files, main extensions, project file), so even a very large workspace fits. " +
+        "Open a ▸ folder by calling again with its path; pass depth to show an exact number of levels (a large depth shows the whole tree). " +
+        "A folder with many entries is paged with page; folders with many files are collapsed, list them with code_folder_files. " +
         "To see what changed since a point in time use code_changes_since. " +
         "Use this BEFORE any change to understand the existing structure.")]
     public Task<string> Skeleton(
         [Description("Workspace name as shown in Waymark. Use '*' to list all workspaces.")]
         string workspace,
+        [Description("Optional: folder to show, relative to the workspace root (e.g. 'src/Orders'). Leave empty for the root.")]
+        string? path = null,
+        [Description("Optional: levels below the folder to show (1 = its direct entries). Leave empty for the overview, which opens folders until its size budget is used.")]
+        int? depth = null,
+        [Description("Optional: page of the folder's own entries when it has more than fit at once, starting at 1 (default 1)")]
+        int page = 1,
         CancellationToken cancellationToken = default) =>
-        RunAsync(() => skeleton.BuildSkeletonAsync(workspace, cancellationToken));
+        RunAsync(() => skeleton.BuildSkeletonAsync(workspace, new SkeletonRequest(path, depth, page), cancellationToken));
 
     [McpServerTool(Name = "code_folder_files", ReadOnly = true, Destructive = false, Idempotent = true)]
     [Description(

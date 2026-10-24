@@ -6,12 +6,14 @@ namespace Waymark.Modules.Code.Skeleton;
 /// <summary>Lists the visible files modified after a cutoff, with size and line counts.</summary>
 internal sealed class ChangedFilesReporter(FileAccessPolicy policy, SkeletonOptions options)
 {
-    public async Task AppendAsync(string root, DateTimeOffset cutoff, OutputBudget output, CancellationToken ct)
+    public async Task AppendAsync(string root, DateTimeOffset cutoff, WorkspaceAccessRules rules, OutputBudget output, CancellationToken ct)
     {
         var cutoffUtc = cutoff.UtcDateTime;
         var (changed, truncated) = VisibleEntries.Scan(
             root,
+            root,
             policy,
+            rules,
             file => file.LastWriteTimeUtc > cutoffUtc,
             options.MaxScanEntries,
             options.MaxListedFiles,

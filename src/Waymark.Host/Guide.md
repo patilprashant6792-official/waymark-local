@@ -17,6 +17,8 @@ A group's guide covers its tools, their order and their pitfalls. Ask for it onc
 
 Orient with code, change with files, verify with commands. Let each group's guide decide the details.
 
+Orient the way a developer explores a new repository: start from the `code_skeleton(ws)` overview, open only the folders the task needs (`code_skeleton(ws, path=...)`), and read files last. Do not ask for the whole tree of a large workspace up front.
+
 ## Rules
 
 - A refusal is a decision: Waymark paused, a tool off, a gate Off, or a denial. Do not look for another route to the same effect. Tell the user what is blocked and what they can change.

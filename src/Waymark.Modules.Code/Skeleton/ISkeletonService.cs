@@ -7,12 +7,15 @@ public interface ISkeletonService
     Task<string> ListWorkspacesAsync(CancellationToken ct);
 
     /// <summary>
-    /// Folder tree, solution files and NuGet summary of one workspace. '*' lists the workspaces and an unknown name
-    /// answers with the workspace list instead of failing.
+    /// Folder tree, solution files and NuGet summary of one workspace, or of one folder in it. Without a depth the tree opens folders
+    /// breadth-first until the overview budget is used and summarises the rest; with a depth it shows that many levels.
+    /// '*' lists the workspaces and an unknown name answers with the workspace list instead of failing.
     /// </summary>
     /// <exception cref="InvalidOperationException">The workspace is disabled.</exception>
-    /// <exception cref="DirectoryNotFoundException">The workspace folder no longer exists.</exception>
-    Task<string> BuildSkeletonAsync(string? workspace, CancellationToken ct);
+    /// <exception cref="DirectoryNotFoundException">The workspace folder or the requested folder does not exist.</exception>
+    /// <exception cref="ArgumentException">The depth or page is out of range, or the path names a file.</exception>
+    /// <exception cref="Waymark.Core.Security.FileAccessDeniedException">The folder is refused by the access policy.</exception>
+    Task<string> BuildSkeletonAsync(string? workspace, SkeletonRequest request, CancellationToken ct);
 
     /// <summary>Files modified after the timestamp (Unix seconds or ISO 8601, UTC assumed when no offset is given).</summary>
     /// <exception cref="ArgumentException">The workspace name or the timestamp is not valid.</exception>

@@ -7,7 +7,9 @@ Find before you read, and read only what the task needs: a full read of a large 
 | Need | Call |
 |---|---|
 | Workspace names | `code_skeleton('*')` |
-| Folder tree, file sizes, solution, packages with pinned versions, SDK, target framework | `code_skeleton(ws)` |
+| Overview: folder tree with sizes, solution, packages with pinned versions, SDK, target framework | `code_skeleton(ws)` |
+| Open a folder marked ▸, or one project's own package pins | `code_skeleton(ws, path='src/Orders')` |
+| An exact number of levels (a large depth shows the whole tree) | `code_skeleton(ws, path?, depth=3)` |
 | Folder shows 'N files collapsed'; does file X exist | `code_folder_files(ws, folder, searchPattern, page)` |
 | What changed since a point in time (resuming, reviewing edits) | `code_changes_since(ws, ISO 8601 or unix seconds)` |
 | Type, member or attribute by name | `code_search(query, ws or '*', memberType)` |
@@ -44,7 +46,13 @@ Numbers from `code_method`, `code_read` and `code_outline` are real file lines a
 - `ws='*'` searches every enabled workspace; the other code tools need one workspace.
 - `code_grep(ws or '*', text, pathGlob?)` finds literal text in any readable file (config keys, routes, log messages, SQL, JSON, YAML, Razor, markdown), not only C#. It reads the files from disk on every call, so it is never stale and its line numbers are real lines. Use `code_search` for C# names and `code_grep` when the text is not a name.
 - `code_grep` is plain text on one line, not a regex; narrow with `pathGlob` (`**/*.json`, `src/Orders/**`). It skips blocked files, vendored folders (wwwroot/lib, dist, vendor), minified, binary and very large files, and says how many it left out. A 'results are partial' note means narrow the search.
-- The NuGet part of the skeleton gives the pinned package versions and target framework that the nuget tools need.
+- The NuGet part of the skeleton gives the pinned package versions and target framework that the nuget tools need. When the folder holds many projects it is one summary of every pinned version; `code_skeleton(ws, path=<project folder>)` gives one project's pins.
+
+## Overview
+
+- Without `depth`, `code_skeleton` opens folders level by level until a size budget is used, so it fits any workspace. A folder left closed is marked ▸ with a summary in brackets: folders, files, size, large files (⚠️), main extensions, project file. Counts cover only what the tools may open.
+- Open a ▸ folder with `code_skeleton(ws, path=...)`; the notes under the tree name the largest closed folders. Vendored code (wwwroot/lib, dist, vendor) and folders with very many entries stay closed in the overview, and a folder with more entries than fit at once is paged with `page`.
+- 'not scanned' and '≥' mean the scan hit its limit on a very large workspace: open a subfolder to see it in full.
 
 ## Impact before changing a contract
 
