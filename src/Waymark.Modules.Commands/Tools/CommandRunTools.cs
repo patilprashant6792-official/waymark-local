@@ -9,7 +9,7 @@ namespace Waymark.Modules.Commands.Tools;
 public sealed class CommandRunTools(CommandService service)
 {
     private const string WorkspaceHelp = "Workspace name as shown in Waymark (a single workspace; '*' is not accepted)";
-    private const string PurposeHelp = "One sentence: why you run this. The owner reads it before approving.";
+    private const string PurposeHelp = "One sentence: why you run this. The owner reads it before approving, sees it live, and it is kept in the audit log.";
     private const string WaitHelp = "Seconds to wait for the result before returning a run id (default 30, at most about 45). The command keeps running; use cmd_wait to wait longer.";
 
     [McpServerTool(Name = "cmd_dotnet", ReadOnly = false, Destructive = false, Idempotent = false)]

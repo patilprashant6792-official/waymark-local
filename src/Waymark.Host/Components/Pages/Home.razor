@@ -333,6 +333,10 @@
                         <div class="wm-row-main">
                             <a href="console/@command.Id"><strong>@CommandLabel(command)</strong></a>
                             <span class="wm-muted"> in @command.WorkspaceName</span>
+                            @if (command.Purpose.Length > 0)
+                            {
+                                <div class="wm-ellipsis" title="@command.Purpose">@command.Purpose</div>
+                            }
                             <div class="wm-muted wm-mono wm-ellipsis" title="@command.CommandLine">@FirstLine(command.CommandLine)</div>
                         </div>
                         <StateChip State="commandState.State" Text="@commandState.Text" />

@@ -10,8 +10,8 @@ namespace Waymark.Data.Stores;
 public sealed class AuditStore(ISqliteConnectionFactory connections, IWriteQueue writes, ILogger<AuditStore> logger) : IAuditStore
 {
     private const string InsertSql =
-        "INSERT INTO audit_entries (ts_utc, category, actor, action, target, args_redacted, duration_ms, result_bytes, outcome, error, result_tokens) " +
-        "VALUES (@ts, @category, @actor, @action, @target, @args, @durationMs, @resultBytes, @outcome, @error, @resultTokens)";
+        "INSERT INTO audit_entries (ts_utc, category, actor, action, target, args_redacted, duration_ms, result_bytes, outcome, error, result_tokens, purpose) " +
+        "VALUES (@ts, @category, @actor, @action, @target, @args, @durationMs, @resultBytes, @outcome, @error, @resultTokens, @purpose)";
 
     public async Task AppendAsync(AuditEntry entry, CancellationToken ct)
     {
@@ -78,7 +78,7 @@ public sealed class AuditStore(ISqliteConnectionFactory connections, IWriteQueue
 
         await using var connection = await connections.OpenAsync(ct);
         var rows = await connection.QueryAsync<AuditRow>(new CommandDefinition(
-            "SELECT id, ts_utc, category, actor, action, target, args_redacted, duration_ms, result_bytes, outcome, error, result_tokens FROM audit_entries " +
+            "SELECT id, ts_utc, category, actor, action, target, args_redacted, duration_ms, result_bytes, outcome, error, result_tokens, purpose FROM audit_entries " +
             FilterSql + "AND (@beforeId IS NULL OR id < @beforeId) AND (@afterId IS NULL OR id > @afterId) ORDER BY id DESC LIMIT @limit",
             FilterParameters(query),
             cancellationToken: ct));
@@ -161,7 +161,7 @@ public sealed class AuditStore(ISqliteConnectionFactory connections, IWriteQueue
         "AND (@action IS NULL OR action = @action) AND (@target IS NULL OR target = @target) " +
         "AND (@since IS NULL OR ts_utc >= @since) " +
         "AND (@text IS NULL OR action LIKE @text ESCAPE '\\' OR IFNULL(target, '') LIKE @text ESCAPE '\\' " +
-        "OR IFNULL(actor, '') LIKE @text ESCAPE '\\' OR IFNULL(error, '') LIKE @text ESCAPE '\\') ";
+        "OR IFNULL(actor, '') LIKE @text ESCAPE '\\' OR IFNULL(error, '') LIKE @text ESCAPE '\\' OR IFNULL(purpose, '') LIKE @text ESCAPE '\\') ";
 
     private static object FilterParameters(AuditQuery query) =>
         new
@@ -204,7 +204,8 @@ public sealed class AuditStore(ISqliteConnectionFactory connections, IWriteQueue
                 resultBytes = entry.ResultBytes,
                 resultTokens = entry.ResultTokens,
                 outcome = EnumText.ToDb(entry.Outcome),
-                error = entry.Error
+                error = entry.Error,
+                purpose = entry.Purpose
             },
             tx,
             cancellationToken: ct));
@@ -223,7 +224,8 @@ public sealed class AuditStore(ISqliteConnectionFactory connections, IWriteQueue
                 row.ResultBytes is null ? null : checked((int)row.ResultBytes.Value),
                 EnumText.FromDb<AuditOutcome>(row.Outcome),
                 row.Error,
-                row.ResultTokens is null ? null : checked((int)row.ResultTokens.Value)));
+                row.ResultTokens is null ? null : checked((int)row.ResultTokens.Value),
+                row.Purpose));
 
     private sealed class AuditRow
     {
@@ -250,6 +252,8 @@ public sealed class AuditStore(ISqliteConnectionFactory connections, IWriteQueue
         public string? Error { get; set; }
 
         public long? ResultTokens { get; set; }
+
+        public string? Purpose { get; set; }
     }
 
     private class UsageRow

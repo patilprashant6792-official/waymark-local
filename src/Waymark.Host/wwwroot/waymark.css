@@ -902,6 +902,10 @@ kbd { padding: 1px 6px; font: 12px ui-monospace, Consolas, monospace; border: 1p
 .wm-live-lvl { flex: none; margin-right: 1ch; font-weight: 700; }
 .wm-live-lvl:empty { display: none; }
 .wm-live-msg { flex: 1 1 auto; min-width: 0; }
+.wm-live-why { display: block; font-weight: 600; }
+.wm-live-why::before { content: "why "; font-weight: 400; opacity: .65; }
+.wm-run-why { display: block; overflow: hidden; font-size: 12.5px; text-overflow: ellipsis; white-space: nowrap; }
+.wm-audit-why { display: block; font-size: 12.5px; color: var(--mud-palette-text-secondary); }
 .wm-live-line.warn .wm-live-lvl, .wm-live-line.warn .wm-live-msg { color: var(--a11); }
 .wm-live-line.err .wm-live-lvl, .wm-live-line.err .wm-live-msg { color: var(--a9); }
 .wm-live-more { flex: none; margin-left: 1ch; padding: 0 6px; font: inherit; font-size: 11.5px; color: var(--a12); background: transparent; border: 1px solid #30363d; border-radius: 4px; cursor: pointer; }

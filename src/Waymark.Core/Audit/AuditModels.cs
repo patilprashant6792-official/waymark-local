@@ -17,7 +17,8 @@ public enum AuditOutcome
 
 /// <summary>
 /// One audit row. ResultBytes is the size of what a tool sent back; ResultTokens is how many tokens that was for the AI
-/// (null on rows recorded before tokens were counted).
+/// (null on rows recorded before tokens were counted). Purpose is the one-sentence reason the AI gave for a command (null for
+/// everything else and for rows recorded before purposes were kept).
 /// </summary>
 public sealed record AuditEntry(
     DateTimeOffset TimestampUtc,
@@ -30,7 +31,8 @@ public sealed record AuditEntry(
     int? ResultBytes,
     AuditOutcome Outcome,
     string? Error,
-    int? ResultTokens = null);
+    int? ResultTokens = null,
+    string? Purpose = null);
 
 public sealed record StoredAuditEntry(long Id, AuditEntry Entry);
 

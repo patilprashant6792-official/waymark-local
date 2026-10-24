@@ -73,7 +73,8 @@ public sealed class ToolPipeline(
         var tool = context.Params?.Name ?? UnknownClient;
         var client = context.User?.FindFirst(BearerAuthHandler.ClientClaim)?.Value ?? UnknownClient;
         var started = Stopwatch.GetTimestamp();
-        using var running = activity.Begin(LogKind.Tool, tool);
+        var purpose = ToolPurpose.From(context.Params?.Arguments);
+        using var running = activity.Begin(LogKind.Tool, purpose is null ? tool : $"{tool}  why: {purpose}");
         var outcome = AuditOutcome.Ok;
         string? error = null;
         var bytes = 0;
@@ -273,6 +274,7 @@ public sealed class ToolPipeline(
         var elapsed = Stopwatch.GetElapsedTime(started);
         var arguments = context.Params?.Arguments;
         var argumentNames = arguments is null ? null : JsonSerializer.Serialize(arguments.Keys.Order(StringComparer.Ordinal));
+        var purpose = ToolPurpose.From(arguments);
         string? target = null;
         if (arguments is not null && arguments.TryGetValue(WorkspaceArgument, out var workspace) && workspace.ValueKind == JsonValueKind.String)
         {
@@ -292,12 +294,13 @@ public sealed class ToolPipeline(
             error is null ? "ok" : outcome.ToString().ToLowerInvariant() + ": " + error,
             (long)elapsed.TotalMilliseconds,
             tokens,
-            ToolArgumentSummary.Build(arguments));
+            ToolArgumentSummary.Build(arguments),
+            purpose);
 
         try
         {
             await audit.AppendAsync(
-                new AuditEntry(time.GetUtcNow(), AuditCategory.Tool, client, tool, target, argumentNames, (int)elapsed.TotalMilliseconds, bytes, outcome, error, tokens),
+                new AuditEntry(time.GetUtcNow(), AuditCategory.Tool, client, tool, target, argumentNames, (int)elapsed.TotalMilliseconds, bytes, outcome, error, tokens, purpose),
                 CancellationToken.None);
         }
         catch (Exception ex)
