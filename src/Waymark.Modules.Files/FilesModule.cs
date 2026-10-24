@@ -20,6 +20,7 @@ public sealed class FilesModule : IMcpModule
         services.TryAddSingleton<FileWriteGate>();
         services.TryAddSingleton<CopySourceReader>();
         services.TryAddSingleton<CopyResolver>();
+        services.TryAddSingleton<FolderCopyPlanner>();
         services.TryAddSingleton<IFileEditor, FileEditor>();
         services.TryAddSingleton<IFileManager, FileManager>();
     }

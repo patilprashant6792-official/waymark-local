@@ -107,7 +107,8 @@ internal sealed class CopySourceReader(IPathGuard guard, IContentInspector inspe
         return snapshot;
     }
 
-    private async Task<Workspace> ResolveWorkspaceAsync(Workspace callWorkspace, string? name, CancellationToken ct)
+    /// <summary>The workspace a source or source folder lives in: the call's own workspace unless another enabled one is named.</summary>
+    public async Task<Workspace> ResolveWorkspaceAsync(Workspace callWorkspace, string? name, CancellationToken ct)
     {
         if (string.IsNullOrWhiteSpace(name) || string.Equals(name.Trim(), callWorkspace.Name, StringComparison.OrdinalIgnoreCase))
         {

@@ -1,14 +1,14 @@
 using System.Text;
 using System.Text.RegularExpressions;
 
-namespace Waymark.Modules.Code.Content;
+namespace Waymark.Core.Text;
 
 /// <summary>
-/// A small glob over workspace-relative paths written with '/': '*' stays inside one folder, '**' crosses folders,
+/// A small glob over relative paths written with '/': '*' stays inside one folder, '**' crosses folders,
 /// '?' is one character, and a trailing '/' means everything below that folder. A pattern with no '/' is matched
 /// against the file name in any folder. Matching ignores case.
 /// </summary>
-internal sealed class PathGlob
+public sealed class PathGlob
 {
     private const int MaxPatternLength = 200;
     private static readonly TimeSpan MatchTimeout = TimeSpan.FromMilliseconds(100);
@@ -34,12 +34,12 @@ internal sealed class PathGlob
 
         if (value.Length > MaxPatternLength)
         {
-            throw new ArgumentException($"pathGlob is longer than {MaxPatternLength} characters.");
+            throw new ArgumentException($"The glob is longer than {MaxPatternLength} characters.");
         }
 
         if (value.Contains(':') || value.Split('/').Any(part => part == ".."))
         {
-            throw new ArgumentException("pathGlob must be relative to the workspace root and must not contain ':' or '..'.");
+            throw new ArgumentException("The glob must be relative and must not contain ':' or '..'.");
         }
 
         while (value.StartsWith("./", StringComparison.Ordinal))

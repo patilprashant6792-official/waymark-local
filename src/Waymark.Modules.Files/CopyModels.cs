@@ -21,3 +21,22 @@ public sealed record CopySource(
     List<ReplaceRule>? Replace = null,
     CSharpRenames? Csharp = null,
     int Indent = 0);
+
+/// <summary>A literal change to the path of every copied file, applied to the path below the source folder (for example "Legacy/" to "").</summary>
+public sealed record PathRename(string? Find, string? With);
+
+/// <summary>
+/// Copies many files at once. Every file below Folder (matching Glob, relative to Folder) goes to the same path below ToFolder, after PathRename.
+/// Replace, Csharp and Indent apply to every file. ConfirmCount must equal the number of files found (take it from a dryRun).
+/// </summary>
+public sealed record FolderCopy(
+    string? Workspace = null,
+    string? Folder = null,
+    string? ToFolder = null,
+    string? Glob = null,
+    List<PathRename>? PathRename = null,
+    List<ReplaceRule>? Replace = null,
+    CSharpRenames? Csharp = null,
+    int Indent = 0,
+    WriteMode Mode = WriteMode.Create,
+    int? ConfirmCount = null);

@@ -37,7 +37,7 @@ Batch lists are comma separated with no spaces.
 
 ## Line numbers
 
-Numbers from `code_method`, `code_read` and `code_outline` are real file lines and go straight into `file_edit_lines`. They stay valid only until that file changes: after any edit, read the range again.
+Numbers from `code_method`, `code_read` and `code_outline` are real file lines and go straight into `file_edit_lines`. They stay valid only until that file changes: after any edit, read the range again. To move or duplicate code you do not need to read its body: give those line numbers as `from` (files guide, "Copy, don't retype") and the server copies it.
 
 ## Search
 

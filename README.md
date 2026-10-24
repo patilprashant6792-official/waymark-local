@@ -24,7 +24,7 @@ Local MCP server for .NET developers: token-efficient code, NuGet and data conte
 | **Workspace structure** | `code_skeleton` gives an overview that fits any workspace size: folders open level by level, the rest are summarised in one line each and opened on demand with `path`. Package pins, SDK and target framework come with it. |
 | **Your C# code** | `code_search`, `code_outline`, `code_method`, `code_callers` and `code_types` read a syntax index (Roslyn, no source text stored) that a file watcher keeps current. |
 | **Text in any file** | `code_grep` finds literal text in any readable file, read from disk on every call, so it is never stale. `code_read` reads files and line ranges. |
-| **Edit and build** | `file_edit_lines` and `file_write` change files (off until you switch them on); `cmd_dotnet`, `cmd_git`, `cmd_proc` and `cmd_shell` run commands, each operation set to Off, Ask or Auto. |
+| **Edit and build** | `file_edit_lines` and `file_write` change files (off until you switch them on) and can copy instead of retype: lines, whole files or whole folder trees, between workspaces, with namespace/identifier renames, so migrations cost almost no output tokens; `cmd_dotnet`, `cmd_git`, `cmd_proc` and `cmd_shell` run commands, each operation set to Off, Ask or Auto. |
 | **Safety** | Approvals only on this computer, never by Claude. Secrets are hidden in tool output, every call is audited, and **Pause all** stops every tool at once. There is no sandbox: read the note above. |
 
 ## Install

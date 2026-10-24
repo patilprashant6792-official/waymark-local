@@ -1,4 +1,5 @@
-﻿using System.Text;
+﻿using System.Globalization;
+using System.Text;
 using Microsoft.Extensions.Logging;
 using Waymark.Core.Events;
 using Waymark.Core.Security;
@@ -13,6 +14,7 @@ internal sealed class FileEditor(
     FilesOptions options,
     CopySourceReader copyReader,
     CopyResolver copyResolver,
+    FolderCopyPlanner folderPlanner,
     ILogger<FileEditor> logger) : IFileEditor
 {
     public async Task<IReadOnlyList<FileWriteResult>> WriteAsync(string? workspaceName, IReadOnlyList<WriteFileEntry> files, bool dryRun, CancellationToken ct)
@@ -36,6 +38,12 @@ internal sealed class FileEditor(
             foreach (var entry in files)
             {
                 ct.ThrowIfCancellationRequested();
+                if (entry.FromFolder is not null)
+                {
+                    results.AddRange(await FolderCopyAsync(workspace, entry, session, dryRun, ct).ConfigureAwait(false));
+                    continue;
+                }
+
                 results.Add(await WriteOneAsync(workspace, entry, session, dryRun, ct).ConfigureAwait(false));
             }
         }
@@ -270,6 +278,51 @@ internal sealed class FileEditor(
         }
     }
 
+    // Plans the whole folder first (nothing is read yet), checks the caller's confirmCount, then copies file by file through the same path as a single copy.
+    // The first result describes the copy as a whole; each file after it succeeds or fails on its own.
+    private async Task<List<FileWriteResult>> FolderCopyAsync(Workspace workspace, WriteFileEntry entry, CopySession session, bool dryRun, CancellationToken ct)
+    {
+        var copy = entry.FromFolder!;
+        var label = string.IsNullOrWhiteSpace(copy.Folder) ? "fromFolder" : $"{copy.Folder.Trim().TrimEnd('/', '\\')}/**";
+        try
+        {
+            if (entry.Content is not null || entry.From is not null || !string.IsNullOrWhiteSpace(entry.RelativeFilePath))
+            {
+                return [FileWriteResult.Failure(label, "fromFolder cannot be combined with relativeFilePath, content or from.")];
+            }
+
+            var plan = await folderPlanner.PlanAsync(workspace, copy, ct).ConfigureAwait(false);
+            if (!dryRun && copy.ConfirmCount != plan.Items.Count)
+            {
+                var given = copy.ConfirmCount?.ToString(CultureInfo.InvariantCulture) ?? "none";
+                return [FileWriteResult.Failure(label, $"confirmCount must equal the number of files to copy, which is {plan.Items.Count} (given: {given}). Run with dryRun=true first and pass its count. Nothing was copied.")];
+            }
+
+            var from = plan.SourceFolder.Length == 0 ? "." : plan.SourceFolder;
+            var to = plan.TargetFolder.Length == 0 ? "." : plan.TargetFolder;
+            var results = new List<FileWriteResult>(plan.Items.Count + 1)
+            {
+                new(label, true, null, null, null, null, Note: $"{plan.Items.Count} file(s) from {plan.SourceWorkspace.Name}:{from} to {to}; {plan.SkippedItems} blocked or linked item(s) left out; confirmCount={plan.Items.Count}"),
+            };
+            foreach (var item in plan.Items)
+            {
+                ct.ThrowIfCancellationRequested();
+                var source = new CopySource(copy.Workspace, item.SourceFile, Replace: copy.Replace, Csharp: copy.Csharp, Indent: copy.Indent);
+                results.Add(await WriteOneAsync(workspace, new WriteFileEntry(item.TargetFile, null, copy.Mode, source), session, dryRun, ct).ConfigureAwait(false));
+                session.Snapshots.Clear();
+            }
+
+            return results;
+        }
+        catch (PatchValidationException ex)
+        {
+            return [FileWriteResult.Failure(label, ex.Message)];
+        }
+        catch (FileAccessDeniedException ex)
+        {
+            return [FileWriteResult.Failure(label, ex.Message)];
+        }
+    }
     // Exactly one source of text: content or from.
     private static FileWriteResult? ValidateSourceChoice(WriteFileEntry entry, string label)
     {

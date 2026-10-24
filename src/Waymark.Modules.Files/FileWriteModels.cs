@@ -12,8 +12,11 @@ public enum WriteMode
     Upsert,
 }
 
-/// <summary>One file to write. Give Content (an empty string makes an empty file) or From (a copy of another file or of lines of it), never both.</summary>
-public sealed record WriteFileEntry(string? RelativeFilePath, string? Content, WriteMode Mode = WriteMode.Upsert, CopySource? From = null);
+/// <summary>
+/// One file to write. Give Content (an empty string makes an empty file) or From (a copy of another file or of lines of it), never both.
+/// An entry with only FromFolder copies many files (see <see cref="FolderCopy"/>).
+/// </summary>
+public sealed record WriteFileEntry(string? RelativeFilePath, string? Content, WriteMode Mode = WriteMode.Upsert, CopySource? From = null, FolderCopy? FromFolder = null);
 
 /// <summary>Outcome for one file. LinesAffected is set by line edits: lines replaced, removed or added. Note describes copies (where text came from, what was renamed).</summary>
 public sealed record FileWriteResult(
