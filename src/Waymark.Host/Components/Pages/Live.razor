@@ -24,10 +24,17 @@
             <ul class="wm-now-list" aria-label="Running now">
                 @foreach (var item in _running)
                 {
+                    var (what, reason) = ActivityLogging.SplitWhy(item.Label);
                     <li class="wm-now-item">
                         <span class="wm-run-dot run" aria-hidden="true"></span>
                         <span class="wm-now-kind">@KindWord(item.Kind)</span>
-                        <span>@item.Label</span>
+                        <span>
+                            @what
+                            @if (reason.Length > 0)
+                            {
+                                <span class="wm-live-why">@reason</span>
+                            }
+                        </span>
                         <span class="wm-now-time">@Elapsed(item)</span>
                     </li>
                 }
@@ -75,12 +82,19 @@
 
         @foreach (var entry in _rows)
         {
+            var (text, why) = ActivityLogging.SplitWhy(entry.Message);
             <div class="wm-live-row" @key="entry.Id">
                 <div class="wm-term-line wm-live-line @LevelClass(entry.Level)">
                     <span class="wm-live-time">@DisplayFormat.Clock(entry.TimestampUtc)</span>
                     <span class="wm-live-kind @KindWord(entry.Kind)">@KindWord(entry.Kind)</span>
                     <span class="wm-live-lvl">@LevelWord(entry.Level)</span>
-                    <span class="wm-live-msg">@entry.Message</span>
+                    <span class="wm-live-msg">
+                        @text
+                        @if (why.Length > 0)
+                        {
+                            <span class="wm-live-why">@why</span>
+                        }
+                    </span>
                     @if (HasDetails(entry))
                     {
                         <button type="button" class="wm-live-more" aria-expanded="@(_open.Contains(entry.Id) ? "true" : "false")" @onclick="() => Toggle(entry.Id)">details</button>

@@ -9,7 +9,7 @@ public sealed record ActivityItem(long Id, LogKind Kind, string Label, DateTimeO
 /// </summary>
 public sealed class LiveActivity(TimeProvider time)
 {
-    private const int MaxLabelChars = 120;
+    private const int MaxLabelChars = 400;
 
     private readonly Lock _gate = new();
     private readonly Dictionary<long, ActivityItem> _items = [];

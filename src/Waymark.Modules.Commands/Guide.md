@@ -12,7 +12,7 @@ Typed tools run programs in a workspace without a shell, and the owner watches e
 | anything none of those can do | `cmd_shell` (last resort) |
 | follow or inspect a run | `cmd_wait`, `cmd_output`, `cmd_list`, `cmd_stop` |
 
-Prefer a typed tool: it is checked and can run without waiting for the owner. Give `purpose` as one sentence; the owner reads it before approving.
+Prefer a typed tool: it is checked and can run without waiting for the owner. Give `purpose` as one sentence: the owner reads it before approving, sees it on the live log, and it is kept in the audit log.
 
 ## How a run behaves
 

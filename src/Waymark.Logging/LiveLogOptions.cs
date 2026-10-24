@@ -10,7 +10,7 @@ public sealed class LiveLogOptions
     /// <summary>A longer value is cut and says how much was left out.</summary>
     public int MaxValueLength { get; set; } = 200;
 
-    public int MaxMessageLength { get; set; } = 300;
+    public int MaxMessageLength { get; set; } = 700;
 
     public int MaxExceptionLength { get; set; } = 2000;
 }

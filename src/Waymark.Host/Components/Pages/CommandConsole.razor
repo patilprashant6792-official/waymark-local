@@ -60,6 +60,10 @@
                     <span class="wm-run-main">
                         <span class="wm-run-title">@Label(commandRun)</span>
                         <span class="wm-run-cmd wm-mono">@Short(commandRun.CommandLine)</span>
+                        @if (commandRun.Purpose.Length > 0)
+                        {
+                            <span class="wm-run-why" title="@commandRun.Purpose">@commandRun.Purpose</span>
+                        }
                     </span>
                     <span class="wm-run-when">@DisplayFormat.Ago(commandRun.RequestedUtc, Time.GetUtcNow())</span>
                 </a>

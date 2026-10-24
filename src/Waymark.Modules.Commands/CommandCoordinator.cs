@@ -88,7 +88,7 @@ public sealed class CommandCoordinator : ICommandRuns
             await _runs.UpdateAsync(created.Id, new CommandRunUpdate { EndedUtc = now, Note = reason }, ct).ConfigureAwait(false);
             var refused = await _runs.GetAsync(created.Id, ct).ConfigureAwait(false) ?? created;
             await _events.PublishAsync(new CommandRunChanged(refused.Id, submission.Workspace?.Id, CommandRunStatus.Denied)).ConfigureAwait(false);
-            _logger.LogCommand(LogLevel.Warning, refused.Id, "refused", submission.WorkspaceName, reason);
+            _logger.LogCommand(LogLevel.Warning, refused.Id, "refused", submission.WorkspaceName, reason, submission.Purpose);
             return new SubmitResult(refused, reason);
         }
 
@@ -98,7 +98,7 @@ public sealed class CommandCoordinator : ICommandRuns
         _active[record.Id] = run;
         run.Preview = new OutputPreview(PreviewLines, PreviewLineChars, line => _logger.LogCommand(LogLevel.Information, record.Id, "out", submission.WorkspaceName, line));
         run.LiveItem = _activity.Begin(LogKind.Command, ActivityLabel(record.Id, submission, status));
-        _logger.LogCommand(LogLevel.Information, record.Id, StageOf(status), submission.WorkspaceName, Summary(submission));
+        _logger.LogCommand(LogLevel.Information, record.Id, StageOf(status), submission.WorkspaceName, Summary(submission), submission.Purpose);
         await _events.PublishAsync(new CommandRunChanged(record.Id, submission.Workspace?.Id, status)).ConfigureAwait(false);
         _ = Task.Run(() => ExecuteAsync(run), CancellationToken.None);
         return new SubmitResult(record, null);
@@ -199,7 +199,8 @@ public sealed class CommandCoordinator : ICommandRuns
             runId,
             approve ? "approved" : "denied",
             run.Submission.WorkspaceName,
-            edited is not null ? "script edited by you" : cleanReason ?? string.Empty);
+            edited is not null ? "script edited by you" : cleanReason ?? string.Empty,
+            run.Submission.Purpose);
         await AuditDecisionAsync(run, approve, edited is not null, cleanReason).ConfigureAwait(false);
         return true;
     }
@@ -511,7 +512,7 @@ public sealed class CommandCoordinator : ICommandRuns
         run.LiveItem?.Update(ActivityLabel(run.Id, run.Submission, status));
         if (status == CommandRunStatus.Running)
         {
-            _logger.LogCommand(LogLevel.Information, run.Id, "started", run.Submission.WorkspaceName, string.Empty);
+            _logger.LogCommand(LogLevel.Information, run.Id, "started", run.Submission.WorkspaceName, string.Empty, run.Submission.Purpose);
         }
 
         await _events.PublishAsync(new CommandRunChanged(run.Id, run.Submission.Workspace?.Id, status)).ConfigureAwait(false);
@@ -522,7 +523,7 @@ public sealed class CommandCoordinator : ICommandRuns
         try
         {
             run.Preview?.Complete();
-            _logger.LogCommand(LevelOf(outcome.Status), run.Id, StageOf(outcome.Status), run.Submission.WorkspaceName, FinishDetail(run, outcome));
+            _logger.LogCommand(LevelOf(outcome.Status), run.Id, StageOf(outcome.Status), run.Submission.WorkspaceName, FinishDetail(run, outcome), run.Submission.Purpose);
             await PublishPendingAsync(run).ConfigureAwait(false);
             var (text, _) = run.Output.Snapshot();
             string? path = null;
@@ -584,7 +585,8 @@ public sealed class CommandCoordinator : ICommandRuns
                 run.Submission.WorkspaceName,
                 approve ? AuditOutcome.Ok : AuditOutcome.Denied,
                 details,
-                reason);
+                reason,
+                run.Submission.Purpose);
             await _audit.AppendAsync(entry, CancellationToken.None).ConfigureAwait(false);
         }
         catch (Exception ex)
@@ -621,8 +623,11 @@ public sealed class CommandCoordinator : ICommandRuns
         return submission.Tier == CommandTier.Shell ? "shell: " + shown : shown;
     }
 
-    private static string ActivityLabel(long id, CommandSubmission submission, CommandRunStatus status) =>
-        string.Create(CultureInfo.InvariantCulture, $"#{id} {submission.Operation.Label} in {submission.WorkspaceName}: {StageOf(status)}");
+    private static string ActivityLabel(long id, CommandSubmission submission, CommandRunStatus status)
+    {
+        var label = string.Create(CultureInfo.InvariantCulture, $"#{id} {submission.Operation.Label} in {submission.WorkspaceName}: {StageOf(status)}");
+        return string.IsNullOrWhiteSpace(submission.Purpose) ? label : label + ActivityLogging.WhyMarker + submission.Purpose;
+    }
 
     private static string FinishDetail(ActiveRun run, RunOutcome outcome)
     {

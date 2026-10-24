@@ -1,5 +1,6 @@
 @inherits LiveComponentBase
 @using MudBlazor
+@using Waymark.Core.LiveFeed
 @using Waymark.Host.Ui
 
 <section class="wm-panel" aria-labelledby="live-card-title">
@@ -17,11 +18,18 @@
 
         @foreach (var entry in _rows)
         {
+            var (text, why) = ActivityLogging.SplitWhy(entry.Message);
             <div class="wm-term-line wm-live-line @LiveLineFormat.LevelClass(entry.Level)" @key="entry.Id">
                 <span class="wm-live-time">@DisplayFormat.Clock(entry.TimestampUtc)</span>
                 <span class="wm-live-kind @LiveLineFormat.KindWord(entry.Kind)">@LiveLineFormat.KindWord(entry.Kind)</span>
                 <span class="wm-live-lvl">@LiveLineFormat.LevelWord(entry.Level)</span>
-                <span class="wm-live-msg">@entry.Message</span>
+                <span class="wm-live-msg">
+                    @text
+                    @if (why.Length > 0)
+                    {
+                        <span class="wm-live-why">@why</span>
+                    }
+                </span>
             </div>
         }
     </div>

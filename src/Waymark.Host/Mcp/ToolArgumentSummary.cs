@@ -25,7 +25,8 @@ public static class ToolArgumentSummary
         var text = new StringBuilder();
         foreach (var pair in arguments)
         {
-            if (string.Equals(pair.Key, WorkspaceArgument, StringComparison.Ordinal))
+            // The workspace has its own column and the purpose is shown whole beside the line.
+            if (string.Equals(pair.Key, WorkspaceArgument, StringComparison.Ordinal) || string.Equals(pair.Key, ToolPurpose.ArgumentName, StringComparison.Ordinal))
             {
                 continue;
             }

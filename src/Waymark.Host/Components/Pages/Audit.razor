@@ -12,7 +12,7 @@
     <div class="wm-row spread">
         <div>
             <h1 class="wm-title">Audit</h1>
-            <p class="wm-lead" style="margin-bottom:12px">Everything that was asked of Waymark, and what happened. Arguments are listed by name only.</p>
+            <p class="wm-lead" style="margin-bottom:12px">Everything that was asked of Waymark, and what happened. Arguments are listed by name only; the purpose given for a command is kept in full.</p>
         </div>
         <div class="wm-row">
             <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download" OnClick="ExportAsync">Export JSON</MudButton>
@@ -114,7 +114,13 @@
                         var outcome = DisplayFormat.Outcome(row.Entry.Outcome);
                         <tr class="clickable" tabindex="0" @onclick="() => Open(row)" @onkeydown="e => OnRowKey(e, row)">
                             <td>@DisplayFormat.DateAndClock(row.Entry.TimestampUtc)</td>
-                            <td class="wm-mono">@row.Entry.Action</td>
+                            <td>
+                                <span class="wm-mono">@row.Entry.Action</span>
+                                @if (row.Entry.Purpose is { Length: > 0 } why)
+                                {
+                                    <span class="wm-audit-why">@why</span>
+                                }
+                            </td>
                             <td>@(row.Entry.Target ?? "-")</td>
                             <td><StateChip State="outcome.State" Text="@outcome.Text" /></td>
                             <td class="num">@DisplayFormat.Duration(row.Entry.DurationMs)</td>
@@ -153,6 +159,11 @@
             <dd class="wm-mono">@ClientOf(selected.Entry)</dd>
             <dt>Workspace</dt>
             <dd>@(selected.Entry.Target ?? "-")</dd>
+            @if (selected.Entry.Purpose is { Length: > 0 } purpose)
+            {
+                <dt>Purpose</dt>
+                <dd>@purpose</dd>
+            }
             <dt>Arguments</dt>
             <dd class="wm-mono">@(selected.Entry.ArgsRedacted ?? "-") <span class="wm-muted">(names only; values are never stored)</span></dd>
             <dt>Time</dt>

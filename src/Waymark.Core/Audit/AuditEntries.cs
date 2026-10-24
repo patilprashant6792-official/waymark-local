@@ -11,9 +11,10 @@ public static class AuditEntries
         string? target = null,
         AuditOutcome outcome = AuditOutcome.Ok,
         string? args = null,
-        string? error = null)
+        string? error = null,
+        string? purpose = null)
     {
         ArgumentNullException.ThrowIfNull(time);
-        return new AuditEntry(time.GetUtcNow(), category, actor, action, target, args, null, null, outcome, error);
+        return new AuditEntry(time.GetUtcNow(), category, actor, action, target, args, null, null, outcome, error, null, purpose);
     }
 }

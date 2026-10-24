@@ -14,14 +14,24 @@ public static class ActivityLogging
     private static readonly EventId AuthRequestEvent = new(1004, LogEvents.AuthPrefix + "request");
     private static readonly EventId CommandEvent = new(1005, LogEvents.CommandPrefix + "run");
 
+    /// <summary>Separates a live line from the reason given for it. Two spaces never occur inside a cleaned purpose, so the last one is always this one.</summary>
+    public const string WhyMarker = "  why: ";
+
     /// <summary>
     /// One call Claude made to a tool. <paramref name="arguments"/> is a short, already cut summary of what it was asked.
     /// <paramref name="tokens"/> is how many tokens of the AI's context what the tool sent back takes up.
+    /// <paramref name="purpose"/> is the reason the AI gave (commands only); it is shown after <see cref="WhyMarker"/> at the end of the line.
     /// </summary>
-    public static void LogToolCall(this ILogger logger, LogLevel level, string tool, string? workspace, string outcome, long elapsedMs, long tokens, string arguments)
+    public static void LogToolCall(this ILogger logger, LogLevel level, string tool, string? workspace, string outcome, long elapsedMs, long tokens, string arguments, string? purpose = null)
     {
         ArgumentNullException.ThrowIfNull(logger);
-        logger.Log(level, ToolEvent, "{Tool}  {Workspace}  {Outcome}  {ElapsedMs} ms  {Tokens} tokens  {Arguments}", tool, workspace ?? "-", outcome, elapsedMs, tokens, arguments);
+        if (string.IsNullOrWhiteSpace(purpose))
+        {
+            logger.Log(level, ToolEvent, "{Tool}  {Workspace}  {Outcome}  {ElapsedMs} ms  {Tokens} tokens  {Arguments}", tool, workspace ?? "-", outcome, elapsedMs, tokens, arguments);
+            return;
+        }
+
+        logger.Log(level, ToolEvent, "{Tool}  {Workspace}  {Outcome}  {ElapsedMs} ms  {Tokens} tokens  {Arguments}" + WhyMarker + "{Purpose}", tool, workspace ?? "-", outcome, elapsedMs, tokens, arguments, purpose);
     }
 
     /// <summary>A file or workspace change seen by the watcher, or a problem with watching.</summary>
@@ -53,10 +63,27 @@ public static class ActivityLogging
             elapsedMs);
     }
 
-    /// <summary>A step in the life of a command run: waiting, approved, started, a first output line, finished.</summary>
-    public static void LogCommand(this ILogger logger, LogLevel level, long runId, string stage, string workspace, string detail)
+    /// <summary>
+    /// A step in the life of a command run: waiting, approved, started, a first output line, finished. <paramref name="purpose"/> is the
+    /// reason the AI gave; it is shown after <see cref="WhyMarker"/> at the end of the line.
+    /// </summary>
+    public static void LogCommand(this ILogger logger, LogLevel level, long runId, string stage, string workspace, string detail, string? purpose = null)
     {
         ArgumentNullException.ThrowIfNull(logger);
-        logger.Log(level, CommandEvent, "#{RunId} {Stage}  {Workspace}  {Detail}", runId, stage, workspace, detail);
+        if (string.IsNullOrWhiteSpace(purpose))
+        {
+            logger.Log(level, CommandEvent, "#{RunId} {Stage}  {Workspace}  {Detail}", runId, stage, workspace, detail);
+            return;
+        }
+
+        logger.Log(level, CommandEvent, "#{RunId} {Stage}  {Workspace}  {Detail}" + WhyMarker + "{Purpose}", runId, stage, workspace, detail, purpose);
+    }
+
+    /// <summary>Splits a live line into what happened and the reason given for it (empty when none was given).</summary>
+    public static (string Text, string Why) SplitWhy(string message)
+    {
+        ArgumentNullException.ThrowIfNull(message);
+        var at = message.LastIndexOf(WhyMarker, StringComparison.Ordinal);
+        return at < 0 ? (message, string.Empty) : (message[..at].TrimEnd(), message[(at + WhyMarker.Length)..].Trim());
     }
 }
