@@ -47,7 +47,7 @@ Builds and many git commands load files that can run code (props and targets, Di
 
 ### Adding a package
 
-Confirm with the user first, because it edits the .csproj. Use `package_add` with `project`, `package` and `version`: the latest stable that fits the project's target framework, preferring the version other projects here already pin (`nuget_packages` shows the latest). Then check the pinned version in `code_skeleton` and build.
+Confirm with the user first, because it edits the .csproj. Use `package_add` with `project`, `package` and `version`: the latest stable that fits the project's target framework, preferring the version other projects here already pin (`nuget_packages` shows the latest). Then check the pinned version in `code_skeleton(ws, path=<project folder>)` and build.
 
 ## cmd_git
 

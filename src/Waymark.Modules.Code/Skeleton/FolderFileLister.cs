@@ -14,6 +14,7 @@ internal sealed class FolderFileLister(FileAccessPolicy policy, SkeletonOptions 
         string? searchPattern,
         int page,
         int pageSize,
+        WorkspaceAccessRules rules,
         OutputBudget output,
         CancellationToken ct)
     {
@@ -29,7 +30,7 @@ internal sealed class FolderFileLister(FileAccessPolicy policy, SkeletonOptions 
         List<FileInfo> matches;
         try
         {
-            matches = VisibleEntries.Files(root, folder.AbsolutePath, policy)
+            matches = VisibleEntries.Files(root, folder.AbsolutePath, policy, rules)
                 .Where(file => string.IsNullOrEmpty(pattern) || file.Name.Contains(pattern, StringComparison.OrdinalIgnoreCase))
                 .ToList();
         }
