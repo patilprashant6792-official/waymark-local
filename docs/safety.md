@@ -17,6 +17,9 @@ If the check itself fails, the result is withheld, not sent unchecked.
 
 A Confirm tool (file writes, commands) whose input contains a finished marker is refused, so a hidden secret never becomes text in a file. A source file that merely mentions the marker prefix is fine.
 
+## Copies and secrets
+
+`from` / `fromFolder` in `file_edit_lines` and `file_write` move real bytes on the server without the agent reading them, so the result guard never sees that text. `IContentInspector` (`Waymark.Core/Security`, implemented by `ContentInspector` in `Waymark.Host/Vault`) runs the same checks on the copied text: Vault values, then the credential shapes, and a finished marker. Any finding refuses that copy and names only the kinds. Both workspaces' access rules apply to the source and the target, links are refused, and blocked folders and secret-bearing files cannot be copied from or to. The result names where text came from (workspace, file, lines), never the text.
 ## Settings
 
 | Key | Default | Meaning |

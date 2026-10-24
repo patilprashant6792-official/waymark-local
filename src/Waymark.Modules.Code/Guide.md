@@ -19,6 +19,7 @@ Find before you read, and read only what the task needs: a full read of a large 
 | Non-C# file, C# up to 15 KB, lines containing a word | `code_read(ws, file, startLine + endLine or query)` |
 | Who calls a method | `code_callers(ws, file, method)` |
 | Who implements or derives from a type | `code_types(ws, typeName)` |
+| Lines or a file to move or copy (also to another workspace) | `code_outline` / `code_method` give the line numbers; pass them as `from` to `file_edit_lines` / `file_write` (files guide). No need to read the body. |
 
 Batch lists are comma separated with no spaces.
 
@@ -53,6 +54,7 @@ Numbers from `code_method`, `code_read` and `code_outline` are real file lines a
 - Without `depth`, `code_skeleton` opens folders level by level until a size budget is used, so it fits any workspace. A folder left closed is marked ▸ with a summary in brackets: folders, files, size, large files (⚠️), main extensions, project file. Counts cover only what the tools may open.
 - Open a ▸ folder with `code_skeleton(ws, path=...)`; the notes under the tree name the largest closed folders. Vendored code (wwwroot/lib, dist, vendor) and folders with very many entries stay closed in the overview, and a folder with more entries than fit at once is paged with `page`.
 - 'not scanned' and '≥' mean the scan hit its limit on a very large workspace: open a subfolder to see it in full.
+- Migrating between two workspaces: `code_skeleton` each of them (`code_skeleton('*')` lists the names), compare the layouts, then copy folder by folder. The overview of the target also shows which packages and target framework the copied code will compile against.
 
 ## Impact before changing a contract
 

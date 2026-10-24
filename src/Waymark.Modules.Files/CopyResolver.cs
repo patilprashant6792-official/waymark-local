@@ -37,6 +37,7 @@ internal sealed class CopyResolver(CopySourceReader reader)
             if (CopySession.SamePath(piece.Source.Path.AbsolutePath, target.AbsolutePath))
             {
                 sameFileCuts.Add(delete);
+                notes.Add(string.Create(CultureInfo.InvariantCulture, $"cut lines {piece.StartLine}-{piece.EndLine} from this file"));
             }
             else
             {

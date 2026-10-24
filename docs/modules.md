@@ -6,7 +6,7 @@ Waymark is a modular monolith. A module references `Waymark.Core` only; `Waymark
 |---|---|---|
 | Code | code_skeleton, code_folder_files, code_changes_since, code_outline, code_method, code_read, code_search, code_grep, code_callers, code_types | Read |
 | NuGet | nuget_packages, nuget_outline, nuget_find, nuget_expand | Read |
-| Files | file_write, file_edit_lines, folder_create, file_move, file_delete, folder_move, folder_delete | Confirm (off until switched on) |
+| Files | file_write, file_edit_lines (both can copy with `from` / `fromFolder`), folder_create, file_move, file_delete, folder_move, folder_delete | Confirm (off until switched on) |
 | Commands | cmd_dotnet, cmd_git, cmd_proc, cmd_shell, cmd_wait, cmd_output, cmd_list, cmd_stop | Confirm for the four that start something (off until switched on); the read tools are Read. Each operation also has an Off / Ask / Auto gate chosen by the owner, see `commands-policy.md` |
 | Host | waymark_ping, util_datetime | Read |
 
@@ -14,6 +14,19 @@ Not migrated on purpose: `http_request`, `list_environments`. `execute_dotnet_co
 
 `code_grep` finds literal text in any readable file (not only C#) by reading the files from disk on every call, so it is never stale. It applies each workspace's access rules, skips vendored folders (`wwwroot/lib`, `dist`, `vendor`), minified, binary and over-1 MB files, and reports how many it left out. Limits are set under `Waymark:Code:Grep:*` (see `ContentOptions`). There is no content index in the database; a SQLite full-text index is only worth adding if scans prove slow on real workspaces.
 
+## Workspace overview (`code_skeleton`)
+
+The overview is a breadth-first tree under a size budget: `FolderScanner` reads the directory listings, `TreePlanner` decides which folders open, `FolderTreeRenderer` prints them, and closed folders get a one-line summary marked ▸. `path`, `depth` and `page` open folders on demand. The workspace's access rules apply to every walker. Settings are under `Waymark:Code:Skeleton:*` (`SkeletonOptions`): `OverviewBudgetChars` 12000, `MaxChildrenShown` 100, `MaxDepth` 64, `ScanBudgetSeconds` 20, `MaxProjectsInline` 25, `SolutionInlineChars` 2000, `LineCountReadBudgetBytes` 32 MB.
+
+## Copying (`from`, `fromFolder`)
+
+`file_edit_lines` and `file_write` can take text from a file instead of from the agent, so moving or migrating code costs no output tokens.
+
+- `CopySourceReader` (Files) resolves the source through `IPathGuard` (any enabled workspace), reads each source once per call, checks `expectFirstLine` / `expectLastLine`, applies `replace` → `csharp` → `indent`, and asks `IContentInspector` whether the text holds a secret.
+- `CopyResolver` turns `from` into plain content before `LinePatcher` runs, so the overlap and bottom-up rules are unchanged. A cut inside the same file becomes a delete patch; a cut from another file is committed by `CopyTransaction` (all files change or none, originals restored on failure).
+- `FolderCopyPlanner` expands `fromFolder` (glob below the folder, `pathRename`, collision check, access rules per item) and `confirmCount` guards against a changed tree. `PathGlob` lives in `Waymark.Core/Text` and is shared with `code_grep`.
+- C# renames go through `ICSharpRewriter` (`Waymark.Core/Code`); `CSharpRewriter` in the Code module uses Roslyn to find names and edits the text by position, so formatting and comments outside the renamed names are untouched. It works on syntax only, without symbol resolution.
+- Settings under `Waymark:Files:*` (`FilesOptions`): `MaxWriteBytes` 2000000, `MaxBatchEntries` 50, `MaxPatchesPerCall` 200, `MaxFolderEntries` 20000, `MaxCopySourceBytes` 10000000, `MaxTransformsPerCopy` 50, `MaxCopyFilesPerCall` 500.
 ## Adding a tool
 
 1. Put the logic behind an interface in the module; register it in the module's `AddServices`.
