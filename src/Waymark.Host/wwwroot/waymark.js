@@ -32,6 +32,13 @@ window.wmConsole = {
             element.addEventListener('scroll', function () {
                 state.stuck = element.scrollHeight - element.scrollTop - element.clientHeight < 40;
             }, { passive: true });
+            // Changing the content (old lines dropped at the top, new ones added at the bottom) fires a scroll event of its own.
+            // That event must not mark the reader as scrolled up, so while stuck we re-pin to the bottom as soon as the DOM changes.
+            new MutationObserver(function () {
+                if (state.stuck) {
+                    element.scrollTop = element.scrollHeight;
+                }
+            }).observe(element, { childList: true, subtree: true });
             this.states.set(element, state);
         }
         return state;
