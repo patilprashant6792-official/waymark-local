@@ -235,8 +235,12 @@ function Invoke-Install([bool] $Pull) {
 
     Write-Step 'Installing'
     # The tunnel is a separate program that outlives Waymark and would still hold the public address; free it before the app is replaced.
-    Write-Step 'Freeing the ngrok tunnel'
-    & taskkill /IM ngrok.exe /F 2>$null | Out-Null
+    # Skipped when ngrok is not running or not installed: this step must never fail the install.
+    if ($null -ne (Get-Process -Name ngrok -ErrorAction SilentlyContinue)) {
+        Write-Step 'Freeing the ngrok tunnel'
+        try { & taskkill /IM ngrok.exe /F 2>&1 | Out-Null } catch { Write-Note 'ngrok could not be stopped; continuing.' }
+        $global:LASTEXITCODE = 0
+    }
     Stop-Waymark
     if (Test-Path $AppDir) { Remove-Item $AppDir -Recurse -Force }
     Move-Item $staging $AppDir
