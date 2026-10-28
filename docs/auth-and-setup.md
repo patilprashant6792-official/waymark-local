@@ -6,7 +6,7 @@ How Claude gets from "add custom connector" to a working, approved connection, w
 
 | Listener | Default port | Serves | Reachable from |
 |---|---|---|---|
-| Admin | 47100 | Blazor UI (Home, Setup, Approvals) | this computer only, Host header must be loopback |
+| Admin | 47100 | Blazor UI (Dashboard, Setup, Approvals) | this computer only, Host header must be loopback |
 | MCP | 47101 | OAuth endpoints, discovery documents, `/mcp` | this computer, and the internet through the tunnel |
 
 The tunnel forwards to the MCP port only: `ngrok http 47101`. `ListenerGuard` returns 404 for admin paths on the MCP port and for OAuth/MCP paths on the admin port, so a mistake in routing cannot expose the UI. Ports can be changed with `Waymark:AdminPort` and `Waymark:McpPort`.
@@ -33,7 +33,7 @@ The tunnel forwards to the MCP port only: `ngrok http 47101`. `ListenerGuard` re
 | Database, migrations, stores for settings, clients, approvals, audit | done |
 | Listeners, guard, security headers, event bus, public address, rate limits | done |
 | Discovery documents, instance probe, `/register`, `/authorize`, `/authorize/wait` | done |
-| Admin UI: Home, Approvals, Audit, Live, Workspaces, Tools, Access keys, Setup (installs ngrok, starts and stops the tunnel, verifies the address). The Vault and Connectors pages exist but are hidden from the menu for now | done |
+| Admin UI: Dashboard, Approvals, Audit, Live, Workspaces, Tools, Access keys, Setup (installs ngrok, starts and stops the tunnel, verifies the address). The Vault and Connectors pages exist but are hidden from the menu for now | done |
 | Grant store (codes, access and refresh pairs), access-key store, bearer check, `/token`, `/revoke`, `/mcp` with `waymark_ping` | done, built but not yet tried against Claude |
 
 Migration `002_grants.sql` recreates the code, token and API-key tables with the columns the stores use. File names containing token, credential, apikey or secret are refused by the dotnet-mcp-server connector, so these pieces are called Grant and AccessKey.

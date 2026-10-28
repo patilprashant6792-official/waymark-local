@@ -21,9 +21,9 @@ namespace Waymark.Host.Components.Pages;
 public partial class Home : LiveComponentBase
 {
     private const int RecentPackages = 4;
-    private const int RecentCommands = 5;
+    private const int RecentCommands = 10;
     private const int ReloadEveryTicks = 5;
-    private const int RecentCallRows = 5;
+    private const int RecentCallRows = 10;
 
     private readonly Dictionary<long, CodeIndexProgress> _progress = [];
     private IDisposable? _progressSubscription;

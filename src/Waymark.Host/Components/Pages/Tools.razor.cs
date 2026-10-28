@@ -50,6 +50,19 @@ public partial class Tools : LiveComponentBase
 
     private int TotalTokens => _rows.Sum(r => r.Tokens);
 
+    private int ModuleCount => _rows.Select(r => r.Tool.Module).Distinct(StringComparer.OrdinalIgnoreCase).Count();
+
+    private int TokenSharePercent => TotalTokens == 0 ? 0 : (int)Math.Round(100d * EnabledTokens / TotalTokens);
+
+    private int ConfirmTotal => _rows.Count(r => r.Tool.Gate == ToolGate.Confirm);
+
+    private int ConfirmEnabledCount => _rows.Count(r => r.Enabled && r.Tool.Gate == ToolGate.Confirm);
+
+    private ToolRow? LastUsedRow => _rows.Where(r => r.LastUsedUtc.HasValue).MaxBy(r => r.LastUsedUtc);
+
+    private static string GroupSummary(IGrouping<string, ToolRow> group) =>
+        $"{group.Count(r => r.Enabled)} of {group.Count()} on \u00B7 {DisplayFormat.Count(group.Sum(r => r.Tokens))} tokens";
+
     private string CurrentProfile
     {
         get
@@ -175,6 +188,40 @@ public partial class Tools : LiveComponentBase
         await ChangeAsync(on, off, enabled ? "config.tool.on" : "config.tool.off");
     }
 
+    // Acts on the tools the section shows, so an active filter narrows what "all" means.
+    private async Task SetGroupAsync(IGrouping<string, ToolRow> group, bool enabled)
+    {
+        if (_busy)
+        {
+            return;
+        }
+
+        var targets = group.Where(r => r.Enabled != enabled).ToList();
+        if (targets.Count == 0)
+        {
+            return;
+        }
+
+        var confirmCount = enabled ? targets.Count(r => r.Tool.Gate == ToolGate.Confirm) : 0;
+        if (confirmCount > 0)
+        {
+            var confirmed = await ConfirmDialogs.AskAsync(
+                Dialogs,
+                $"Switch on {targets.Count} {group.Key} tools?",
+                $"This includes {confirmCount} tools that change files in your workspaces. Each change is still recorded in the audit trail.",
+                "Switch on",
+                destructive: false);
+            if (!confirmed)
+            {
+                return;
+            }
+        }
+
+        var names = targets.Select(r => r.Tool.Name).ToList();
+        List<string> on = enabled ? names : [];
+        List<string> off = enabled ? [] : names;
+        await ChangeAsync(on, off, enabled ? "config.group.on" : "config.group.off");
+    }
     private bool IsConfirmTool(string name) =>
         _rows.Any(r => r.Tool.Name == name && r.Tool.Gate == ToolGate.Confirm);
 

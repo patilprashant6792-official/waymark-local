@@ -1048,3 +1048,15 @@ kbd { padding: 1px 6px; font: 12px ui-monospace, Consolas, monospace; border: 1p
 @media (max-width: 560px) {
     .wm-mkpis.three { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* ---------- collapsible sections ---------- */
+.wm-collapsible { margin-top: 12px; }
+.wm-collapse-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 8px 12px; }
+.wm-collapse-title { margin: 0; }
+.wm-collapse-btn { display: inline-flex; align-items: center; gap: 4px; margin-left: -4px; padding: 4px 8px 4px 2px; font: inherit; color: inherit; text-align: left; text-transform: inherit; background: none; border: 0; border-radius: 6px; cursor: pointer; }
+.wm-collapse-btn:hover { background: var(--mud-palette-action-default-hover); }
+.wm-collapse-btn:focus-visible { outline: 2px solid var(--mud-palette-primary); outline-offset: 1px; }
+.wm-collapse-summary { color: var(--mud-palette-text-secondary); font-size: 0.9rem; }
+.wm-collapse-body { margin-top: 12px; }
+.wm-collapse-body[hidden] { display: none; }
+.wm-cap { text-transform: capitalize; }

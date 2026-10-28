@@ -11,35 +11,44 @@
     <h1 class="wm-title">Tools</h1>
     <p class="wm-lead">Choose what Claude can do here. Every tool you leave on adds its description to every conversation, so fewer tools means more room for your work.</p>
 
+    @if (_rows.Count > 0)
+    {
+        <section class="wm-kpis" aria-label="Tool statistics">
+            <div class="wm-kpi"><div class="wm-kpi-label">Tools on</div><div class="wm-kpi-value">@EnabledCount of @_rows.Count</div><div class="wm-kpi-sub">across @ModuleCount modules</div></div>
+            <div class="wm-kpi"><div class="wm-kpi-label">Context cost</div><div class="wm-kpi-value">@DisplayFormat.Count(EnabledTokens)</div><div class="wm-kpi-sub">tokens &middot; @TokenSharePercent% of all descriptions</div></div>
+            <div class="wm-kpi"><div class="wm-kpi-label">Can change files</div><div class="wm-kpi-value">@ConfirmEnabledCount</div><div class="wm-kpi-sub">of @ConfirmTotal that need confirmation</div></div>
+            <div class="wm-kpi"><div class="wm-kpi-label">Last used</div><div class="wm-kpi-value">@DisplayFormat.Ago(LastUsedRow?.LastUsedUtc, Time.GetUtcNow())</div><div class="wm-kpi-sub wm-mono">@(LastUsedRow?.Tool.Name ?? "no tool used yet")</div></div>
+        </section>
+    }
+
     @if (_error is not null)
     {
         <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
     }
 
-    <section class="wm-card" aria-labelledby="tools-profile">
-        <div class="wm-row spread">
-            <h2 id="tools-profile" class="wm-section" style="margin:0">Profile</h2>
-            <div class="wm-row">
-                @if (CurrentProfile == "custom")
-                {
-                    <StateChip State="StatusState.Attention" Text="Custom" />
-                }
-                <span class="wm-chip info">Applies on reconnect</span>
+    <CollapsibleSection Id="tools-profile" Title="Profile">
+        <Summary>
+            @if (CurrentProfile == "custom")
+            {
+                <StateChip State="StatusState.Attention" Text="Custom" />
+            }
+            <span class="wm-chip info">Applies on reconnect</span>
+        </Summary>
+        <ChildContent>
+            <div class="wm-seg" role="radiogroup" aria-label="Tool profile">
+                <button type="button" role="radio" aria-checked="@(CurrentProfile == "readonly" ? "true" : "false")" class="@(CurrentProfile == "readonly" ? "on" : null)" disabled="@_busy" @onclick='() => ApplyProfileAsync("readonly")'>Read-only</button>
+                <button type="button" role="radio" aria-checked="@(CurrentProfile == "edit" ? "true" : "false")" class="@(CurrentProfile == "edit" ? "on" : null)" disabled="@_busy" @onclick='() => ApplyProfileAsync("edit")'>Edit</button>
+                <button type="button" role="radio" aria-checked="@(CurrentProfile == "full" ? "true" : "false")" class="@(CurrentProfile == "full" ? "on" : null)" disabled="@_busy" @onclick='() => ApplyProfileAsync("full")'>Full</button>
             </div>
-        </div>
-        <div class="wm-seg" role="radiogroup" aria-label="Tool profile">
-            <button type="button" role="radio" aria-checked="@(CurrentProfile == "readonly" ? "true" : "false")" class="@(CurrentProfile == "readonly" ? "on" : null)" disabled="@_busy" @onclick='() => ApplyProfileAsync("readonly")'>Read-only</button>
-            <button type="button" role="radio" aria-checked="@(CurrentProfile == "edit" ? "true" : "false")" class="@(CurrentProfile == "edit" ? "on" : null)" disabled="@_busy" @onclick='() => ApplyProfileAsync("edit")'>Edit</button>
-            <button type="button" role="radio" aria-checked="@(CurrentProfile == "full" ? "true" : "false")" class="@(CurrentProfile == "full" ? "on" : null)" disabled="@_busy" @onclick='() => ApplyProfileAsync("full")'>Full</button>
-        </div>
-        <p class="wm-muted" style="margin:8px 0">Read-only can look but not change. Edit adds creating, editing and moving files. Full also allows deleting.</p>
+            <p class="wm-muted" style="margin:8px 0">Read-only can look but not change. Edit adds creating, editing and moving files. Full also allows deleting.</p>
 
-        <div aria-live="polite">
-            <strong>@EnabledCount of @_rows.Count tools on</strong>
-            <span class="wm-muted"> &middot; about @DisplayFormat.Count(EnabledTokens) of @DisplayFormat.Count(TotalTokens) tokens (a rough guess: text length divided by four)</span>
-        </div>
-        <MudProgressLinear Value="@(TotalTokens == 0 ? 0 : 100d * EnabledTokens / TotalTokens)" Color="Color.Primary" Class="mt-2" aria-label="Share of tool descriptions switched on" />
-    </section>
+            <div aria-live="polite">
+                <strong>@EnabledCount of @_rows.Count tools on</strong>
+                <span class="wm-muted"> &middot; about @DisplayFormat.Count(EnabledTokens) of @DisplayFormat.Count(TotalTokens) tokens (a rough guess: text length divided by four)</span>
+            </div>
+            <MudProgressLinear Value="@(TotalTokens == 0 ? 0 : 100d * EnabledTokens / TotalTokens)" Color="Color.Primary" Class="mt-2" aria-label="Share of tool descriptions switched on" />
+        </ChildContent>
+    </CollapsibleSection>
 
     @if (_rows.Count > 0)
     {
@@ -70,36 +79,44 @@
 
     @foreach (var group in Groups)
     {
-        <h2 class="wm-section" style="margin-top:24px;text-transform:capitalize">@group.Key</h2>
-        <div class="wm-table-wrap">
-            <table class="wm-table">
-                <caption class="visually-hidden">@group.Key tools</caption>
-                <thead>
-                    <tr><th scope="col">On</th><th scope="col">Tool</th><th scope="col">Kind</th><th scope="col" class="num">Tokens</th><th scope="col">Last used</th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var row in group)
-                    {
-                        <tr>
-                            <td><MudSwitch T="bool" Value="row.Enabled" ValueChanged="v => ToggleAsync(row, v)" Disabled="_busy" Color="Color.Primary" aria-label="@($"Switch {row.Tool.Name}")" /></td>
-                            <th scope="row" class="wm-mono">@row.Tool.Name</th>
-                            <td>
-                                @if (row.Tool.Gate == ToolGate.Confirm)
-                                {
-                                    <StateChip State="StatusState.Attention" Text="Needs confirmation" />
-                                }
-                                else
-                                {
-                                    <StateChip State="StatusState.Healthy" Text="Read only" />
-                                }
-                            </td>
-                            <td class="num">@DisplayFormat.Count(row.Tokens)</td>
-                            <td>@DisplayFormat.Ago(row.LastUsedUtc, Time.GetUtcNow())</td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
+        <CollapsibleSection @key="group.Key" Id="@($"tools-group-{group.Key}")" Title="@group.Key" TitleClass="wm-cap">
+            <Summary>
+                <span aria-live="polite">@GroupSummary(group)</span>
+                <MudButton Variant="Variant.Outlined" Size="Size.Small" Disabled="@(_busy || group.All(r => r.Enabled))" OnClick="() => SetGroupAsync(group, true)" aria-label="@($"Switch on all shown {group.Key} tools")">All on</MudButton>
+                <MudButton Variant="Variant.Outlined" Size="Size.Small" Disabled="@(_busy || group.All(r => !r.Enabled))" OnClick="() => SetGroupAsync(group, false)" aria-label="@($"Switch off all shown {group.Key} tools")">All off</MudButton>
+            </Summary>
+            <ChildContent>
+                <div class="wm-table-wrap">
+                    <table class="wm-table">
+                        <caption class="visually-hidden">@group.Key tools</caption>
+                        <thead>
+                            <tr><th scope="col">On</th><th scope="col">Tool</th><th scope="col">Kind</th><th scope="col" class="num">Tokens</th><th scope="col">Last used</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in group)
+                            {
+                                <tr>
+                                    <td><MudSwitch T="bool" Value="row.Enabled" ValueChanged="v => ToggleAsync(row, v)" Disabled="_busy" Color="Color.Primary" aria-label="@($"Switch {row.Tool.Name}")" /></td>
+                                    <th scope="row" class="wm-mono">@row.Tool.Name</th>
+                                    <td>
+                                        @if (row.Tool.Gate == ToolGate.Confirm)
+                                        {
+                                            <StateChip State="StatusState.Attention" Text="Needs confirmation" />
+                                        }
+                                        else
+                                        {
+                                            <StateChip State="StatusState.Healthy" Text="Read only" />
+                                        }
+                                    </td>
+                                    <td class="num">@DisplayFormat.Count(row.Tokens)</td>
+                                    <td>@DisplayFormat.Ago(row.LastUsedUtc, Time.GetUtcNow())</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+            </ChildContent>
+        </CollapsibleSection>
     }
 
     @if (_rows.Count > 0 && VisibleCount == 0)

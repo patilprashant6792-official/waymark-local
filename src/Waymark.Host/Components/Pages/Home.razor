@@ -11,12 +11,12 @@
 @using Waymark.Host.NuGetAdmin
 @using Waymark.Host.Ui
 
-<PageTitle>Home - Waymark</PageTitle>
+<PageTitle>Dashboard - Waymark</PageTitle>
 
 <div class="wm-page wide wm-home">
     <header class="wm-home-head">
         <div>
-            <h1 class="wm-title">Home</h1>
+            <h1 class="wm-title">Dashboard</h1>
             <p class="wm-lead" style="margin-bottom:0">What is happening on this machine right now.</p>
         </div>
         @if (Attention.Count > 0)
@@ -260,7 +260,7 @@
         {
             <div class="wm-table-wrap">
                 <table class="wm-table">
-                    <caption class="visually-hidden">The five most recent tool calls</caption>
+                    <caption class="visually-hidden">The ten most recent tool calls</caption>
                     <thead>
                         <tr><th scope="col">When</th><th scope="col">Tool</th><th scope="col">Workspace</th><th scope="col">Outcome</th><th scope="col" class="num">Time</th><th scope="col" class="num">Tokens</th></tr>
                     </thead>

@@ -1,0 +1,56 @@
+@using MudBlazor
+
+<section class="wm-collapsible @(Card ? "wm-card" : null)" aria-labelledby="@HeadingId">
+    <div class="wm-collapse-head">
+        <h2 id="@HeadingId" class="wm-section wm-collapse-title @TitleClass">
+            <button type="button" class="wm-collapse-btn" aria-expanded="@(_expanded ? "true" : "false")" aria-controls="@BodyId" @onclick="Toggle">
+                <MudIcon Icon="@(_expanded ? Icons.Material.Filled.ExpandMore : Icons.Material.Filled.ChevronRight)" Size="Size.Small" />
+                <span>@Title</span>
+            </button>
+        </h2>
+        @if (Summary is not null)
+        {
+            <div class="wm-collapse-summary wm-row">@Summary</div>
+        }
+    </div>
+    <div id="@BodyId" class="wm-collapse-body" hidden="@(!_expanded)">
+        @ChildContent
+    </div>
+</section>
+
+@code {
+    private bool _expanded;
+
+    [Parameter, EditorRequired]
+    public string Id { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? TitleClass { get; set; }
+
+    // Whether the section starts open. Later changes by the person are kept for the life of the component.
+    [Parameter]
+    public bool InitiallyExpanded { get; set; } = true;
+
+    [Parameter]
+    public bool Card { get; set; } = true;
+
+    // Always visible, even when collapsed: counts and chips that describe what is inside.
+    [Parameter]
+    public RenderFragment? Summary { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private string SafeId => string.Concat(Id.Select(c => char.IsLetterOrDigit(c) || c is '-' or '_' ? c : '-'));
+
+    private string HeadingId => SafeId + "-heading";
+
+    private string BodyId => SafeId + "-body";
+
+    protected override void OnInitialized() => _expanded = InitiallyExpanded;
+
+    private void Toggle() => _expanded = !_expanded;
+}

@@ -19,7 +19,7 @@ The four tools that start something carry `ToolGate.Confirm`, so they follow the
 Each operation (`CommandCatalog`) has a gate:
 
 - **Off**: refused.
-- **Ask**: the run waits on an approval card (Home and Console) until the owner decides.
+- **Ask**: the run waits on an approval card (Dashboard and Console) until the owner decides.
 - **Auto**: runs at once.
 
 The gate that applies is the first of: the owner's choice for this workspace, the owner's choice for all workspaces (workspace id 0), the catalog default. The result is capped by the operation's `MaxGate`. `shell.run` has `MaxGate = Ask`, so a script can never run on its own.
