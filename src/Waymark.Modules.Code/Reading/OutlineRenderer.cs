@@ -50,6 +50,12 @@ internal static class OutlineRenderer
         output.TryAppendLine($"**Path:** `{path}`  ");
         output.TryAppendLine($"**Lines:** {file.LineCount} | **Classification:** {file.Classification}  ");
         var namespaces = file.Types.Select(t => t.Namespace).Where(n => !string.IsNullOrEmpty(n)).Distinct(StringComparer.Ordinal).ToList();
+        if (namespaces.Count == 0 && language == CodeLanguage.Python && Waymark.Languages.Python.PythonModuleNames.FromPath(path) is { Length: > 0 } module)
+        {
+            // A module with only functions or variables has no type to carry its name.
+            namespaces.Add(module);
+        }
+
         output.TryAppendLine($"**{CodeLanguages.ContainerWord(language)}:** {(namespaces.Count == 0 ? "(none)" : string.Join(", ", namespaces.Select(n => $"`{n}`")))}");
         output.TryAppendLine(includePrivate
             ? "**Members shown:** all"

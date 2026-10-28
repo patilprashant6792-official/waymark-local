@@ -190,10 +190,12 @@ internal sealed class PypiPackageLoader(PypiClient client, PypiOptions options, 
         return top.EndsWith("-stubs", StringComparison.OrdinalIgnoreCase) ? top[..^"-stubs".Length] + path[slash..] : path;
     }
 
+    /// <summary>The module a file stands for: no extension, and a package's <c>__init__</c> is the package itself, so <c>six/__init__.pyi</c> covers <c>six.py</c>.</summary>
     private static string WithoutExtension(string path)
     {
         var dot = path.LastIndexOf('.');
-        return dot > path.LastIndexOf('/') ? path[..dot] : path;
+        var bare = dot > path.LastIndexOf('/') ? path[..dot] : path;
+        return bare.EndsWith("/__init__", StringComparison.OrdinalIgnoreCase) ? bare[..^"/__init__".Length] : bare;
     }
 
     private void RemoveStale()

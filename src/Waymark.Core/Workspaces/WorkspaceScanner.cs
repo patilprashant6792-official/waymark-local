@@ -35,13 +35,13 @@ internal static partial class WorkspaceScanner
 
     public static async Task<WorkspaceMetadata> ScanAsync(string root, WorkspaceOptions options, CancellationToken ct)
     {
-        var (solutions, projects, python, truncated) = await Task.Run(() => Walk(root, options, ct), ct).ConfigureAwait(false);
+        var (solutions, projects, python, sources, truncated) = await Task.Run(() => Walk(root, options, ct), ct).ConfigureAwait(false);
         var framework = await DetectFrameworkAsync(root, projects, ct).ConfigureAwait(false);
         var tool = await DetectPythonToolAsync(root, python, ct).ConfigureAwait(false);
-        return new WorkspaceMetadata(solutions, projects, framework, truncated, python, tool);
+        return new WorkspaceMetadata(solutions, projects, framework, truncated, python, tool, sources);
     }
 
-    private static (List<string> Solutions, List<string> Projects, List<string> Python, bool Truncated) Walk(string root, WorkspaceOptions options, CancellationToken ct)
+    private static (List<string> Solutions, List<string> Projects, List<string> Python, int PythonSources, bool Truncated) Walk(string root, WorkspaceOptions options, CancellationToken ct)
     {
         var solutions = Directory.EnumerateFiles(root, "*.sln", FileOptions)
             .Concat(Directory.EnumerateFiles(root, "*.slnx", FileOptions))
@@ -52,6 +52,7 @@ internal static partial class WorkspaceScanner
 
         var projects = new List<string>();
         var python = new List<string>();
+        var sources = 0;
         var pending = new Stack<string>();
         pending.Push(root);
         var directoriesScanned = 0;
@@ -84,6 +85,10 @@ internal static partial class WorkspaceScanner
                     continue;
                 }
 
+                if (name.EndsWith(".py", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".pyi", StringComparison.OrdinalIgnoreCase))
+                {
+                    sources++;
+                }
                 var rank = PythonRank(name);
                 if (rank < pythonRank)
                 {
@@ -115,7 +120,7 @@ internal static partial class WorkspaceScanner
 
         projects.Sort(StringComparer.OrdinalIgnoreCase);
         python.Sort(StringComparer.OrdinalIgnoreCase);
-        return (solutions, projects, python, truncated);
+        return (solutions, projects, python, sources, truncated);
     }
 
     /// <summary>Lower is a stronger marker of a Python project; <see cref="int.MaxValue"/> means the file is not one.</summary>

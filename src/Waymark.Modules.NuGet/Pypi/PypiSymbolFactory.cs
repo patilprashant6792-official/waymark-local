@@ -462,7 +462,9 @@ internal static class PythonSignatureText
 
         var rest = text[(close + 1)..].Trim();
         var returns = rest.StartsWith("->", StringComparison.Ordinal) ? rest[2..].Trim() : null;
-        return new Parsed(isAsync, text[..nameEnd].Trim(), text[(open + 1)..close].Trim(), string.IsNullOrEmpty(returns) ? null : returns);
+        // Joined again from its top-level items, so a trailing comma (a formatter's habit) is gone.
+        var parameters = string.Join(", ", SplitTopLevel(text[(open + 1)..close]));
+        return new Parsed(isAsync, text[..nameEnd].Trim(), parameters, string.IsNullOrEmpty(returns) ? null : returns);
     }
 
     /// <summary>The parameter list without a leading <c>self</c> or <c>cls</c>.</summary>

@@ -72,7 +72,7 @@ Python actions start with `py_` and work on one project: option `project` is its
 2. `py_test` results list the failed tests (`failed: tests/test_a.py::test_b`) and the last lines. Read the failing test and the code it calls (`code_method`), fix, run `py_test` again with `filter` or `paths` set to just that test. Run the whole suite once at the end.
 3. `py_lint` and `py_typecheck` list findings as `path(line): CODE message`. Fix errors before warnings; the same finding after two attempts means re-read the code.
 4. Adding a package: look it up first (`pkg_find` with `ecosystem: "pypi"`), confirm with the user, then `py_package_add` with the exact `version`. It edits pyproject.toml and uv.lock. A pip project changes its requirements file with `file_edit_lines` instead, then `py_install`.
-5. `py_run` keeps a server running until stopped: give the user the run id and let them watch the Console. Free a busy port with `cmd_proc` (`ports`, then `stop_port`).
+5. `py_run` keeps a server running until stopped: give the user the run id and let them watch the Console. End it with `cmd_stop(runId)` (that ends its whole process tree); `cmd_proc stop_port` queues behind a running `py_run` in the same workspace, so use it only for a server that was started elsewhere.
 6. A passing test run is the proof that a refactor works. The code index cannot see dynamic Python, so a clean `py_lint` is not proof.
 
 ## cmd_git

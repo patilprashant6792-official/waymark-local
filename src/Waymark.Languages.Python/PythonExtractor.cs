@@ -104,13 +104,27 @@ internal sealed class PythonExtractor(string moduleName, int lineCount, CodeInde
             case "expression_statement":
                 AddExpressionStatement(node, scope);
                 break;
+            case "assignment":
+                AddAssignment(node, node, scope);
+                break;
             case "type_alias_statement":
                 AddTypeAliasStatement(node, scope);
                 break;
+            case "string":
+            case "comment":
+                break;
             default:
-                if (depth < MaxNesting && CompoundStatements.Contains(node.Type))
+                if (CompoundStatements.Contains(node.Type))
                 {
-                    WalkStatements(node.NamedChildren, scope, depth + 1);
+                    if (depth < MaxNesting)
+                    {
+                        WalkStatements(node.NamedChildren, scope, depth + 1);
+                    }
+                }
+                else
+                {
+                    // Any other simple statement (a bare call, augmented assignment, return ...) can still make calls.
+                    AddCalls(node, scope?.Name, null);
                 }
 
                 break;
@@ -370,9 +384,9 @@ internal sealed class PythonExtractor(string moduleName, int lineCount, CodeInde
         {
             ct.ThrowIfCancellationRequested();
             var node = pending.Pop();
-            if (node.Type == "expression_statement")
+            if (node.Type is "expression_statement" or "assignment")
             {
-                foreach (var child in node.NamedChildren)
+                foreach (var child in Inner(node))
                 {
                     if (child.Type == "assignment")
                     {
@@ -568,12 +582,7 @@ internal sealed class PythonExtractor(string moduleName, int lineCount, CodeInde
         HashSet<string>? exported = null;
         foreach (var statement in root.NamedChildren)
         {
-            if (statement.Type != "expression_statement")
-            {
-                continue;
-            }
-
-            foreach (var child in statement.NamedChildren)
+            foreach (var child in Inner(statement))
             {
                 if (child.Type is not ("assignment" or "augmented_assignment"))
                 {
@@ -602,6 +611,10 @@ internal sealed class PythonExtractor(string moduleName, int lineCount, CodeInde
         return exported;
     }
 
+    /// <summary>The statements an expression statement stands for. The bundled grammar puts an assignment or a string directly in a block; older ones wrap it in expression_statement.</summary>
+    private static IReadOnlyList<Node> Inner(Node statement) =>
+        statement.Type == "expression_statement" ? statement.NamedChildren : [statement];
+
     private static string? ReadDocstring(Node body)
     {
         foreach (var statement in body.NamedChildren)
@@ -611,13 +624,8 @@ internal sealed class PythonExtractor(string moduleName, int lineCount, CodeInde
                 continue;
             }
 
-            if (statement.Type != "expression_statement")
-            {
-                return null;
-            }
-
-            var children = statement.NamedChildren;
-            return children.Count == 1 && children[0].Type == "string" ? PythonText.Summary(children[0].Text, MaxSummaryChars) : null;
+            var inner = Inner(statement);
+            return inner.Count == 1 && inner[0].Type == "string" ? PythonText.Summary(inner[0].Text, MaxSummaryChars) : null;
         }
 
         return null;

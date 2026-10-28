@@ -219,7 +219,7 @@ public partial class Workspaces : LiveComponentBase
         }
 
         var text = $"{DisplayFormat.Count(stats.Files)} files, {DisplayFormat.Count(stats.Types)} types, {DisplayFormat.Count(stats.Members)} members";
-        if (stats.FilesByLanguage is { Count: > 1 } languages)
+        if (stats.FilesByLanguage is { Count: > 0 } languages && (languages.Count > 1 || !languages.ContainsKey(CodeLanguage.CSharp)))
         {
             var parts = languages.OrderByDescending(pair => pair.Value).Select(pair => $"{CodeLanguages.DisplayName(pair.Key)} {DisplayFormat.Count(pair.Value)}");
             text += " (" + string.Join(", ", parts) + ")";
