@@ -2,11 +2,11 @@
 
 namespace Waymark.Modules.Code.Scheduling;
 
-/// <summary>A C# file found on disk. RelativePath uses '/'.</summary>
+/// <summary>A source file found on disk. RelativePath uses '/'.</summary>
 internal sealed record DiskFile(string RelativePath, string AbsolutePath, long Size, DateTimeOffset ModifiedUtc);
 
 /// <summary>
-/// Lists the C# files of a workspace that tools are allowed to read. Folders and files the access policy refuses
+/// Lists the source files (of every indexed language) of a workspace that tools are allowed to read. Folders and files the access policy refuses
 /// (build output, version control, secrets) and linked folders and files are left out, so the index never holds
 /// anything a tool could not open.
 /// </summary>
@@ -20,9 +20,10 @@ internal static class CodeFileWalker
         AttributesToSkip = FileAttributes.System | FileAttributes.ReparsePoint,
     };
 
-    public static (List<DiskFile> Files, bool Truncated) Enumerate(string root, FileAccessPolicy policy, int maxFiles, CancellationToken ct)
+    public static (List<DiskFile> Files, bool Truncated) Enumerate(string root, FileAccessPolicy policy, int maxFiles, LanguageIndexers languages, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(policy);
+        ArgumentNullException.ThrowIfNull(languages);
         var files = new List<DiskFile>();
         var pending = new Stack<DirectoryInfo>();
         pending.Push(new DirectoryInfo(root));
@@ -31,9 +32,9 @@ internal static class CodeFileWalker
         {
             ct.ThrowIfCancellationRequested();
             var directory = pending.Pop();
-            foreach (var file in directory.EnumerateFiles("*.cs", EntryOptions))
+            foreach (var file in directory.EnumerateFiles("*", EntryOptions))
             {
-                if (!file.Extension.Equals(".cs", StringComparison.OrdinalIgnoreCase))
+                if (!languages.Handles(file.Name))
                 {
                     continue;
                 }

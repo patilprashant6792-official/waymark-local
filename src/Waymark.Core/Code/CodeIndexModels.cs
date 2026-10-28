@@ -1,5 +1,18 @@
 ﻿namespace Waymark.Core.Code;
 
+/// <summary>The language of an indexed file. Stored as its lower-case name; the CHECK on code_files.language mirrors it.</summary>
+public enum CodeLanguage
+{
+    CSharp,
+    Python,
+
+    /// <summary>Reserved: the schema accepts it, no indexer exists yet.</summary>
+    TypeScript,
+
+    /// <summary>Reserved: the schema accepts it, no indexer exists yet.</summary>
+    JavaScript
+}
+
 public enum CodeTypeKind
 {
     Class,
@@ -8,7 +21,8 @@ public enum CodeTypeKind
     Record,
     RecordStruct,
     Enum,
-    Delegate
+    Delegate,
+    TypeAlias
 }
 
 public enum CodeMemberKind
@@ -20,7 +34,13 @@ public enum CodeMemberKind
     Event,
     Indexer,
     Operator,
-    EnumMember
+    EnumMember,
+
+    /// <summary>A function that is not inside a type (a module-level Python function).</summary>
+    Function,
+
+    /// <summary>A variable that is not inside a type (a module-level Python assignment).</summary>
+    Variable
 }
 
 /// <summary>What the indexer saw on disk for one file; used to decide whether the file must be parsed again.</summary>
@@ -65,7 +85,9 @@ public sealed record CodeCallSiteEntry(
     string? ReceiverType = null,
     bool ReceiverTypeGuessed = false);
 
-/// <summary>Everything the index keeps about one C# file. Replaced as a unit.</summary>
+/// <summary>Everything the index keeps about one source file. Replaced as a unit.</summary>
+/// <param name="Usings">The using directives of a C# file, or the import statements of a Python file, one text per entry.</param>
+/// <param name="Language">Which indexer produced the entry. C# when not said, so older callers keep working.</param>
 public sealed record CodeFileIndex(
     CodeFileStamp Stamp,
     int LineCount,
@@ -73,6 +95,13 @@ public sealed record CodeFileIndex(
     IReadOnlyList<string> Usings,
     IReadOnlyList<CodeTypeEntry> Types,
     IReadOnlyList<CodeMemberEntry> Members,
-    IReadOnlyList<CodeCallSiteEntry> CallSites);
+    IReadOnlyList<CodeCallSiteEntry> CallSites,
+    CodeLanguage Language = CodeLanguage.CSharp);
 
-public sealed record CodeIndexStats(int Files, int Types, int Members, int CallSites);
+/// <param name="FilesByLanguage">Indexed files per language; null when the store did not count them.</param>
+public sealed record CodeIndexStats(
+    int Files,
+    int Types,
+    int Members,
+    int CallSites,
+    IReadOnlyDictionary<CodeLanguage, int>? FilesByLanguage = null);

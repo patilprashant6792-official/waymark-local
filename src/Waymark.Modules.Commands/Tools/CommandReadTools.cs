@@ -9,7 +9,7 @@ public sealed class CommandReadTools(CommandService service)
 {
     [McpServerTool(Name = "cmd_wait", ReadOnly = true, Idempotent = true)]
     [Description(
-        "Wait for a command (run id from cmd_dotnet, cmd_git, cmd_proc or cmd_shell) to finish or to be decided by the owner, then report it like the original call did. " +
+        "Wait for a command (run id from cmd_project, cmd_git, cmd_proc or cmd_shell) to finish or to be decided by the owner, then report it like the original call did. " +
         "Returns early when the run ends. Call it again when the run is still going.")]
     public Task<string> Wait(
         [Description("The run number, for example 12.")] long runId,

@@ -49,7 +49,7 @@ internal sealed class CopySourceReader(IPathGuard guard, IContentInspector inspe
             ? snapshot.Text.Replace("\r\n", "\n", StringComparison.Ordinal)
             : LinesToText(document.Lines.GetRange(start - 1, end - start + 1));
         var notes = new List<string>();
-        text = Transform(text, source, notes);
+        text = Transform(text, source, snapshot.Path.RelativePath, notes);
         await RejectSecretsAsync(text, display, ct).ConfigureAwait(false);
 
         var lineCount = CountLines(text);
@@ -176,8 +176,13 @@ internal sealed class CopySourceReader(IPathGuard guard, IContentInspector inspe
         }
     }
 
-    private string Transform(string text, CopySource source, List<string> notes)
+    private string Transform(string text, CopySource source, string path, List<string> notes)
     {
+        if (source.Csharp is not null && !path.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new PatchValidationException($"csharp renames only work on C# files, and '{path}' is not one. Use replace for other languages.");
+        }
+
         var current = text;
         if (source.Replace is { Count: > 0 } rules)
         {

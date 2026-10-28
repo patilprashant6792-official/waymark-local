@@ -56,6 +56,33 @@ public sealed class RecipeContext(Workspace workspace, IPathGuard guard, RecipeO
         return solutions.Count == 1 ? solutions[0] : null;
     }
 
+    /// <summary>
+    /// The folder of the Python project a command works on: the option (a project folder, or the pyproject.toml, setup.py, Pipfile or requirements file in it),
+    /// else the workspace folder. A command runs there, so relative imports, pytest's rootdir and the tools' own configuration are the project's.
+    /// </summary>
+    public string PythonProjectFolder(string key = "project")
+    {
+        var path = OptionalPath(key);
+        if (path is null)
+        {
+            return Root;
+        }
+
+        if (Directory.Exists(path))
+        {
+            return path;
+        }
+
+        var name = Path.GetFileName(path);
+        var isProjectFile = name.Equals("pyproject.toml", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("setup.py", StringComparison.OrdinalIgnoreCase)
+            || name.Equals("Pipfile", StringComparison.OrdinalIgnoreCase)
+            || (name.StartsWith("requirements", StringComparison.OrdinalIgnoreCase) && name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase));
+        return isProjectFile && File.Exists(path)
+            ? Path.GetDirectoryName(path) ?? Root
+            : throw new ArgumentException($"Option '{key}' must be an existing project folder, or the pyproject.toml, setup.py, Pipfile or requirements file of one.");
+    }
+
     private static string ExistingFile(string? path, string key, string[] extensions, string what)
     {
         if (path is null)

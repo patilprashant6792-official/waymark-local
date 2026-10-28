@@ -10,7 +10,7 @@ namespace Waymark.Modules.Code.Scheduling;
 internal sealed class WorkspaceIndexer(
     IWorkspaceStore workspaces,
     ICodeIndexStore store,
-    ISyntaxIndexer syntaxIndexer,
+    LanguageIndexers languages,
     IPathGuard pathGuard,
     FileAccessPolicy policy,
     IEventBus events,
@@ -48,11 +48,11 @@ internal sealed class WorkspaceIndexer(
             var stamps = (await store.ListStampsAsync(workspace.Id, ct).ConfigureAwait(false))
                 .ToDictionary(stamp => stamp.RelativePath, StringComparer.OrdinalIgnoreCase);
             var (files, truncated) = await Task.Run(
-                () => CodeFileWalker.Enumerate(workspace.Path, policy, options.MaxFilesPerWorkspace, ct), ct).ConfigureAwait(false);
+                () => CodeFileWalker.Enumerate(workspace.Path, policy, options.MaxFilesPerWorkspace, languages, ct), ct).ConfigureAwait(false);
             if (truncated)
             {
                 logger.LogWarning(
-                    "Workspace {Workspace} has more than {Max} C# files; the rest are not indexed (Waymark:Code:MaxFilesPerWorkspace).",
+                    "Workspace {Workspace} has more than {Max} source files; the rest are not indexed (Waymark:Code:MaxFilesPerWorkspace).",
                     workspace.Name,
                     options.MaxFilesPerWorkspace);
             }
@@ -105,7 +105,7 @@ internal sealed class WorkspaceIndexer(
         }
     }
 
-    /// <summary>Re-reads one file: removed from the index when it is gone, refused by the policy or not C#; otherwise parsed again when its content changed.</summary>
+    /// <summary>Re-reads one file: removed from the index when it is gone or refused by the policy, left alone when it is not a source file; otherwise parsed again when its content changed.</summary>
     public async Task IndexFileAsync(Workspace workspace, string relativePath, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(workspace);
@@ -120,7 +120,7 @@ internal sealed class WorkspaceIndexer(
             return;
         }
 
-        if (!guarded.RelativePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+        if (!languages.TryGet(guarded.RelativePath, out var indexer))
         {
             return;
         }
@@ -128,7 +128,7 @@ internal sealed class WorkspaceIndexer(
         var known = await store.GetFileAsync(workspace.Id, guarded.RelativePath, ct).ConfigureAwait(false);
         try
         {
-            var result = await syntaxIndexer.IndexFileAsync(guarded.AbsolutePath, guarded.RelativePath, known?.Stamp.Hash, ct).ConfigureAwait(false);
+            var result = await indexer.IndexFileAsync(guarded.AbsolutePath, guarded.RelativePath, known?.Stamp.Hash, ct).ConfigureAwait(false);
             await StoreAsync(workspace, guarded.RelativePath, result, known is not null, ct).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is FileNotFoundException or DirectoryNotFoundException)
@@ -142,6 +142,11 @@ internal sealed class WorkspaceIndexer(
         {
             logger.LogWarning(ex, "Cannot read {Workspace}:{Path}; the index keeps its earlier version", workspace.Name, guarded.RelativePath);
         }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // One file that an indexer cannot handle must not stop the others, whatever language it is.
+            logger.LogError(ex, "Indexing {Workspace}:{Path} failed; the index keeps its earlier version", workspace.Name, guarded.RelativePath);
+        }
     }
 
     private async Task<Step> IndexDiskFileAsync(Workspace workspace, DiskFile file, CodeFileStamp? known, CancellationToken ct)
@@ -153,9 +158,14 @@ internal sealed class WorkspaceIndexer(
             return Step.Skipped;
         }
 
+        if (!languages.TryGet(file.RelativePath, out var indexer))
+        {
+            return Step.Skipped;
+        }
+
         try
         {
-            var result = await syntaxIndexer.IndexFileAsync(file.AbsolutePath, file.RelativePath, known?.Hash, ct).ConfigureAwait(false);
+            var result = await indexer.IndexFileAsync(file.AbsolutePath, file.RelativePath, known?.Hash, ct).ConfigureAwait(false);
             return await StoreAsync(workspace, file.RelativePath, result, known is not null, ct).ConfigureAwait(false)
                 ? Step.Changed
                 : Step.Skipped;
@@ -163,6 +173,11 @@ internal sealed class WorkspaceIndexer(
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             logger.LogWarning(ex, "Cannot read {Workspace}:{Path}; the index keeps its earlier version", workspace.Name, file.RelativePath);
+            return Step.Failed;
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogError(ex, "Indexing {Workspace}:{Path} failed; the index keeps its earlier version", workspace.Name, file.RelativePath);
             return Step.Failed;
         }
     }
@@ -184,6 +199,9 @@ internal sealed class WorkspaceIndexer(
             case SyntaxIndexOutcome.NotText:
                 logger.LogDebug("{Workspace}:{Path} is not indexed ({Outcome})", workspace.Name, relativePath, result.Outcome);
                 return wasIndexed && await store.RemoveFileAsync(workspace.Id, relativePath, ct).ConfigureAwait(false);
+            case SyntaxIndexOutcome.Unavailable:
+                logger.LogDebug("{Workspace}:{Path} is not indexed (its language indexer is unavailable)", workspace.Name, relativePath);
+                return false;
             default:
                 return false;
         }

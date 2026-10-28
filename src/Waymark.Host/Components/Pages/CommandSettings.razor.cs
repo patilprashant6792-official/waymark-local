@@ -50,6 +50,7 @@ public partial class CommandSettings : LiveComponentBase
     private IReadOnlyList<FamilyGroup> Families =>
     [
         Group(CommandCatalog.DotnetFamily, ".NET"),
+        Group(CommandCatalog.PythonFamily, "Python"),
         Group(CommandCatalog.GitFamily, "Git"),
         Group(CommandCatalog.ProcessFamily, "Processes and ports"),
         Group(CommandCatalog.ShellFamily, "System shell")

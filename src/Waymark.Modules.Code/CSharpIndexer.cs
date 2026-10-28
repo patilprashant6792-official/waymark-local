@@ -8,8 +8,14 @@ using Waymark.Modules.Code.Indexing;
 namespace Waymark.Modules.Code;
 
 /// <summary>Roslyn syntax-only indexer: no compilation, no references, so it is fast and never loads the user's code.</summary>
-public sealed class SyntaxIndexer(CodeIndexOptions options) : ISyntaxIndexer
+public sealed class CSharpIndexer(CodeIndexOptions options) : ILanguageIndexer
 {
+    private static readonly HashSet<string> SupportedExtensions = new(StringComparer.OrdinalIgnoreCase) { ".cs" };
+
+    public CodeLanguage Language => CodeLanguage.CSharp;
+
+    public IReadOnlySet<string> Extensions => SupportedExtensions;
+
     private static readonly CSharpParseOptions ParseOptions =
         new(LanguageVersion.Latest, DocumentationMode.Parse, SourceCodeKind.Regular);
 

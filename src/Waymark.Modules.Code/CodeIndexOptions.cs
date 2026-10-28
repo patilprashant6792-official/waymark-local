@@ -1,9 +1,10 @@
 ﻿using System.Globalization;
 using Microsoft.Extensions.Configuration;
+using Waymark.Core.Code;
 
 namespace Waymark.Modules.Code;
 
-/// <summary>Limits for parsing C# files into the code index and for keeping the index fresh.</summary>
+/// <summary>Limits for parsing source files into the code index and for keeping the index fresh.</summary>
 public sealed record CodeIndexOptions(
     int MaxFileBytes,
     int MaxMembersPerFile,
@@ -13,6 +14,8 @@ public sealed record CodeIndexOptions(
     int MaxPendingFiles,
     int ProgressEveryFiles)
 {
+    /// <summary>The limits every language indexer keeps to.</summary>
+    public CodeIndexLimits Limits => new(MaxFileBytes, MaxMembersPerFile, MaxCallSitesPerFile);
     public const int DefaultMaxFileBytes = 2_000_000;
     public const int DefaultMaxMembersPerFile = 20_000;
     public const int DefaultMaxCallSitesPerFile = 20_000;

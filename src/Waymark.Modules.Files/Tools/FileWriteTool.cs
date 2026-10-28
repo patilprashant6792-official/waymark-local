@@ -31,7 +31,7 @@ public sealed class FileWriteTool(IFileEditor editor, ToolPipelineOptions pipeli
         "            \"startLine\": 40, \"endLine\": 80 (leave both out for the whole file),\n" +
         "            \"expectFirstLine\" / \"expectLastLine\": (trimmed; the copy is refused if the lines moved),\n" +
         "            \"replace\": [{\"find\": \"Invoice\", \"with\": \"Order\", \"count\": 12}] (literal text, the match count must equal count),\n" +
-        "            \"csharp\": {\"namespaces\": {\"Old.Ns\": \"New.Ns\"}, \"identifiers\": {\"OldName\": \"NewName\"}} (C# by syntax; strings and comments are never touched),\n" +
+        "            \"csharp\": {\"namespaces\": {\"Old.Ns\": \"New.Ns\"}, \"identifiers\": {\"OldName\": \"NewName\"}} (C# files only, by syntax; strings and comments are never touched; use replace for other languages),\n" +
         "            \"indent\": -4 (shift every line) }\n" +
         "A copied new file keeps the encoding and line endings of its source. Use it to duplicate, migrate or split files; use mode create so nothing is overwritten by accident.\n" +
         "Copied text that holds a secret is refused. Run the build after a copy: the build is the proof.\n" +

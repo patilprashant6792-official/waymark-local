@@ -10,6 +10,7 @@ using Waymark.Modules.Code.Scheduling;
 using Waymark.Modules.Code.Rewriting;
 using Waymark.Modules.Code.Search;
 using Waymark.Modules.Code.Skeleton;
+using Waymark.Languages.Python;
 using Waymark.Modules.Code.Tools;
 
 namespace Waymark.Modules.Code;
@@ -24,7 +25,10 @@ public sealed class CodeModule : IMcpModule
         ArgumentNullException.ThrowIfNull(services);
         ArgumentNullException.ThrowIfNull(configuration);
         services.TryAddSingleton(CodeIndexOptions.FromConfiguration(configuration));
-        services.TryAddSingleton<ISyntaxIndexer, SyntaxIndexer>();
+        services.TryAddSingleton<CodeIndexLimits>(provider => provider.GetRequiredService<CodeIndexOptions>().Limits);
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILanguageIndexer, CSharpIndexer>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILanguageIndexer, PythonIndexer>());
+        services.TryAddSingleton<LanguageIndexers>();
         services.TryAddSingleton<WorkspaceIndexer>();
         services.TryAddSingleton<IndexScheduler>();
         services.TryAddSingleton<IIndexScheduler>(provider => provider.GetRequiredService<IndexScheduler>());

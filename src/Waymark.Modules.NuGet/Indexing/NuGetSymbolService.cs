@@ -1,5 +1,6 @@
 ﻿using Waymark.Core.NuGetIndex;
 using Waymark.Modules.NuGet.Loading;
+using Waymark.Modules.NuGet.Pypi;
 
 namespace Waymark.Modules.NuGet.Indexing;
 
@@ -7,6 +8,7 @@ internal sealed class NuGetSymbolService(
     IPackageIndexer indexer,
     INuGetIndexStore store,
     PackageFeed feed,
+    PypiPackageSearch pypiSearch,
     NuGetIndexOptions options,
     TimeProvider time) : INuGetSymbolService
 {
@@ -15,28 +17,31 @@ internal sealed class NuGetSymbolService(
     private const int NamePartsLimit = 2;
     private const double MinimumRelevance = 0.0001;
 
-    public async Task<string> PackagesAsync(string query, int? take, bool includePrerelease, CancellationToken cancellationToken)
+    public async Task<string> PackagesAsync(string ecosystem, string query, int? take, bool includePrerelease, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(query);
         var count = Math.Clamp(take ?? DefaultPackageResults, 1, options.MaxPackageResults);
+        var kind = PackageEcosystems.Parse(ecosystem);
         IReadOnlyList<PackageSearchHit> hits;
         try
         {
-            hits = await feed.SearchPackagesAsync(query.Trim(), count, includePrerelease, cancellationToken).ConfigureAwait(false);
+            hits = kind == PackageEcosystems.PyPI
+                ? await pypiSearch.SearchAsync(query.Trim(), count, cancellationToken).ConfigureAwait(false)
+                : await feed.SearchPackagesAsync(query.Trim(), count, includePrerelease, cancellationToken).ConfigureAwait(false);
         }
         catch (Exception ex) when (ex is InvalidOperationException or TimeoutException or HttpRequestException)
         {
             throw new NuGetLoadException(ex.Message, ex);
         }
 
-        return SymbolMarkdown.Packages(query.Trim(), hits, options.MaxPackagesOutputChars);
+        return SymbolMarkdown.Packages(kind, query.Trim(), hits, options.MaxPackagesOutputChars);
     }
 
     public async Task<string> OutlineAsync(PackageIndexRequest package, string? namespacePrefix, bool refresh, CancellationToken cancellationToken)
     {
         var index = await indexer.EnsureIndexedAsync(package, refresh, cancellationToken).ConfigureAwait(false);
         var outline = await store.GetOutlineAsync(index.Key, cancellationToken).ConfigureAwait(false)
-            ?? throw new NuGetLoadException($"The index of '{index.Key.PackageId}' {index.Key.Version} is not available. Try `nuget_outline` with refresh=true.", index.Key.PackageId, index.Key.Version);
+            ?? throw new NuGetLoadException($"The index of '{index.Key.PackageId}' {index.Key.Version} is not available. Try `pkg_outline` with refresh=true.", index.Key.PackageId, index.Key.Version);
 
         var prefix = namespacePrefix?.Trim();
         var matching = string.IsNullOrEmpty(prefix)
@@ -80,7 +85,7 @@ internal sealed class NuGetSymbolService(
         var ids = identifiers.Where(i => !string.IsNullOrWhiteSpace(i)).Select(i => i.Trim()).Distinct(StringComparer.Ordinal).ToList();
         if (ids.Count == 0)
         {
-            throw new ArgumentException("Pass at least one symbol id (from `nuget_find`) or a type name.", nameof(identifiers));
+            throw new ArgumentException("Pass at least one symbol id (from `pkg_find`) or a type name.", nameof(identifiers));
         }
 
         if (ids.Count > options.MaxExpandSymbols)

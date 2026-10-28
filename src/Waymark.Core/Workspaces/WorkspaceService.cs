@@ -26,8 +26,8 @@ public sealed class WorkspaceService(
         try
         {
             var metadata = await WorkspaceScanner.ScanAsync(normalized, options, ct).ConfigureAwait(false);
-            return metadata.SolutionFiles.Count == 0 && metadata.ProjectFiles.Count == 0
-                ? WorkspaceValidation.Invalid("No solution (.sln/.slnx) or project (.csproj) files found.")
+            return metadata.SolutionFiles.Count == 0 && metadata.ProjectFiles.Count == 0 && metadata.PythonProjectFiles.Count == 0
+                ? WorkspaceValidation.Invalid("No solution (.sln/.slnx), project (.csproj) or Python project (pyproject.toml, setup.py, Pipfile, requirements.txt) files found.")
                 : WorkspaceValidation.Valid(normalized, metadata);
         }
         catch (UnauthorizedAccessException)

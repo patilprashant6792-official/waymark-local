@@ -7,7 +7,7 @@ namespace Waymark.Modules.Commands.Recipes;
 
 /// <summary>
 /// Process and clean-up operations. Listing ports, ending a program and deleting bin and obj are done by Waymark itself rather than through a shell,
-/// so what they may touch is decided here: a program is ended only when it runs from the workspace or is a dotnet host, never Waymark itself.
+/// so what they may touch is decided here: a program is ended only when it runs from the workspace or is a dotnet or Python host, never Waymark itself.
 /// </summary>
 public sealed class ProcRecipes(ListeningPorts ports)
 {
@@ -118,10 +118,12 @@ public sealed class ProcRecipes(ListeningPorts ports)
         {
             using var process = Process.GetProcessById(owner.Pid);
             var path = TryGetPath(process);
-            var isDotnetHost = string.Equals(process.ProcessName, "dotnet", StringComparison.OrdinalIgnoreCase);
-            if (!isDotnetHost && (path is null || !IsInside(workspaceRoot, path)))
+            // A virtual environment's python.exe on Windows is a launcher: the process that listens is the base Python, which does not run from the workspace.
+            var isHost = string.Equals(process.ProcessName, "dotnet", StringComparison.OrdinalIgnoreCase)
+                || process.ProcessName.StartsWith("python", StringComparison.OrdinalIgnoreCase);
+            if (!isHost && (path is null || !IsInside(workspaceRoot, path)))
             {
-                write($"Refused: {label} does not run from this workspace and is not a dotnet program ({path ?? "path unknown"}). Ask for a shell command if it must be ended.\n");
+                write($"Refused: {label} does not run from this workspace and is not a dotnet or Python program ({path ?? "path unknown"}). Ask for a shell command if it must be ended.\n");
                 return false;
             }
 

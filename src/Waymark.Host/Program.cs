@@ -52,7 +52,7 @@ builder.Services.Configure<HostOptions>(options => options.BackgroundServiceExce
 builder.Logging.AddLiveLog();
 builder.Logging.AddFilter<LiveLogProvider>("Waymark", LogLevel.Information);
 
-IMcpModule[] modules = [new CodeModule(), new NuGetModule(), new FilesModule(), new CommandsModule()];
+IMcpModule[] modules = [new CodeModule(), new PackagesModule(), new FilesModule(), new CommandsModule()];
 builder.Services.AddWaymarkTools(
     builder.Configuration,
     [typeof(WaymarkTools).Assembly, .. modules.Select(module => module.GetType().Assembly)]);

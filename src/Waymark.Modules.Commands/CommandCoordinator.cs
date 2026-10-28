@@ -425,10 +425,15 @@ public sealed class CommandCoordinator : ICommandRuns
             }
         }
 
-        var program = _executables.Find(plan.Program);
+        var program = plan.ExecutablePath is { } explicitPath ? (File.Exists(explicitPath) ? explicitPath : null) : _executables.Find(plan.Program);
         if (program is null)
         {
-            return new RunOutcome(CommandRunStatus.Failed, null, $"'{plan.Program}' was not found in the folders of PATH on this computer.");
+            return new RunOutcome(
+                CommandRunStatus.Failed,
+                null,
+                plan.ExecutablePath is null
+                    ? $"'{plan.Program}' was not found in the folders of PATH on this computer."
+                    : $"'{plan.Program}' does not exist any more: {plan.ExecutablePath}");
         }
 
         var spec = new RunSpec(program, plan.Arguments, submission.WorkingDirectory, ChildEnvironment.Build(), submission.Timeout);

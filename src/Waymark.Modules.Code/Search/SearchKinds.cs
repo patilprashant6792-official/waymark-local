@@ -13,6 +13,7 @@ public enum SearchKind
     RecordStruct,
     Enum,
     Delegate,
+    TypeAlias,
     Method,
     Constructor,
     Property,
@@ -21,6 +22,8 @@ public enum SearchKind
     Indexer,
     Operator,
     EnumMember,
+    Function,
+    Variable,
     Attribute
 }
 
@@ -46,6 +49,7 @@ internal sealed record SearchScope(
         SearchKind.RecordStruct => OfType(CodeTypeKind.RecordStruct),
         SearchKind.Enum => OfType(CodeTypeKind.Enum),
         SearchKind.Delegate => OfType(CodeTypeKind.Delegate),
+        SearchKind.TypeAlias => OfType(CodeTypeKind.TypeAlias),
         SearchKind.Method => OfMember(CodeMemberKind.Method),
         SearchKind.Constructor => OfMember(CodeMemberKind.Constructor),
         SearchKind.Property => OfMember(CodeMemberKind.Property),
@@ -54,6 +58,8 @@ internal sealed record SearchScope(
         SearchKind.Indexer => OfMember(CodeMemberKind.Indexer),
         SearchKind.Operator => OfMember(CodeMemberKind.Operator),
         SearchKind.EnumMember => OfMember(CodeMemberKind.EnumMember),
+        SearchKind.Function => OfMember(CodeMemberKind.Function),
+        SearchKind.Variable => OfMember(CodeMemberKind.Variable),
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null),
     };
 

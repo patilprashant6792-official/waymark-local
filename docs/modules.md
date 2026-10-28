@@ -4,13 +4,13 @@ Waymark is a modular monolith. A module references `Waymark.Core` only; `Waymark
 
 | Module | Tools | Gate |
 |---|---|---|
-| Code | code_skeleton, code_folder_files, code_changes_since, code_outline, code_method, code_read, code_search, code_grep, code_callers, code_types | Read |
-| NuGet | nuget_packages, nuget_outline, nuget_find, nuget_expand | Read |
+| Code | code_skeleton, code_folder_files, code_changes_since, code_outline, code_method, code_read, code_search, code_grep, code_callers, code_types (C# through Roslyn, Python through tree-sitter in `Waymark.Languages.Python`; a language is an `ILanguageIndexer`) | Read |
+| Packages (project `Waymark.Modules.NuGet`, module `packages`) | pkg_search, pkg_outline, pkg_find, pkg_expand (`ecosystem`: nuget or pypi) | Read |
 | Files | file_write, file_edit_lines (both can copy with `from` / `fromFolder`), folder_create, file_move, file_delete, folder_move, folder_delete | Confirm (off until switched on) |
-| Commands | cmd_dotnet, cmd_git, cmd_proc, cmd_shell, cmd_wait, cmd_output, cmd_list, cmd_stop | Confirm for the four that start something (off until switched on); the read tools are Read. Each operation also has an Off / Ask / Auto gate chosen by the owner, see `commands-policy.md` |
+| Commands | cmd_project (.NET and Python actions), cmd_git, cmd_proc, cmd_shell, cmd_wait, cmd_output, cmd_list, cmd_stop | Confirm for the four that start something (off until switched on); the read tools are Read. Each operation also has an Off / Ask / Auto gate chosen by the owner, see `commands-policy.md` |
 | Host | waymark_ping, util_datetime | Read |
 
-Not migrated on purpose: `http_request`, `list_environments`. `execute_dotnet_command` is replaced by the typed `cmd_dotnet`.
+Not migrated on purpose: `http_request`, `list_environments`. `execute_dotnet_command` is replaced by the typed `cmd_project`.
 
 `code_grep` finds literal text in any readable file (not only C#) by reading the files from disk on every call, so it is never stale. It applies each workspace's access rules, skips vendored folders (`wwwroot/lib`, `dist`, `vendor`), minified, binary and over-1 MB files, and reports how many it left out. Limits are set under `Waymark:Code:Grep:*` (see `ContentOptions`). There is no content index in the database; a SQLite full-text index is only worth adding if scans prove slow on real workspaces.
 
@@ -37,7 +37,7 @@ The overview is a breadth-first tree under a size budget: `FolderScanner` reads 
 
 ## Data
 
-Migrations are numbered files in `Waymark.Data/Migrations` (next: 012; 011 is `011_tool_guides.sql`). Writes go through `IWriteQueue`, reads through `ISqliteConnectionFactory`.
+Migrations are numbered files in `Waymark.Data/Migrations` (next: 015; 013 rebuilt the code index with a language column, 014 renamed the package and project tools). Writes go through `IWriteQueue`, reads through `ISqliteConnectionFactory`.
 
 ## Vault
 
@@ -47,4 +47,4 @@ The Vault page is hidden from the admin menu and the command palette for now. Th
 
 ## Commands
 
-Typed recipes (`cmd_dotnet`, `cmd_git`, `cmd_proc`) run without a shell; `cmd_shell` runs any script and always waits for the owner. The owner decides in the admin UI on the same computer: `/console` (live terminal, a tab per workspace plus System, approval cards) and `/commands` (Off / Ask / Auto per operation, trusted project files, shells, limits). Contracts live in `Waymark.Core/Commands`; the engine in `Waymark.Modules.Commands`; the pages in `Waymark.Host`. Rules, defaults and settings: `commands-policy.md`.
+Typed recipes (`cmd_project` for .NET and Python, `cmd_git`, `cmd_proc`) run without a shell; `cmd_shell` runs any script and always waits for the owner. The owner decides in the admin UI on the same computer: `/console` (live terminal, a tab per workspace plus System, approval cards) and `/commands` (Off / Ask / Auto per operation, trusted project files, shells, limits). Contracts live in `Waymark.Core/Commands`; the engine in `Waymark.Modules.Commands`; the pages in `Waymark.Host`. Rules, defaults and settings: `commands-policy.md`.

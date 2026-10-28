@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><AssemblyName>Waymark.Languages.Python</AssemblyName><RootNamespace>Waymark.Languages.Python</RootNamespace></PropertyGroup>
+  <ItemGroup><ProjectReference Include="..\Waymark.Core\Waymark.Core.csproj" /></ItemGroup>
+  <ItemGroup><PackageReference Include="TreeSitter.DotNet" /></ItemGroup>
+</Project>

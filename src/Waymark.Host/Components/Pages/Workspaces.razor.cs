@@ -211,8 +211,20 @@ public partial class Workspaces : LiveComponentBase
             ? $"{DisplayFormat.Count(p.FilesProcessed)} of {DisplayFormat.Count(p.FilesTotal)} files"
             : string.Empty;
 
-    private static string StatsText(CodeIndexStats? stats) =>
-        stats is null
-            ? "-"
-            : $"{DisplayFormat.Count(stats.Files)} files, {DisplayFormat.Count(stats.Types)} types, {DisplayFormat.Count(stats.Members)} members";
+    private static string StatsText(CodeIndexStats? stats)
+    {
+        if (stats is null)
+        {
+            return "-";
+        }
+
+        var text = $"{DisplayFormat.Count(stats.Files)} files, {DisplayFormat.Count(stats.Types)} types, {DisplayFormat.Count(stats.Members)} members";
+        if (stats.FilesByLanguage is { Count: > 1 } languages)
+        {
+            var parts = languages.OrderByDescending(pair => pair.Value).Select(pair => $"{CodeLanguages.DisplayName(pair.Key)} {DisplayFormat.Count(pair.Value)}");
+            text += " (" + string.Join(", ", parts) + ")";
+        }
+
+        return text;
+    }
 }

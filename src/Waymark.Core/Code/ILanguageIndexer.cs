@@ -1,6 +1,4 @@
-﻿using Waymark.Core.Code;
-
-namespace Waymark.Modules.Code;
+namespace Waymark.Core.Code;
 
 public enum SyntaxIndexOutcome
 {
@@ -10,11 +8,14 @@ public enum SyntaxIndexOutcome
     /// <summary>The content hash equals the known hash, so nothing was parsed.</summary>
     Unchanged,
 
-    /// <summary>The file is bigger than <see cref="CodeIndexOptions.MaxFileBytes"/>.</summary>
+    /// <summary>The file is bigger than <see cref="CodeIndexLimits.MaxFileBytes"/>.</summary>
     TooLarge,
 
     /// <summary>The file looks binary and cannot be read as text.</summary>
-    NotText
+    NotText,
+
+    /// <summary>The indexer cannot run on this computer (a native library did not load). Files of its language stay out of the index; other languages are not affected.</summary>
+    Unavailable
 }
 
 /// <param name="Outcome">What happened to the file.</param>
@@ -22,11 +23,23 @@ public enum SyntaxIndexOutcome
 /// <param name="Truncated">True when the file hit the per-file member or call-site limit and the rest was left out.</param>
 public sealed record SyntaxIndexResult(SyntaxIndexOutcome Outcome, CodeFileIndex? File, bool Truncated);
 
-public interface ISyntaxIndexer
+/// <summary>The limits every indexer keeps to. Set by the code module from <c>Waymark:Code:*</c>.</summary>
+public sealed record CodeIndexLimits(int MaxFileBytes, int MaxMembersPerFile, int MaxCallSitesPerFile);
+
+/// <summary>
+/// Reads one source file of one language into the shape the code index stores. A language is added by writing an indexer and registering it;
+/// the walker, the watcher, the readers and the stores look an indexer up by file extension and know nothing else about the language.
+/// </summary>
+public interface ILanguageIndexer
 {
+    CodeLanguage Language { get; }
+
+    /// <summary>The extensions this indexer reads, each with its dot and compared ignoring case, for example <c>.py</c>.</summary>
+    IReadOnlySet<string> Extensions { get; }
+
     /// <summary>
-    /// Reads one C# file and extracts its types, members and call sites with Roslyn (syntax only, no compilation).
-    /// The file is read without blocking editors that keep it open. Use the same form of <paramref name="relativePath"/> on every call.
+    /// Reads one file and extracts its types, members and call sites (syntax only, no execution of the code). The file is read without blocking
+    /// editors that keep it open. Use the same form of <paramref name="relativePath"/> on every call.
     /// </summary>
     /// <param name="absolutePath">A path already approved by the path guard.</param>
     /// <param name="relativePath">The workspace-relative path stored in the index.</param>

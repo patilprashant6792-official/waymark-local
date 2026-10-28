@@ -16,6 +16,7 @@ public static class BuildFingerprint
     private static readonly HashSet<string> SkippedFolders = new(StringComparer.OrdinalIgnoreCase)
     {
         "bin", "obj", "node_modules", ".git", ".vs", ".idea", "packages", ".vscode", "TestResults",
+        ".venv", "venv", "__pycache__", "site-packages", ".tox", ".nox", ".mypy_cache", ".pytest_cache", ".ruff_cache",
     };
 
     private static readonly HashSet<string> BuildExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -23,9 +24,12 @@ public static class BuildFingerprint
         ".csproj", ".vbproj", ".fsproj", ".proj", ".sln", ".slnx", ".props", ".targets",
     };
 
+    // conftest.py and noxfile.py run when pytest or nox starts; the tool files decide which checker and which Python a command uses.
     private static readonly HashSet<string> BuildFileNames = new(StringComparer.OrdinalIgnoreCase)
     {
         "global.json", "nuget.config", "dotnet-tools.json", ".gitattributes",
+        "pyproject.toml", "setup.py", "setup.cfg", "uv.lock", "uv.toml", "poetry.lock", "pdm.lock", "pylock.toml", "Pipfile", "Pipfile.lock",
+        "conftest.py", "noxfile.py", "tox.ini", "pytest.ini", "ruff.toml", ".ruff.toml", "mypy.ini", "pyrightconfig.json", ".python-version",
     };
 
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = false };
@@ -119,7 +123,9 @@ public static class BuildFingerprint
     private static bool IsBuildFile(string path)
     {
         var name = Path.GetFileName(path);
-        return BuildFileNames.Contains(name) || BuildExtensions.Contains(Path.GetExtension(name));
+        return BuildFileNames.Contains(name)
+            || BuildExtensions.Contains(Path.GetExtension(name))
+            || (name.StartsWith("requirements", StringComparison.OrdinalIgnoreCase) && name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase));
     }
 
     private static async Task AddGitAsync(SortedDictionary<string, string> hashes, string root, CancellationToken ct)

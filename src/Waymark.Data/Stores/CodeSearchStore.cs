@@ -139,7 +139,7 @@ public sealed class CodeSearchStore(ISqliteConnectionFactory connections) : ICod
         await using var connection = await connections.OpenAsync(ct);
         var found = await connection.QueryAsync<string>(new CommandDefinition(
             "SELECT DISTINCT m.name FROM code_members m JOIN code_files f ON f.id = m.file_id " +
-            "WHERE f.workspace_id = @workspaceId AND m.kind IN ('field', 'property', 'event') AND m.name COLLATE NOCASE IN @names",
+            "WHERE f.workspace_id = @workspaceId AND m.kind IN ('field', 'property', 'event', 'variable') AND m.name COLLATE NOCASE IN @names",
             new { workspaceId, names = names.ToArray() },
             cancellationToken: ct));
         var wanted = new HashSet<string>(names, StringComparer.Ordinal);

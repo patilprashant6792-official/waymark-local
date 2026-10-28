@@ -34,7 +34,7 @@ public sealed class FileEditLinesTool(IFileEditor editor, ToolPipelineOptions pi
         "            \"expectFirstLine\": \"public void Foo()\", \"expectLastLine\": \"}\" (compared trimmed; the copy is refused if the lines moved),\n" +
         "            \"remove\": true (cut: the lines are deleted from their file too; both expect lines required),\n" +
         "            \"replace\": [{\"find\": \"Invoice\", \"with\": \"Order\", \"count\": 12}] (literal text, the match count must equal count),\n" +
-        "            \"csharp\": {\"namespaces\": {\"Old.Ns\": \"New.Ns\"}, \"identifiers\": {\"OldName\": \"NewName\"}} (C# by syntax; strings and comments are never touched),\n" +
+        "            \"csharp\": {\"namespaces\": {\"Old.Ns\": \"New.Ns\"}, \"identifiers\": {\"OldName\": \"NewName\"}} (C# files only, by syntax; strings and comments are never touched; use replace for other languages),\n" +
         "            \"indent\": -4 (shift every line; negative removes leading spaces or tabs) }\n" +
         "Use from whenever you move or duplicate more than about 10 lines that stay mostly the same. Take the line numbers from code_outline or code_method.\n" +
         "Copied text that holds a secret is refused. Line numbers in from refer to the source as it is now.\n\n" +

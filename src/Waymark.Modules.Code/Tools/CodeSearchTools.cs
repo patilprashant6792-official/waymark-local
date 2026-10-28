@@ -11,7 +11,7 @@ public sealed class CodeSearchTools(ICodeSearchService search, ICodeCallersServi
 {
     [McpServerTool(Name = "code_search", ReadOnly = true, Destructive = false, Idempotent = true)]
     [Description(
-        "Global code search across workspace(s) - finds types (classes, interfaces, records, structs, enums, delegates), members (methods, constructors, properties, fields, events) and attributes by name or keyword. " +
+        "Global code search across workspace(s) - finds types (classes, interfaces, records, structs, enums, delegates, type aliases), members (methods, constructors, properties, fields, events, functions, variables) and attributes (decorators) by name or keyword, in C# and Python files. " +
         "WILDCARD SUPPORT: pass workspace='*' to search ALL enabled workspaces at once. " +
         "Matching is forgiving and ranked best first: exact, prefix, camel-case initials ('PSS' finds ProjectSkeletonService), word start ('Skeleton'), several words ('search global' finds SearchGloballyAsync), substring, then characters in order. " +
         "Interface also finds the base-list entries of types ('IUserService' finds its implementers); Attribute finds attribute use ('HttpPost'). " +
@@ -23,7 +23,7 @@ public sealed class CodeSearchTools(ICodeSearchService search, ICodeCallersServi
         string query,
         [Description("Workspace name as shown in Waymark, or '*' for ALL enabled workspaces")]
         string workspace,
-        [Description("Optional: All (default), Class, Interface, Struct, Record, RecordStruct, Enum, Delegate, Method, Constructor, Property, Field, Event, Indexer, Operator, EnumMember, Attribute")]
+        [Description("Optional: All (default), Class, Interface, Struct, Record, RecordStruct, Enum, Delegate, TypeAlias, Method, Constructor, Property, Field, Event, Indexer, Operator, EnumMember, Function, Variable, Attribute")]
         string memberType = "All",
         [Description("Optional: case-sensitive search (default false, for broader matches)")]
         bool caseSensitive = false,
@@ -44,9 +44,9 @@ public sealed class CodeSearchTools(ICodeSearchService search, ICodeCallersServi
     public Task<string> Callers(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
         string workspace,
-        [Description("Path of the C# file that defines the method, relative to the workspace root (e.g. 'Services/UserService.cs')")]
+        [Description("Path of the source file (.cs or .py) that defines the method or function, relative to the workspace root (e.g. 'Services/UserService.cs')")]
         string relativeFilePath,
-        [Description("Method name to analyze (e.g. 'GetUser', 'ProcessOrder')")]
+        [Description("Method or function name to analyze (e.g. 'GetUser', 'ProcessOrder'). A Python class name, or '__init__', finds the calls that create the class.")]
         string methodName,
         [Description("Optional: class name when the file has several classes with this method")]
         string? className = null,
