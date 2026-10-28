@@ -16,11 +16,13 @@ public sealed class FileAccessPolicy
     private static readonly HashSet<string> BlockedDirectories = new(StringComparer.OrdinalIgnoreCase)
     {
         ".git", ".ssh", "node_modules", "bin", "obj", "packages", ".vs", ".idea", "backups", "logs",
+        ".venv", "venv", "__pycache__", "site-packages", ".tox", ".nox", ".eggs", ".mypy_cache", ".pytest_cache", ".ruff_cache",
     };
 
     private static readonly HashSet<string> BlockedFileNames = new(StringComparer.OrdinalIgnoreCase)
     {
         ".env", "connectionstrings.config", "web.config", "app.config", "id_rsa", "id_rsa.pub", "gcp-key.json",
+        ".npmrc", ".pypirc", ".netrc", "pip.conf", "pip.ini",
     };
 
     private static readonly string[] BlockedNameGlobs =
@@ -34,11 +36,13 @@ public sealed class FileAccessPolicy
     private static readonly string[] DefaultAllowedExtensions =
     [
         ".cs", ".vb", ".fs", ".csx",
+        ".py", ".pyi",
         ".csproj", ".vbproj", ".fsproj", ".sln", ".slnx", ".props", ".targets", ".config",
         ".md", ".txt", ".rst",
         ".html", ".htm", ".css", ".js", ".ts", ".jsx", ".tsx", ".razor", ".cshtml",
         ".ps1", ".sh", ".bat", ".cmd",
         ".xml", ".yml", ".yaml", ".toml", ".json", ".sql", ".resx", ".xaml",
+        ".cfg", ".ini", ".in", ".lock",
         ".dockerignore", ".editorconfig", ".gitignore", ".gitattributes",
     ];
 

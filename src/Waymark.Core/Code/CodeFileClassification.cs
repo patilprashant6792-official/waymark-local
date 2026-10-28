@@ -21,6 +21,15 @@ public static class CodeFileClassification
     /// <summary>Declares only interfaces.</summary>
     public const string Interfaces = "interfaces";
 
-    /// <summary>Any other C# source file.</summary>
+    /// <summary>Test code: a test file name or folder (<c>test_x.py</c>, <c>tests/</c>, <c>conftest.py</c>).</summary>
+    public const string Tests = "tests";
+
+    /// <summary>Type declarations only, no code (a Python <c>.pyi</c> stub).</summary>
+    public const string Declarations = "declarations";
+
+    /// <summary>Settings of a project or an application (<c>settings.py</c>, <c>config.py</c>).</summary>
+    public const string Configuration = "configuration";
+
+    /// <summary>Any other source file.</summary>
     public const string Source = "source";
 }

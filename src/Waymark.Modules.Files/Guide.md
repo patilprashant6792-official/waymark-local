@@ -91,7 +91,7 @@ An entry of `file_write` with only `fromFolder` copies a folder tree: `{"fromFol
 1. Orient in both workspaces (`code_skeleton`), decide the target layout, and tell the user the plan.
 2. Per folder: `fromFolder` with `dryRun: true`, check the file list and the rename counts, then the real call with `confirmCount`. Use `pathRename` for the new folder layout and `csharp.namespaces` for the new namespaces.
 3. Fix what differs with small `file_edit_lines` patches (or copy a few methods with `from` and `remove: true` to reshape a class).
-4. Build the target (`cmd_dotnet`) after each folder and fix the errors before the next one. A clean build is the proof, not the copy report.
+4. Build the target (`cmd_project`) after each folder and fix the errors before the next one. A clean build is the proof, not the copy report.
 5. Keep the copy reports: git cannot follow a copy between repositories.
 
 Limits (owner settings under `Waymark:Files:`): files up to 2 MB are written (`MaxWriteBytes`), sources up to 10 MB are read (`MaxCopySourceBytes`), 200 patches and 50 files per call, 500 files per folder copy (`MaxCopyFilesPerCall`), 50 replace rules per copy (`MaxTransformsPerCopy`).
@@ -106,19 +106,19 @@ Limits (owner settings under `Waymark:Files:`): files up to 2 MB are written (`M
 | `folder_delete` | `pathsJson` | Recursive, deepest first; missing folders are skipped; a folder that contains a link is refused. |
 | `folder_create` | `pathsJson` | Idempotent. |
 
-Blocked by design (do not look for a way around): bin, obj, .git, .vs, .ssh, node_modules, backups, logs, packages, and files that hold secrets, keys or databases.
+Blocked by design (do not look for a way around): bin, obj, .git, .vs, .ssh, node_modules, .venv, venv, __pycache__, site-packages, backups, logs, packages, and files that hold secrets, keys, index credentials (.npmrc, .pypirc, pip.conf) or databases.
 
 Before a move or delete, check the impact (`code_callers`, `code_types`, `code_search`, and `code_grep` for text in non-C# files; code guide).
 
 ## After a move, rename or delete
 
-Moves leave C# namespaces and usings alone, and renaming a file does not rename its type.
+Moves leave C# namespaces and usings alone, and renaming a file does not rename its type. In Python a moved file changes its module name, so every `import` of it breaks.
 
-Copies made with `from` / `fromFolder` can rename namespaces and types as they are copied (`csharp`), so prefer a copy to a move plus manual fixes when the namespace changes. `file_move` itself never changes file content.
+Copies made with `from` / `fromFolder` can rename namespaces and types as they are copied (`csharp`, C# files only; use `replace` for Python and other text), so prefer a copy to a move plus manual fixes when the namespace changes. `file_move` itself never changes file content.
 
 1. `code_search` the old namespace or type name, and `code_grep` it for references outside C# (.csproj, .razor, json, docs).
 2. Fix each file with `file_edit_lines` (one call per file), including the type and its references for a rename.
-3. Build with `cmd_dotnet`: CS0246 and CS0234 errors show what is left.
+3. Build with `cmd_project`: CS0246 and CS0234 errors show what is left. For Python, run the tests (`py_test`) and the type check (`py_typecheck`): an `ImportError` shows a moved module.
 
 After a delete, build at once: a clean build is the only proof that nothing depended on it.
 

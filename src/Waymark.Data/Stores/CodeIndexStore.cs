@@ -18,8 +18,8 @@ public sealed class CodeIndexStore(ISqliteConnectionFactory connections, IWriteQ
             await DeleteFileAsync(connection, tx, workspaceId, file.Stamp.RelativePath, k);
 
             var fileId = await connection.QuerySingleAsync<long>(new CommandDefinition(
-                "INSERT INTO code_files (workspace_id, rel_path, hash, size, mtime_utc, line_count, classification, usings, indexed_utc) " +
-                "VALUES (@workspaceId, @path, @hash, @size, @mtime, @lines, @classification, @usings, @indexed) RETURNING id",
+                "INSERT INTO code_files (workspace_id, rel_path, hash, size, mtime_utc, line_count, classification, language, usings, indexed_utc) " +
+                "VALUES (@workspaceId, @path, @hash, @size, @mtime, @lines, @classification, @language, @usings, @indexed) RETURNING id",
                 new
                 {
                     workspaceId,
@@ -29,6 +29,7 @@ public sealed class CodeIndexStore(ISqliteConnectionFactory connections, IWriteQ
                     mtime = Timestamp.Format(file.Stamp.ModifiedUtc),
                     lines = file.LineCount,
                     classification = file.Classification,
+                    language = EnumText.ToDb(file.Language),
                     usings = string.Join(UsingSeparator, file.Usings),
                     indexed = Timestamp.Format(indexedUtc)
                 },
@@ -102,7 +103,7 @@ public sealed class CodeIndexStore(ISqliteConnectionFactory connections, IWriteQ
         await using var connection = await connections.OpenAsync(ct);
 
         var file = await connection.QuerySingleOrDefaultAsync<FileRow>(new CommandDefinition(
-            "SELECT id, rel_path, hash, size, mtime_utc, line_count, classification, usings FROM code_files " +
+            "SELECT id, rel_path, hash, size, mtime_utc, line_count, classification, language, usings FROM code_files " +
             "WHERE workspace_id = @workspaceId AND rel_path = @relativePath",
             new { workspaceId, relativePath },
             cancellationToken: ct));
@@ -141,7 +142,8 @@ public sealed class CodeIndexStore(ISqliteConnectionFactory connections, IWriteQ
             file.Usings.Length == 0 ? [] : file.Usings.Split(UsingSeparator),
             typeRows.Select(ToType).ToList(),
             memberRows.Select(m => ToMember(m, indexByTypeId)).ToList(),
-            callRows.Select(ToCallSite).ToList());
+            callRows.Select(ToCallSite).ToList(),
+            EnumText.FromDb<CodeLanguage>(file.Language));
     }
 
     public async Task<CodeIndexStats> GetStatsAsync(long workspaceId, CancellationToken ct)
@@ -155,7 +157,12 @@ public sealed class CodeIndexStore(ISqliteConnectionFactory connections, IWriteQ
             "(SELECT COUNT(*) FROM code_call_sites c JOIN code_files f ON f.id = c.file_id WHERE f.workspace_id = @workspaceId) AS call_sites",
             new { workspaceId },
             cancellationToken: ct));
-        return new CodeIndexStats((int)row.Files, (int)row.Types, (int)row.Members, (int)row.CallSites);
+        var perLanguage = await connection.QueryAsync<LanguageCountRow>(new CommandDefinition(
+            "SELECT language, COUNT(*) AS files FROM code_files WHERE workspace_id = @workspaceId GROUP BY language",
+            new { workspaceId },
+            cancellationToken: ct));
+        var byLanguage = perLanguage.ToDictionary(r => EnumText.FromDb<CodeLanguage>(r.Language), r => (int)r.Files);
+        return new CodeIndexStats((int)row.Files, (int)row.Types, (int)row.Members, (int)row.CallSites, byLanguage);
     }
 
     private static void Validate(CodeFileIndex file)
@@ -307,6 +314,8 @@ public sealed class CodeIndexStore(ISqliteConnectionFactory connections, IWriteQ
 
         public string Classification { get; set; } = string.Empty;
 
+        public string Language { get; set; } = "csharp";
+
         public string Usings { get; set; } = string.Empty;
     }
 
@@ -384,5 +393,12 @@ public sealed class CodeIndexStore(ISqliteConnectionFactory connections, IWriteQ
         public long Members { get; set; }
 
         public long CallSites { get; set; }
+    }
+
+    private sealed class LanguageCountRow
+    {
+        public string Language { get; set; } = string.Empty;
+
+        public long Files { get; set; }
     }
 }

@@ -17,7 +17,7 @@ public static class ChildEnvironment
         "SSL_CERT_FILE", "SSL_CERT_DIR", "SSH_AUTH_SOCK", "JAVA_HOME", "ANDROID_HOME",
     };
 
-    private static readonly string[] AllowedPrefixes = ["NUGET_", "DOTNET_"];
+    private static readonly string[] AllowedPrefixes = ["NUGET_", "DOTNET_", "UV_", "PIP_"];
 
     // These describe how Waymark itself was started and would change the behaviour of the program being run.
     private static readonly HashSet<string> Denied = new(StringComparer.OrdinalIgnoreCase)
@@ -40,6 +40,13 @@ public static class ChildEnvironment
         ["PAGER"] = "cat",
         ["FORCE_COLOR"] = "1",
         ["CLICOLOR_FORCE"] = "1",
+        ["PYTHONUNBUFFERED"] = "1",
+        ["PYTHONIOENCODING"] = "utf-8",
+        ["PYTHONDONTWRITEBYTECODE"] = "1",
+        ["PIP_NO_INPUT"] = "1",
+        ["PIP_DISABLE_PIP_VERSION_CHECK"] = "1",
+        ["PIP_REQUIRE_VIRTUALENV"] = "1",
+        ["UV_NO_PROGRESS"] = "1",
     };
 
     public static Dictionary<string, string> Build(IReadOnlyDictionary<string, string>? extra = null)

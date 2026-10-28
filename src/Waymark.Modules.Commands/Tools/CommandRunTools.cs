@@ -12,13 +12,13 @@ public sealed class CommandRunTools(CommandService service)
     private const string PurposeHelp = "One sentence: why you run this. The owner reads it before approving, sees it live, and it is kept in the audit log.";
     private const string WaitHelp = "Seconds to wait for the result before returning a run id (default 30, at most about 45). The command keeps running; use cmd_wait to wait longer.";
 
-    [McpServerTool(Name = "cmd_dotnet", ReadOnly = false, Destructive = false, Idempotent = false)]
+    [McpServerTool(Name = "cmd_project", ReadOnly = false, Destructive = false, Idempotent = false)]
     [ToolGate(ToolGate.Confirm)]
     [Description(
-        "Run a .NET command in a workspace as a typed action (no shell). The owner watches it live in the Waymark Console. Some actions run at once, others wait for the owner's approval - the result says which.\n" +
-        "ACTIONS and their optionsJson keys (* = required, all paths relative to the workspace, unknown keys are refused):\n" +
-        "  build, rebuild, clean: target, configuration, framework, noRestore, verbosity (quiet|minimal|normal|detailed), timeoutMinutes\n" +
-        "  restore: target\n" +
+        "Run a project command in a workspace as a typed action (no shell): .NET (build, test, packages, EF Core, run) or Python (actions that start with py_). The owner watches it live in the Waymark Console. Some actions run at once, others wait for the owner's approval - the result says which.\n" +
+        "Pick the project with options: .NET uses 'target' (a .sln, .slnx or project file); Python uses 'project' (a folder, or the pyproject.toml or requirements file in it; default the workspace folder) and the command runs in that folder.\n" +
+        ".NET ACTIONS and their optionsJson keys (* = required, all paths relative to the workspace, unknown keys are refused):\n" +
+        "  build, rebuild, clean, restore: target, configuration, framework, noRestore, verbosity (quiet|minimal|normal|detailed), timeoutMinutes\n" +
         "  test: target, configuration, framework, filter, noBuild, noRestore\n" +
         "  format_check, format: scope (whitespace|style|analyzers), target\n" +
         "  info: -\n" +
@@ -34,18 +34,30 @@ public sealed class CommandRunTools(CommandService service)
         "  ef_migrations_remove: project*, startupProject, context\n" +
         "  ef_database_update: project*, startupProject, context, migration or revertAll\n" +
         "  run: project*, configuration, launchProfile, noBuild, appArgs (array), timeoutMinutes (the app keeps running until stopped)\n" +
+        "PYTHON ACTIONS (every one accepts project and timeoutMinutes; paths are relative to the workspace; packages are installed as wheels only, nothing is built):\n" +
+        "  py_info: -   - versions of Python, pip, uv, ruff, pyright and mypy, and the project's lock file and virtual environment\n" +
+        "  py_list: tool (uv|pip), venv   - packages installed in the project's virtual environment\n" +
+        "  py_venv: tool, venv (a folder name, default .venv), python (uv only, such as 3.12)   - creates the virtual environment\n" +
+        "  py_install: tool, venv, groups (array), extras (array), requirements (pip; default requirements.txt)   - installs from uv.lock (uv sync --frozen) or from a requirements file, with --require-hashes when it has hashes\n" +
+        "  py_test: venv, filter (pytest -k), marker (pytest -m), maxFail, verbose, paths (array: files, folders or tests/test_a.py::TestA::test_b)   - pytest in the project's virtual environment\n" +
+        "  py_lint: paths (array)   - ruff check\n" +
+        "  py_format: check, paths (array)   - ruff format; it changes files unless check is true\n" +
+        "  py_typecheck: checker (pyright|mypy), venv, paths (array)\n" +
+        "  py_run: venv, module* or script* (give one), appArgs (array)   - python -m module or a script; the program keeps running until stopped\n" +
+        "  py_package_add: package*, version*, group, tool   - uv add of one package at an exact version\n" +
+        "  py_package_remove: package*, group, tool   - uv remove\n" +
         "When 'target' is omitted the only .sln/.slnx file in the workspace root is used.\n" +
-        "RETURNS: result, compiler errors and warnings (workspace-relative paths), test summary and the last output lines. If it takes longer than waitSeconds you get a run id for cmd_wait / cmd_output.")]
-    public Task<string> Dotnet(
+        "RETURNS: result, compiler or linter findings (workspace-relative paths), test summary and the last output lines. If it takes longer than waitSeconds you get a run id for cmd_wait / cmd_output.")]
+    public Task<string> Project(
         [Description(WorkspaceHelp)] string workspace,
-        [Description("One of: build, rebuild, clean, restore, test, format_check, format, info, list, new, sln, reference, package_add, package_remove, tool_restore, ef_list, ef_migrations_add, ef_migrations_remove, ef_database_update, run")]
+        [Description("One of: build, rebuild, clean, restore, test, format_check, format, info, list, new, sln, reference, package_add, package_remove, tool_restore, ef_list, ef_migrations_add, ef_migrations_remove, ef_database_update, run, py_info, py_list, py_venv, py_install, py_test, py_lint, py_format, py_typecheck, py_run, py_package_add, py_package_remove")]
         string action,
         [Description(PurposeHelp)] string purpose,
-        [Description("JSON object with the options of the action, for example {\"configuration\":\"Release\",\"noRestore\":true}. Omit when none are needed.")]
+        [Description("JSON object with the options of the action, for example {\"configuration\":\"Release\",\"noRestore\":true} or {\"project\":\"api\",\"filter\":\"test_login\"}. Omit when none are needed.")]
         string? optionsJson = null,
         [Description(WaitHelp)] int? waitSeconds = null,
         CancellationToken cancellationToken = default) =>
-        service.DotnetAsync(workspace, action, purpose, optionsJson, waitSeconds, cancellationToken);
+        service.ProjectAsync(workspace, action, purpose, optionsJson, waitSeconds, cancellationToken);
 
     [McpServerTool(Name = "cmd_git", ReadOnly = false, Destructive = false, Idempotent = false)]
     [ToolGate(ToolGate.Confirm)]
@@ -106,7 +118,7 @@ public sealed class CommandRunTools(CommandService service)
     [Description(
         "Run a script in the computer's shell (PowerShell, cmd or bash - chosen automatically unless you name one). This can do anything the owner's user account can do, " +
         "so EVERY call waits for the owner to read the script and approve it in the Waymark admin UI; it can never run by itself. The owner may edit the script before approving.\n" +
-        "Prefer the typed tools (cmd_dotnet, cmd_git, cmd_proc) when one fits: they are checked and can run without waiting.\n" +
+        "Prefer the typed tools (cmd_project, cmd_git, cmd_proc) when one fits: they are checked and can run without waiting.\n" +
         "Write the script for the shell that will run it; a short script that does one thing is approved faster. Nothing can be typed to it while it runs.\n" +
         "RETURNS: result and the end of the output; waits up to waitSeconds (the owner needs time to approve - use cmd_wait).")]
     public Task<string> Shell(

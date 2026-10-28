@@ -1,11 +1,21 @@
 ﻿namespace Waymark.Core.Workspaces;
 
 /// <summary>What the folder scan found. File names are relative to the workspace folder.</summary>
+/// <param name="PythonProjects">One marker file per Python project folder: pyproject.toml, else setup.py, else Pipfile, else a requirements file.</param>
+/// <param name="PythonTool">The tool that manages the first Python project: uv, poetry, pdm, pipenv, pylock or pip.</param>
+/// <param name="PythonSourceFiles">How many .py and .pyi files the scan saw; a folder of plain scripts has these and no project file.</param>
 public sealed record WorkspaceMetadata(
     IReadOnlyList<string> SolutionFiles,
     IReadOnlyList<string> ProjectFiles,
     string? DetectedFramework,
-    bool ProjectListTruncated);
+    bool ProjectListTruncated,
+    IReadOnlyList<string>? PythonProjects = null,
+    string? PythonTool = null,
+    int PythonSourceFiles = 0)
+{
+    /// <summary>The Python project marker files; empty when there are none.</summary>
+    public IReadOnlyList<string> PythonProjectFiles => PythonProjects ?? [];
+}
 
 /// <summary>Result of checking a folder. NormalizedPath is the canonical full path and is set only when IsValid.</summary>
 public sealed record WorkspaceValidation(bool IsValid, string? Error, string? NormalizedPath, WorkspaceMetadata? Metadata)

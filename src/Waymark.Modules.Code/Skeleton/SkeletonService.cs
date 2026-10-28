@@ -31,6 +31,7 @@ internal sealed class SkeletonService(
     private readonly FolderScanner _scanner = new(policy, options, time);
     private readonly FolderTreeRenderer _tree = new(options);
     private readonly ProjectFileSummarizer _projects = new(policy, options);
+    private readonly PythonProjectSummarizer _python = new(policy, options);
     private readonly ChangedFilesReporter _changes = new(policy, options);
     private readonly FolderFileLister _folders = new(policy, options);
 
@@ -88,6 +89,13 @@ internal sealed class SkeletonService(
         var projects = await _projects
             .RenderAsync(root, start, relative, found.Name, rules, request.IsOverview, pipeline.MaxOutputChars, ct)
             .ConfigureAwait(false);
+        var python = await _python
+            .RenderAsync(root, start, relative, found.Name, rules, request.IsOverview, pipeline.MaxOutputChars, ct)
+            .ConfigureAwait(false);
+        if (python.Length > 0)
+        {
+            projects = projects.Length == 0 ? python : projects + "\n\n" + python;
+        }
 
         var output = new OutputBudget(pipeline.MaxOutputChars);
         AppendHeader(output, "Workspace Skeleton", found);
@@ -236,7 +244,7 @@ internal sealed class SkeletonService(
 
         if (File.Exists(folder.AbsolutePath))
         {
-            throw new ArgumentException($"'{requested}' is a file, not a folder. Use code_outline for a C# file, or code_read.");
+            throw new ArgumentException($"'{requested}' is a file, not a folder. Use code_outline for a C# or Python file, or code_read.");
         }
 
         throw new DirectoryNotFoundException($"Folder '{requested}' not found in workspace '{workspace.Name}'.");

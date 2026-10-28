@@ -9,6 +9,7 @@ internal sealed class CodeCallersService(
     IPathGuard guard,
     ICodeIndexStore index,
     ICodeSearchStore store,
+    LanguageIndexers languages,
     CodeSearchOptions options,
     ToolPipelineOptions pipeline) : ICodeCallersService
 {
@@ -48,9 +49,9 @@ internal sealed class CodeCallersService(
         }
 
         var target = await guard.ResolveAsync(workspace, relativeFilePath, ct).ConfigureAwait(false);
-        if (!target.RelativePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+        if (!languages.Handles(target.RelativePath))
         {
-            throw new ArgumentException($"'{target.RelativePath}' is not a C# file.");
+            throw new ArgumentException($"'{target.RelativePath}' is not a source file the code tools can analyze ({languages.Describe()}).");
         }
 
         var file = await index.GetFileAsync(target.Workspace.Id, target.RelativePath, ct).ConfigureAwait(false)
@@ -87,8 +88,9 @@ internal sealed class CodeCallersService(
     private static (CodeTypeEntry? Owner, List<CodeMemberEntry> Overloads) FindTarget(CodeFileIndex file, string methodName, string? className)
     {
         var named = file.Members
-            .Where(m => m.Kind is CodeMemberKind.Method or CodeMemberKind.Constructor
-                && string.Equals(m.Name, methodName, StringComparison.OrdinalIgnoreCase))
+            .Where(m => m.Kind is CodeMemberKind.Method or CodeMemberKind.Constructor or CodeMemberKind.Function
+                && (string.Equals(m.Name, methodName, StringComparison.OrdinalIgnoreCase)
+                    || (m.Kind == CodeMemberKind.Constructor && string.Equals(methodName, "__init__", StringComparison.Ordinal))))
             .ToList();
         if (named.Count == 0)
         {
@@ -174,7 +176,7 @@ internal sealed class CodeCallersService(
     {
         if (owner is null)
         {
-            return "the method is not inside a type";
+            return "it is not inside a type";
         }
 
         if (overloads.Any(o => o.Kind == CodeMemberKind.Constructor))

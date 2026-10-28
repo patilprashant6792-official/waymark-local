@@ -6,7 +6,7 @@ Typed tools run programs in a workspace without a shell, and the owner watches e
 
 | Need | Tool |
 |---|---|
-| build, test, format, packages, EF Core, run a project | `cmd_dotnet` |
+| build, test, format, packages, EF Core, run a .NET project; install, test, lint, type-check, run a Python project (actions starting with `py_`) | `cmd_project` |
 | git | `cmd_git` |
 | ports, stop a program, build servers, delete bin/obj | `cmd_proc` |
 | anything none of those can do | `cmd_shell` (last resort) |
@@ -21,10 +21,10 @@ Prefer a typed tool: it is checked and can run without waiting for the owner. Gi
 - Waiting for approval means nothing has run. Tell the user to approve it in the Waymark admin UI (Console page), then `cmd_wait`. An undecided request is denied after about 10 minutes. After a denial do not resend the same command; ask the user why.
 - `cmd_output(runId)` shows the plain-text output, last lines by default. `grep` finds lines; `fromLine` with `lines` (up to 500) pages through it. A build prints thousands of lines, so read the errors in the result first.
 - `cmd_list(workspace?, limit up to 30)` shows recent runs with their ids and status.
-- `cmd_stop(runId)` ends a run that waits, is queued or is running (a `dotnet run`, say), with its whole process tree. It does nothing for a finished run.
+- `cmd_stop(runId)` ends a run that waits, is queued or is running (a `run` action, say), with its whole process tree. It does nothing for a finished run.
 - Operations that change files run one at a time per workspace; a second one is queued.
 
-## cmd_dotnet
+## cmd_project: .NET
 
 When `target` is left out, the only .sln or .slnx in the workspace root is used.
 
@@ -48,7 +48,32 @@ Builds and many git commands load files that can run code (props and targets, Di
 
 ### Adding a package
 
-Confirm with the user first, because it edits the .csproj. Use `package_add` with `project`, `package` and `version`: the latest stable that fits the project's target framework, preferring the version other projects here already pin (`nuget_packages` shows the latest). Then check the pinned version in `code_skeleton(ws, path=<project folder>)` and build.
+Confirm with the user first, because it edits the .csproj. Use `package_add` with `project`, `package` and `version`: the latest stable that fits the project's target framework, preferring the version other projects here already pin (`pkg_search` shows the latest). Then check the pinned version in `code_skeleton(ws, path=<project folder>)` and build.
+
+## cmd_project: Python
+
+Python actions start with `py_` and work on one project: option `project` is its folder (or its pyproject.toml or requirements file), default the workspace folder, and the command runs there. `py_info` shows what this computer has (Python, pip, uv, ruff, pyright, mypy) and what the project has (lock file, virtual environment); call it first when you do not know.
+
+| Gate by default | Actions |
+|---|---|
+| Auto | py_info, py_lint |
+| Ask | py_list, py_venv, py_install, py_test, py_format, py_typecheck, py_run, py_package_add, py_package_remove |
+
+### How the Python actions keep the owner safe
+
+- **Installs run no package code.** Wheels only: uv gets `--no-build`, pip gets `--only-binary :all:`, and the project itself is never built (`--no-install-project`). A package that has no wheel fails with a message that names it; the owner can install it through `cmd_shell`. Waymark never installs outside the project's virtual environment (`PIP_REQUIRE_VIRTUALENV` is set).
+- **A requirements file is read before it is used.** Editable installs, paths, addresses (`git+...`, `name @ url`) and options such as `-r`, `-c`, `-f`, `--no-binary` are refused, because they build or fetch code that was not checked. When the file has `--hash=` lines, `--require-hashes` is added.
+- **The project's own interpreter is a program inside the workspace.** `py_test`, `py_run`, `py_list`, mypy and pip use `.venv/Scripts/python.exe` (`.venv/bin/python` elsewhere), because they must run the project's code. The command line and the approval card show it; those actions ask by default and count as running code. `py_lint` and `py_format` use the `ruff` found on PATH only, never one from the workspace.
+- **Poetry and PDM projects are not run yet.** `py_install` and `py_package_*` say so; use `tool: "pip"` with a requirements file or `cmd_shell`.
+
+### Typical flows
+
+1. Fresh project with a `uv.lock`: `py_install` (uv creates `.venv` itself), then `py_test`. With only a requirements file: `py_venv`, `py_install`, `py_test`.
+2. `py_test` results list the failed tests (`failed: tests/test_a.py::test_b`) and the last lines. Read the failing test and the code it calls (`code_method`), fix, run `py_test` again with `filter` or `paths` set to just that test. Run the whole suite once at the end.
+3. `py_lint` and `py_typecheck` list findings as `path(line): CODE message`. Fix errors before warnings; the same finding after two attempts means re-read the code.
+4. Adding a package: look it up first (`pkg_find` with `ecosystem: "pypi"`), confirm with the user, then `py_package_add` with the exact `version`. It edits pyproject.toml and uv.lock. A pip project changes its requirements file with `file_edit_lines` instead, then `py_install`.
+5. `py_run` keeps a server running until stopped: give the user the run id and let them watch the Console. End it with `cmd_stop(runId)` (that ends its whole process tree); `cmd_proc stop_port` queues behind a running `py_run` in the same workspace, so use it only for a server that was started elsewhere.
+6. A passing test run is the proof that a refactor works. The code index cannot see dynamic Python, so a clean `py_lint` is not proof.
 
 ## cmd_git
 

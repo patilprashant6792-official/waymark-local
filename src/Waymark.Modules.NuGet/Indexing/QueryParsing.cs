@@ -2,7 +2,7 @@
 
 namespace Waymark.Modules.NuGet.Indexing;
 
-/// <summary>Reads the free-text arguments of the nuget_* tools (kind, sections, identifiers) into typed values.</summary>
+/// <summary>Reads the free-text arguments of the pkg_* tools (kind, sections, identifiers) into typed values.</summary>
 internal static class QueryParsing
 {
     private const int SidLength = 12;

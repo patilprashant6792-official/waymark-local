@@ -22,6 +22,7 @@ public static class RiskTiers
     private static readonly HashSet<string> NetworkOperations = new(StringComparer.Ordinal)
     {
         "git.push", "git.pull", "dotnet.tool_restore", "dotnet.package_add",
+        "python.install", "python.package_add", "python.venv",
     };
 
     // These start the project's own code: tests, the app, EF design-time code. That code can be code Claude has just written, and no file
@@ -29,12 +30,14 @@ public static class RiskTiers
     private static readonly HashSet<string> ProjectCodeOperations = new(StringComparer.Ordinal)
     {
         "dotnet.test", "dotnet.run", "dotnet.ef_read", "dotnet.ef_migrations_add", "dotnet.ef_migrations_remove", "dotnet.ef_database_update",
+        "python.test", "python.run", "python.typecheck", "python.list",
     };
 
     public static RiskTier Of(OperationInfo operation)
     {
         ArgumentNullException.ThrowIfNull(operation);
-        if (operation.Key == CommandCatalog.ShellRun || (operation.Family == CommandCatalog.DotnetFamily && operation.DriftSensitive))
+        if (operation.Key == CommandCatalog.ShellRun
+            || ((operation.Family == CommandCatalog.DotnetFamily || operation.Family == CommandCatalog.PythonFamily) && operation.DriftSensitive))
         {
             return RiskTier.RunsCode;
         }

@@ -85,6 +85,9 @@ internal sealed class FolderScanner(FileAccessPolicy policy, SkeletonOptions opt
     private const string NoExtension = "(none)";
     private const string FolderProbeName = "waymark-folder-probe";
 
+    // The Python files that mark a folder as a project, shown in the folder summary the way a .csproj is.
+    private static readonly HashSet<string> PythonProjectFiles = new(StringComparer.OrdinalIgnoreCase) { "pyproject.toml", "setup.py", "Pipfile" };
+
     /// <param name="workspaceRoot">Absolute workspace folder; relative paths are measured from it.</param>
     /// <param name="startAbsolute">Absolute folder to scan.</param>
     /// <param name="startRelative">That folder relative to the workspace root; empty for the root.</param>
@@ -138,7 +141,7 @@ internal sealed class FolderScanner(FileAccessPolicy policy, SkeletonOptions opt
             node.Scanned = true;
             entries += folders.Count + files.Count;
             node.Files.AddRange(files);
-            node.ProjectFile = files.FirstOrDefault(file => file.Extension.Equals(ProjectExtension, StringComparison.OrdinalIgnoreCase))?.Name;
+            node.ProjectFile = files.FirstOrDefault(IsProjectFile)?.Name;
             foreach (var folder in folders)
             {
                 var relative = CodeFileWalker.ToRelative(workspaceRoot, folder.FullName);
@@ -151,6 +154,9 @@ internal sealed class FolderScanner(FileAccessPolicy policy, SkeletonOptions opt
         RollUp(order);
         return new FolderScanResult(root, stopReason);
     }
+
+    private static bool IsProjectFile(FileInfo file) =>
+        file.Extension.Equals(ProjectExtension, StringComparison.OrdinalIgnoreCase) || PythonProjectFiles.Contains(file.Name);
 
     private string? StopReason(int entries, TimeSpan elapsed, TimeSpan budget)
     {

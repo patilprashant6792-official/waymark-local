@@ -4,6 +4,7 @@
   <Project Path="src/Waymark.Data/Waymark.Data.csproj" />
   <Project Path="src/Waymark.Logging/Waymark.Logging.csproj" />
   <Project Path="src/Waymark.Modules.Code/Waymark.Modules.Code.csproj" />
+  <Project Path="src/Waymark.Languages.Python/Waymark.Languages.Python.csproj" />
   <Project Path="src/Waymark.Modules.NuGet/Waymark.Modules.NuGet.csproj" />
   <Project Path="src/Waymark.Modules.Files/Waymark.Modules.Files.csproj" />
   <Project Path="src/Waymark.Modules.Commands/Waymark.Modules.Commands.csproj" />

@@ -11,7 +11,7 @@ using Waymark.Modules.Commands.Tools;
 
 namespace Waymark.Modules.Commands;
 
-/// <summary>Provides the commands module: typed dotnet, git and process commands and a system shell, all run and approved through the coordinator.</summary>
+/// <summary>Provides the commands module: typed project (dotnet, Python), git and process commands and a system shell, all run and approved through the coordinator.</summary>
 public sealed class CommandsModule : IMcpModule
 {
     public string Name => "commands";
@@ -27,6 +27,7 @@ public sealed class CommandsModule : IMcpModule
         services.TryAddSingleton<ProcessRunner>();
         services.TryAddSingleton<ListeningPorts>();
         services.TryAddSingleton<ProcRecipes>();
+        services.TryAddSingleton<PythonRecipes>();
         services.TryAddSingleton<CommandPolicy>();
         services.TryAddSingleton<CommandCoordinator>();
         services.TryAddSingleton<ICommandRuns>(provider => provider.GetRequiredService<CommandCoordinator>());

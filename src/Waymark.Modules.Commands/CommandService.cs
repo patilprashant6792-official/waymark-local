@@ -20,6 +20,7 @@ public sealed class CommandService(
     CommandCoordinator coordinator,
     ShellLocator shells,
     ProcRecipes proc,
+    PythonRecipes python,
     IWorkspaceStore workspaces,
     ToolPipelineOptions pipeline,
     TimeProvider time)
@@ -34,8 +35,14 @@ public sealed class CommandService(
     private const int MaxOutputLines = 500;
     private const int MaxListed = 30;
 
-    public Task<string> DotnetAsync(string workspace, string action, string purpose, string? optionsJson, int? waitSeconds, CancellationToken ct) =>
-        RecipeAsync(workspace, purpose, waitSeconds, optionsJson, (context, _) => Task.FromResult(DotnetRecipes.Plan(action, context)), ct);
+    /// <summary>The project toolchains: a .NET action (build, test, ef_...) or a Python action (py_test, py_install ...). The action's name says which; they never overlap.</summary>
+    public Task<string> ProjectAsync(string workspace, string action, string purpose, string? optionsJson, int? waitSeconds, CancellationToken ct)
+    {
+        var name = action?.Trim().ToLowerInvariant() ?? string.Empty;
+        return PythonRecipes.Handles(name)
+            ? RecipeAsync(workspace, purpose, waitSeconds, optionsJson, (context, token) => python.PlanAsync(name, context, token), ct)
+            : RecipeAsync(workspace, purpose, waitSeconds, optionsJson, (context, _) => Task.FromResult(DotnetRecipes.Plan(name, context)), ct);
+    }
 
     public Task<string> GitAsync(string workspace, string action, string purpose, string? optionsJson, int? waitSeconds, CancellationToken ct) =>
         RecipeAsync(workspace, purpose, waitSeconds, optionsJson, (context, _) => Task.FromResult(GitRecipes.Plan(action, context)), ct);
@@ -214,7 +221,7 @@ public sealed class CommandService(
                 CommandCatalog.Get(built.Operation),
                 CommandTier.Recipe,
                 built.CommandLine,
-                root,
+                built.WorkingDirectory ?? root,
                 cleanPurpose,
                 ClaudeActor,
                 built.Timeout,

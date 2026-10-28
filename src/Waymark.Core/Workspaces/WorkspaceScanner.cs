@@ -2,11 +2,24 @@
 
 namespace Waymark.Core.Workspaces;
 
-/// <summary>Walks a workspace folder for solution and project files, skipping excluded and linked folders.</summary>
+/// <summary>Walks a workspace folder for solution, project and Python project files, skipping excluded and linked folders.</summary>
 internal static partial class WorkspaceScanner
 {
     private const int MaxFrameworkProbes = 20;
     private const long MaxProjectFileBytes = 1024 * 1024;
+
+    // One marker per folder is kept, the first of these that the folder has.
+    private static readonly string[] PythonMarkers = ["pyproject.toml", "setup.py", "Pipfile"];
+
+    // The lock files that tell which tool manages a Python project, with the tool's name.
+    private static readonly (string File, string Tool)[] PythonLocks =
+    [
+        ("uv.lock", "uv"),
+        ("poetry.lock", "poetry"),
+        ("pdm.lock", "pdm"),
+        ("Pipfile.lock", "pipenv"),
+        ("pylock.toml", "pylock"),
+    ];
 
     private static readonly EnumerationOptions FileOptions = new()
     {
@@ -22,12 +35,13 @@ internal static partial class WorkspaceScanner
 
     public static async Task<WorkspaceMetadata> ScanAsync(string root, WorkspaceOptions options, CancellationToken ct)
     {
-        var (solutions, projects, truncated) = await Task.Run(() => Walk(root, options, ct), ct).ConfigureAwait(false);
+        var (solutions, projects, python, sources, truncated) = await Task.Run(() => Walk(root, options, ct), ct).ConfigureAwait(false);
         var framework = await DetectFrameworkAsync(root, projects, ct).ConfigureAwait(false);
-        return new WorkspaceMetadata(solutions, projects, framework, truncated);
+        var tool = await DetectPythonToolAsync(root, python, ct).ConfigureAwait(false);
+        return new WorkspaceMetadata(solutions, projects, framework, truncated, python, tool, sources);
     }
 
-    private static (List<string> Solutions, List<string> Projects, bool Truncated) Walk(string root, WorkspaceOptions options, CancellationToken ct)
+    private static (List<string> Solutions, List<string> Projects, List<string> Python, int PythonSources, bool Truncated) Walk(string root, WorkspaceOptions options, CancellationToken ct)
     {
         var solutions = Directory.EnumerateFiles(root, "*.sln", FileOptions)
             .Concat(Directory.EnumerateFiles(root, "*.slnx", FileOptions))
@@ -37,6 +51,8 @@ internal static partial class WorkspaceScanner
             .ToList();
 
         var projects = new List<string>();
+        var python = new List<string>();
+        var sources = 0;
         var pending = new Stack<string>();
         pending.Push(root);
         var directoriesScanned = 0;
@@ -52,15 +68,45 @@ internal static partial class WorkspaceScanner
             }
 
             var directory = pending.Pop();
-            foreach (var file in Directory.EnumerateFiles(directory, "*.csproj", FileOptions))
+            string? pythonMarker = null;
+            var pythonRank = int.MaxValue;
+            foreach (var file in Directory.EnumerateFiles(directory, "*", FileOptions))
             {
-                if (projects.Count >= options.MaxProjectFiles)
+                var name = Path.GetFileName(file);
+                if (name.EndsWith(".csproj", StringComparison.OrdinalIgnoreCase))
                 {
-                    truncated = true;
-                    break;
+                    if (projects.Count >= options.MaxProjectFiles)
+                    {
+                        truncated = true;
+                        break;
+                    }
+
+                    projects.Add(Path.GetRelativePath(root, file));
+                    continue;
                 }
 
-                projects.Add(Path.GetRelativePath(root, file));
+                if (name.EndsWith(".py", StringComparison.OrdinalIgnoreCase) || name.EndsWith(".pyi", StringComparison.OrdinalIgnoreCase))
+                {
+                    sources++;
+                }
+                var rank = PythonRank(name);
+                if (rank < pythonRank)
+                {
+                    pythonRank = rank;
+                    pythonMarker = file;
+                }
+            }
+
+            if (pythonMarker is not null)
+            {
+                if (python.Count >= options.MaxProjectFiles)
+                {
+                    truncated = true;
+                }
+                else
+                {
+                    python.Add(Path.GetRelativePath(root, pythonMarker));
+                }
             }
 
             foreach (var child in Directory.EnumerateDirectories(directory, "*", DirectoryOptions))
@@ -73,7 +119,24 @@ internal static partial class WorkspaceScanner
         }
 
         projects.Sort(StringComparer.OrdinalIgnoreCase);
-        return (solutions, projects, truncated);
+        python.Sort(StringComparer.OrdinalIgnoreCase);
+        return (solutions, projects, python, sources, truncated);
+    }
+
+    /// <summary>Lower is a stronger marker of a Python project; <see cref="int.MaxValue"/> means the file is not one.</summary>
+    private static int PythonRank(string fileName)
+    {
+        for (var i = 0; i < PythonMarkers.Length; i++)
+        {
+            if (string.Equals(fileName, PythonMarkers[i], StringComparison.OrdinalIgnoreCase))
+            {
+                return i;
+            }
+        }
+
+        return fileName.StartsWith("requirements", StringComparison.OrdinalIgnoreCase) && fileName.EndsWith(".txt", StringComparison.OrdinalIgnoreCase)
+            ? PythonMarkers.Length
+            : int.MaxValue;
     }
 
     private static async Task<string?> DetectFrameworkAsync(string root, List<string> projects, CancellationToken ct)
@@ -108,6 +171,58 @@ internal static partial class WorkspaceScanner
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
             return null;
+        }
+    }
+
+    /// <summary>The tool of the first Python project: its lock file first, then the tool table of its pyproject.toml, else pip.</summary>
+    private static async Task<string?> DetectPythonToolAsync(string root, List<string> python, CancellationToken ct)
+    {
+        if (python.Count == 0)
+        {
+            return null;
+        }
+
+        var marker = Path.Combine(root, python[0]);
+        var folders = new[] { Path.GetDirectoryName(marker) ?? root, root }.Distinct(StringComparer.OrdinalIgnoreCase);
+        foreach (var folder in folders)
+        {
+            foreach (var (file, tool) in PythonLocks)
+            {
+                if (File.Exists(Path.Combine(folder, file)))
+                {
+                    return tool;
+                }
+            }
+        }
+
+        if (!string.Equals(Path.GetFileName(marker), "pyproject.toml", StringComparison.OrdinalIgnoreCase))
+        {
+            return "pip";
+        }
+
+        try
+        {
+            if (new FileInfo(marker).Length > MaxProjectFileBytes)
+            {
+                return "pip";
+            }
+
+            var content = await File.ReadAllTextAsync(marker, ct).ConfigureAwait(false);
+            if (content.Contains("[tool.poetry]", StringComparison.Ordinal))
+            {
+                return "poetry";
+            }
+
+            if (content.Contains("[tool.uv", StringComparison.Ordinal))
+            {
+                return "uv";
+            }
+
+            return content.Contains("[tool.pdm", StringComparison.Ordinal) ? "pdm" : "pip";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return "pip";
         }
     }
 

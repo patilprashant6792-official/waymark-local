@@ -12,6 +12,7 @@ public static partial class WorkspacePathRules
     public static readonly IReadOnlySet<string> ExcludedDirectories = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
     {
         "bin", "obj", ".vs", ".git", "node_modules", "packages",
+        ".venv", "venv", "__pycache__", "site-packages", ".tox", ".nox", ".eggs", ".mypy_cache", ".pytest_cache", ".ruff_cache",
     };
 
     /// <summary>Null when the name is acceptable. '*' is reserved because tools use it to mean every workspace.</summary>

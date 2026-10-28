@@ -9,7 +9,7 @@ using Waymark.Core.Workspaces;
 namespace Waymark.Modules.Code.Scheduling;
 
 /// <summary>
-/// Watches every enabled workspace for C# changes and feeds the index scheduler. Events are debounced per file
+/// Watches every enabled workspace for source file changes (C#, Python) and feeds the index scheduler. Events are debounced per file
 /// (editors fire several per save). Changes made by Waymark's own file tools arrive as FileChanged and FolderChanged
 /// events. A watcher buffer overflow or error triggers a reconcile of that workspace.
 /// </summary>
@@ -17,6 +17,7 @@ internal sealed class FileWatcherHost(
     IWorkspaceService workspaceService,
     IIndexScheduler scheduler,
     FileAccessPolicy policy,
+    LanguageIndexers languages,
     IEventBus events,
     CodeIndexOptions options,
     ILogger<FileWatcherHost> logger) : BackgroundService
@@ -109,7 +110,7 @@ internal sealed class FileWatcherHost(
 
     private ValueTask OnToolFileChanged(long workspaceId, string relativePath)
     {
-        if (relativePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) && CodeFileWalker.IsIndexable(relativePath, policy))
+        if (languages.Handles(relativePath) && CodeFileWalker.IsIndexable(relativePath, policy))
         {
             ScheduleFile(workspaceId, relativePath);
         }
@@ -229,7 +230,7 @@ internal sealed class FileWatcherHost(
                 return;
             }
 
-            if (relative.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
+            if (languages.Handles(relative))
             {
                 ScheduleFile(workspaceId, relative);
             }

@@ -15,14 +15,17 @@ internal static partial class SymbolMarkdown
 {
     private const int DescriptionChars = 120;
 
-    public static string Packages(string query, IReadOnlyList<PackageSearchHit> hits, int maxChars)
+    public static string Packages(string ecosystem, string query, IReadOnlyList<PackageSearchHit> hits, int maxChars)
     {
+        var pypi = string.Equals(ecosystem, PackageEcosystems.PyPI, StringComparison.Ordinal);
         var output = new OutputBudget(maxChars);
-        output.TryAppendLine($"# NuGet packages for '{query}'");
+        output.TryAppendLine(pypi ? $"# PyPI projects named like '{query}'" : $"# NuGet packages for '{query}'");
         if (hits.Count == 0)
         {
             output.TryAppendLine();
-            output.TryAppendLine("No packages found. Try fewer or different words.");
+            output.TryAppendLine(pypi
+                ? "No project has that name. PyPI has no search: pass the exact project name (as in `pip install name`) or try other spellings."
+                : "No packages found. Try fewer or different words.");
             return output.Build();
         }
 
@@ -34,7 +37,9 @@ internal static partial class SymbolMarkdown
         }
 
         output.TryAppendLine();
-        output.TryAppendLine("Next: `nuget_find(packageId, query)` to locate a type or method, or `nuget_outline(packageId)` for the namespace map.");
+        output.TryAppendLine(pypi
+            ? "Next: `pkg_find(packageId, query, ecosystem=\"pypi\")` to locate a class or function inside the package, or `pkg_outline` for the module map."
+            : "Next: `pkg_find(packageId, query)` to locate a type or method, or `pkg_outline(packageId)` for the namespace map.");
         return output.Build();
     }
 
@@ -44,13 +49,14 @@ internal static partial class SymbolMarkdown
         var package = outline.Package;
         var output = new OutputBudget(maxChars);
         output.TryAppendLine(Header(package.Key));
+        var parts = PackageEcosystems.IsPyPI(package.Key) ? "module(s)" : "namespace(s)";
         output.TryAppendLine(string.Create(CultureInfo.InvariantCulture,
-            $"{package.TypeCount} types \u00b7 {package.SymbolCount} indexed symbols \u00b7 {outline.Namespaces.Count} namespace(s) \u00b7 indexed {Ago(age)}"));
+            $"{package.TypeCount} types \u00b7 {package.SymbolCount} indexed symbols \u00b7 {outline.Namespaces.Count} {parts} \u00b7 indexed {Ago(age)}"));
         output.TryAppendLine();
 
         if (shown.Count == 0)
         {
-            output.TryAppendLine($"No namespace starts with '{prefix}'. Call `nuget_outline` without `namespace` to see them all.");
+            output.TryAppendLine($"No namespace starts with '{prefix}'. Call `pkg_outline` without `namespace` to see them all.");
             return output.Build();
         }
 
@@ -66,7 +72,7 @@ internal static partial class SymbolMarkdown
         }
 
         output.TryAppendLine();
-        output.TryAppendLine("This is a map, not a listing. Next: `nuget_find(packageId, query, namespace)` to locate a type or method.");
+        output.TryAppendLine("This is a map, not a listing. Next: `pkg_find(packageId, query, namespace)` to locate a type or method.");
         return output.Build();
     }
 
@@ -78,7 +84,7 @@ internal static partial class SymbolMarkdown
 
         if (shown.Count == 0)
         {
-            output.TryAppendLine("Nothing matched. Try fewer or different words, drop `kind`, `namespace` or `declaringType`, or call `nuget_outline` to see the namespaces.");
+            output.TryAppendLine("Nothing matched. Try fewer or different words, drop `kind`, `namespace` or `declaringType`, or call `pkg_outline` to see the namespaces.");
             return output.Build();
         }
 
@@ -93,30 +99,31 @@ internal static partial class SymbolMarkdown
             output.TryAppendLine(string.Create(CultureInfo.InvariantCulture, $"Showing {shown.Count} of {total}, ranked by relevance \u00d7 prominence."));
         }
 
-        output.TryAppendLine("Next: `nuget_expand(packageId, identifiers)` with these ids (up to 5) for signatures, properties and docs.");
+        output.TryAppendLine("Next: `pkg_expand(packageId, identifiers)` with these ids (up to 5) for signatures, properties and docs.");
         return output.Build();
     }
 
     public static string Expand(NuGetPackageKey key, IReadOnlyList<ExpandItem> items, int maxChars)
     {
         var output = new OutputBudget(maxChars);
+        var fence = PackageEcosystems.IsPyPI(key) ? "python" : "csharp";
         output.TryAppendLine(Header(key));
         foreach (var item in items)
         {
             output.TryAppendLine();
             if (item.Hit is null)
             {
-                output.TryAppendLine($"## `{item.Identifier}` \u2014 not found in this package. Use `nuget_find` to locate it.");
+                output.TryAppendLine($"## `{item.Identifier}` \u2014 not found in this package. Use `pkg_find` to locate it.");
                 continue;
             }
 
-            AppendSymbol(output, item.Hit, item.Sections);
+            AppendSymbol(output, item.Hit, item.Sections, fence);
         }
 
         return output.Build();
     }
 
-    private static void AppendSymbol(OutputBudget output, NuGetSymbolHit hit, IReadOnlySet<string> sections)
+    private static void AppendSymbol(OutputBudget output, NuGetSymbolHit hit, IReadOnlySet<string> sections, string fence)
     {
         output.TryAppendLine($"## {hit.FullName} ({KindLabel(hit.Kind)}) `{hit.Sid}`");
         var doc = sections.Contains(NuGetSections.Doc) ? ParseDoc(Section(hit, NuGetSections.Doc)) : null;
@@ -126,10 +133,10 @@ internal static partial class SymbolMarkdown
         }
 
         var signatureTitle = hit.Kind == NuGetSymbolKind.MethodGroup ? "Signatures" : "Constructors";
-        AppendBlock(output, signatureTitle, hit, NuGetSections.Sig, sections);
-        AppendBlock(output, "Methods", hit, NuGetSections.Methods, sections);
-        AppendBlock(output, "Properties", hit, NuGetSections.Props, sections);
-        AppendBlock(output, hit.Kind == NuGetSymbolKind.Enum ? "Values" : "Fields & events", hit, NuGetSections.Data, sections);
+        AppendBlock(output, signatureTitle, hit, NuGetSections.Sig, sections, fence);
+        AppendBlock(output, "Methods", hit, NuGetSections.Methods, sections, fence);
+        AppendBlock(output, "Properties", hit, NuGetSections.Props, sections, fence);
+        AppendBlock(output, hit.Kind == NuGetSymbolKind.Enum ? "Values" : "Fields & events", hit, NuGetSections.Data, sections, fence);
 
         if (doc is not null)
         {
@@ -142,7 +149,7 @@ internal static partial class SymbolMarkdown
         }
     }
 
-    private static void AppendBlock(OutputBudget output, string title, NuGetSymbolHit hit, string section, IReadOnlySet<string> sections)
+    private static void AppendBlock(OutputBudget output, string title, NuGetSymbolHit hit, string section, IReadOnlySet<string> sections, string fence)
     {
         var text = sections.Contains(section) ? Section(hit, section) : string.Empty;
         if (text.Length == 0)
@@ -151,7 +158,7 @@ internal static partial class SymbolMarkdown
         }
 
         output.TryAppendLine($"**{title}**");
-        output.TryAppendLine("```csharp");
+        output.TryAppendLine("```" + fence);
         foreach (var line in text.Split('\n'))
         {
             if (!output.TryAppendLine(line))
@@ -198,7 +205,7 @@ internal static partial class SymbolMarkdown
             .ToList();
         if (pairs.Count > 0)
         {
-            output.TryAppendLine($"Related: {string.Join(", ", pairs)} \u2014 pass these ids straight to `nuget_expand`.");
+            output.TryAppendLine($"Related: {string.Join(", ", pairs)} \u2014 pass these ids straight to `pkg_expand`.");
         }
     }
 

@@ -4,8 +4,8 @@ namespace Waymark.Modules.Code.Search;
 internal static class BaseListParser
 {
     /// <summary>
-    /// Splits at top-level commas only, so <c>IRepository&lt;A, B&gt;</c> stays one entry, and reduces each entry to its
-    /// simple name (no namespace, no type arguments).
+    /// Splits at top-level commas only, so <c>IRepository&lt;A, B&gt;</c> (C#) and <c>Mapping[str, int]</c> (Python) stay one entry each, and reduces
+    /// each entry to its simple name (no namespace or module, no type arguments).
     /// </summary>
     public static IReadOnlyList<string> SimpleNames(string? baseList)
     {
@@ -21,11 +21,11 @@ internal static class BaseListParser
         {
             if (i < baseList.Length)
             {
-                if (baseList[i] == '<')
+                if (baseList[i] is '<' or '[')
                 {
                     depth++;
                 }
-                else if (baseList[i] == '>')
+                else if (baseList[i] is '>' or ']')
                 {
                     depth = Math.Max(0, depth - 1);
                 }
@@ -38,7 +38,7 @@ internal static class BaseListParser
 
             var entry = baseList[start..i].Trim();
             start = i + 1;
-            var generic = entry.IndexOf('<', StringComparison.Ordinal);
+            var generic = entry.IndexOfAny(['<', '[']);
             if (generic >= 0)
             {
                 entry = entry[..generic];

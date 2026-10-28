@@ -54,7 +54,7 @@ internal static class MethodRenderer
         if (owner is not null)
         {
             output.TryAppendLine($"| **Class** | `{owner.Name}` |");
-            output.TryAppendLine($"| **Namespace** | `{owner.Namespace ?? "(none)"}` |");
+            output.TryAppendLine($"| **{CodeLanguages.ContainerWord(file.Language)}** | `{owner.Namespace ?? "(none)"}` |");
         }
 
         output.TryAppendLine($"| **Lines** | {member.StartLine}-{member.EndLine} |");
@@ -71,7 +71,7 @@ internal static class MethodRenderer
             output.TryAppendLine();
         }
 
-        output.TryAppendLine("```csharp");
+        output.TryAppendLine($"```{CodeLanguages.Fence(file.Language)}");
         var last = Math.Min(member.EndLine, source.LineCount);
         for (var number = member.StartLine; number <= last; number++)
         {

@@ -38,7 +38,7 @@
         var package = _outline.Package;
         <p class="wm-lead">
             <span class="wm-mono">@Framework</span> - @DisplayFormat.Count(package.TypeCount) types, @DisplayFormat.Count(package.SymbolCount) symbols, @DisplayFormat.Count(_outline.Namespaces.Count) namespaces -
-            <a href="@NuGetLinks.OnNuGetOrg(Key)" target="_blank" rel="noopener noreferrer">nuget.org</a>.
+            <a href="@NuGetLinks.OnNuGetOrg(Key)" target="_blank" rel="noopener noreferrer">@NuGetLinks.RegistryName(Key)</a>.
             This is the same index Claude searches, with the same matching and ranking.
         </p>
 

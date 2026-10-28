@@ -20,7 +20,7 @@
         <h2 id="ws-add" class="wm-section">Add a workspace</h2>
         <div class="wm-row">
             <MudTextField T="string" Label="Name" @bind-Value="_name" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Short, for example waymark" />
-            <MudTextField T="string" Label="Folder" @bind-Value="_path" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Full path to a folder with a .sln, .slnx or .csproj" Style="min-width:360px" />
+            <MudTextField T="string" Label="Folder" @bind-Value="_path" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Full path to an existing folder: a C# or Python project, or an empty folder to start one" Style="min-width:360px" />
             <MudButton Variant="Variant.Outlined" OnClick="CheckAsync" Disabled="@(string.IsNullOrWhiteSpace(_path))">Check folder</MudButton>
             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddAsync" Disabled="@(_busy || string.IsNullOrWhiteSpace(_path) || string.IsNullOrWhiteSpace(_name))">Add workspace</MudButton>
         </div>
@@ -34,12 +34,32 @@
                     <dl class="wm-dl" style="margin-top:8px">
                         <dt>Location</dt>
                         <dd class="wm-mono">@ShownPath(check.NormalizedPath ?? string.Empty)</dd>
-                        <dt>Solutions</dt>
-                        <dd>@(meta.SolutionFiles.Count == 0 ? "none" : string.Join(", ", meta.SolutionFiles))</dd>
-                        <dt>Projects</dt>
-                        <dd>@DisplayFormat.Count(meta.ProjectFiles.Count)@(meta.ProjectListTruncated ? "+" : string.Empty)</dd>
-                        <dt>Framework</dt>
-                        <dd>@(meta.DetectedFramework ?? "not detected")</dd>
+                        @if (meta.SolutionFiles.Count > 0 || meta.ProjectFiles.Count > 0)
+                        {
+                            <dt>.NET</dt>
+                            <dd>
+                                @(meta.SolutionFiles.Count == 0 ? "no solution" : string.Join(", ", meta.SolutionFiles)),
+                                @DisplayFormat.Count(meta.ProjectFiles.Count)@(meta.ProjectListTruncated ? "+" : string.Empty) project(s),
+                                framework @(meta.DetectedFramework ?? "not detected")
+                            </dd>
+                        }
+                        @if (meta.PythonProjectFiles.Count > 0 || meta.PythonSourceFiles > 0)
+                        {
+                            <dt>Python</dt>
+                            <dd>
+                                @DisplayFormat.Count(meta.PythonProjectFiles.Count) project(s)@(meta.PythonTool is null ? string.Empty : " managed by " + meta.PythonTool),
+                                @DisplayFormat.Count(meta.PythonSourceFiles) source file(s)
+                                @if (meta.PythonProjectFiles.Count > 0)
+                                {
+                                    <div class="wm-mono wm-muted">@string.Join(", ", meta.PythonProjectFiles.Take(5))</div>
+                                }
+                            </dd>
+                        }
+                        @if (meta.SolutionFiles.Count == 0 && meta.ProjectFiles.Count == 0 && meta.PythonProjectFiles.Count == 0 && meta.PythonSourceFiles == 0)
+                        {
+                            <dt>Contents</dt>
+                            <dd>No project yet. That is fine: Claude can create the project and its files here.</dd>
+                        }
                     </dl>
                 }
                 else

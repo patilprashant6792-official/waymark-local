@@ -6,7 +6,7 @@ How Claude may run commands on this computer, and how the owner stays in control
 
 | Tool | Tier | What it does |
 |---|---|---|
-| `cmd_dotnet` | 1, typed | build, rebuild, clean, restore, test, format, info, list, new, sln, reference, package add/remove, tool restore, EF Core, run |
+| `cmd_project` | 1, typed | .NET: build, rebuild, clean, restore, test, format, info, list, new, sln, reference, package add/remove, tool restore, EF Core, run. Python (`py_*`): info, list, venv, install, test, lint, format, typecheck, run, package add/remove |
 | `cmd_git` | 1, typed | status, diff, log, show, branches, stashes, remotes, add, commit, branch, stash, restore, pull, push, and (off by default) reset hard, clean, branch delete |
 | `cmd_proc` | 1, typed | list ports, stop the program on a port, stop build servers, delete `bin` and `obj` |
 | `cmd_shell` | 2, any script | PowerShell, cmd or bash. **Every script waits for the owner.** |
@@ -27,6 +27,7 @@ The gate that applies is the first of: the owner's choice for this workspace, th
 | Family | Auto by default | Ask by default | Off by default |
 |---|---|---|---|
 | dotnet | build, rebuild, clean, restore, format check, info, list | test, EF read, format, new, sln, reference, package add/remove, tool restore, EF migrations add/remove, EF database update, run | - |
+| python | info, lint | list, venv, install, test, format, typecheck, run, package add/remove | - |
 | git | read (status, diff, log, show, blame, branches, stashes) | add, commit, branch, stash, restore, pull, push | reset hard, clean, branch delete |
 | processes | list ports, stop build servers | stop the program on a port, delete bin and obj | - |
 | shell | - | system shell | - |
@@ -80,3 +81,8 @@ Every decision writes `command.approve` or `command.deny`. Every gate change and
 ## Safety
 
 Tests, `dotnet run` and EF start the project's own code, which can be code Claude has just written; no file fingerprint covers it, so they ask by default. Every operation has a risk tier (Reads, Changes, Runs code, Sends out) shown on `/commands` and on the approval card. Everything Claude receives is scrubbed for secrets and ends with a safety line; see `safety.md`. The console and the stored run log keep the raw output on this computer.
+
+### Python (`cmd_project`, actions `py_*`)
+
+Gates: `python.info` and `python.lint` Auto; list, venv, install, test, format, typecheck, run and package add/remove Ask. Test, run, typecheck and list start the project's own code (the interpreter of its virtual environment is a program inside the workspace, which the approval card shows); lint and format are drift-sensitive; install and package add send out.
+Installs run no package code: wheels only (`uv --no-build`, `pip --only-binary :all:`), the project itself is never built, a requirements file with editable, path, URL or option lines (other than `--hash` and index settings) is refused, and `PIP_REQUIRE_VIRTUALENV` keeps pip out of the system Python. `ruff`, `uv`, `pyright` and `mypy` are found on PATH (and `~/.local/bin`, `~/.cargo/bin`), never in the workspace. The build fingerprint covers pyproject.toml, setup.py/cfg, lock files, requirements*.txt, conftest.py, noxfile.py and the tool settings. `.pypirc`, `pip.conf`, `.npmrc` and `.netrc` are blocked files. Poetry and PDM projects are not run yet.

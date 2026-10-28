@@ -95,10 +95,13 @@ public static class RunReport
             return;
         }
 
-        var isDotnet = run.Operation.StartsWith("dotnet.", StringComparison.Ordinal);
-        IReadOnlyList<BuildDiagnostic> diagnostics = isDotnet && workspaceRoot is not null
-            ? DiagnosticsParser.ParseBuild(plainOutput, workspaceRoot)
-            : Array.Empty<BuildDiagnostic>();
+        IReadOnlyList<BuildDiagnostic> diagnostics = workspaceRoot is null
+            ? Array.Empty<BuildDiagnostic>()
+            : run.Operation.StartsWith("dotnet.", StringComparison.Ordinal)
+                ? DiagnosticsParser.ParseBuild(plainOutput, workspaceRoot)
+                : run.Operation.StartsWith("python.", StringComparison.Ordinal)
+                    ? DiagnosticsParser.ParsePython(plainOutput, workspaceRoot)
+                    : Array.Empty<BuildDiagnostic>();
         var errors = diagnostics.Where(d => d.IsError).ToList();
         var warnings = diagnostics.Where(d => !d.IsError).ToList();
         if (errors.Count > 0)
@@ -131,7 +134,13 @@ public static class RunReport
             }
         }
 
-        if (run.Operation == "dotnet.test" && DiagnosticsParser.ParseTests(plainOutput) is { } tests)
+        var tests = run.Operation switch
+        {
+            "dotnet.test" => DiagnosticsParser.ParseTests(plainOutput),
+            "python.test" => DiagnosticsParser.ParsePytest(plainOutput),
+            _ => null,
+        };
+        if (tests is not null)
         {
             output.TryAppendLine();
             output.TryAppendLine($"tests: {tests.Passed} passed, {tests.Failed} failed, {tests.Skipped} skipped, {tests.Total} total");

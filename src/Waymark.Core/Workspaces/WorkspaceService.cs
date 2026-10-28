@@ -26,9 +26,8 @@ public sealed class WorkspaceService(
         try
         {
             var metadata = await WorkspaceScanner.ScanAsync(normalized, options, ct).ConfigureAwait(false);
-            return metadata.SolutionFiles.Count == 0 && metadata.ProjectFiles.Count == 0
-                ? WorkspaceValidation.Invalid("No solution (.sln/.slnx) or project (.csproj) files found.")
-                : WorkspaceValidation.Valid(normalized, metadata);
+            // A folder with no project yet is allowed: Claude can create the project and its files in it. The scan only describes what is there.
+            return WorkspaceValidation.Valid(normalized, metadata);
         }
         catch (UnauthorizedAccessException)
         {

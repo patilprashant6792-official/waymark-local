@@ -22,6 +22,7 @@ public static class CommandCatalog
     public const long AllWorkspaces = 0;
 
     public const string DotnetFamily = "dotnet";
+    public const string PythonFamily = "python";
     public const string GitFamily = "git";
     public const string ProcessFamily = "processes";
     public const string ShellFamily = "shell";
@@ -50,6 +51,18 @@ public static class CommandCatalog
         new("dotnet.ef_migrations_remove", DotnetFamily, "EF Core, remove migration", "dotnet ef migrations remove", CommandGate.Ask, true, true),
         new("dotnet.ef_database_update", DotnetFamily, "EF Core, update database", "dotnet ef database update (changes a database)", CommandGate.Ask, true, true),
         new("dotnet.run", DotnetFamily, "Run the app", "dotnet run (stays running until stopped)", CommandGate.Ask, true, true),
+
+        new("python.info", PythonFamily, "Python info", "Python, uv, pip and ruff versions on this computer", CommandGate.Auto, false, false),
+        new("python.list", PythonFamily, "List installed packages", "Packages installed in the project's virtual environment (starts that environment's Python)", CommandGate.Ask, false, true),
+        new("python.venv", PythonFamily, "Create a virtual environment", "uv venv, or python -m venv (may download a Python)", CommandGate.Ask, true, false),
+        new("python.install", PythonFamily, "Install dependencies", "uv sync or pip install from the lock file: wheels only, hashes checked, nothing built", CommandGate.Ask, true, false),
+        new("python.test", PythonFamily, "Test", "pytest (runs the test code, which can be code Claude has just written)", CommandGate.Ask, true, true),
+        new("python.lint", PythonFamily, "Lint", "ruff check", CommandGate.Auto, false, true),
+        new("python.format", PythonFamily, "Format", "ruff format (changes files)", CommandGate.Ask, true, true),
+        new("python.typecheck", PythonFamily, "Type check", "pyright or mypy (a mypy plugin is project code)", CommandGate.Ask, false, true),
+        new("python.run", PythonFamily, "Run a module or script", "python -m module or a script file (stays running until stopped)", CommandGate.Ask, true, true),
+        new("python.package_add", PythonFamily, "Add a package", "uv add or pip install of one package at an exact version", CommandGate.Ask, true, false),
+        new("python.package_remove", PythonFamily, "Remove a package", "uv remove or pip uninstall", CommandGate.Ask, true, false),
 
         new("git.read", GitFamily, "Read the repository", "status, diff, log, show, blame, branches, stashes", CommandGate.Auto, false, true),
         new("git.add", GitFamily, "Stage files", "git add", CommandGate.Ask, true, true),

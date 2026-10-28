@@ -7,7 +7,7 @@ namespace Waymark.Modules.Code.Reading;
 
 internal sealed class CodeReadService(
     IPathGuard guard,
-    ISyntaxIndexer indexer,
+    LanguageIndexers languages,
     CodeReadOptions options,
     ToolPipelineOptions pipeline) : ICodeReadService
 {
@@ -66,15 +66,17 @@ internal sealed class CodeReadService(
 
         var wantedClass = string.IsNullOrWhiteSpace(className) ? null : className.Trim();
         var candidates = file.Members
-            .Where(m => m.TypeIndex is not null
-                && (wantedClass is null || TypeMatches(file.Types[m.TypeIndex.Value], wantedClass)))
+            .Where(m => wantedClass is null
+                || (m.TypeIndex is { } owner && TypeMatches(file.Types[owner], wantedClass)))
             .ToList();
 
         var selected = new List<CodeMemberEntry>();
         var notFound = new List<string>();
         foreach (var name in names)
         {
-            var matches = candidates.Where(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase)).ToList();
+            var matches = candidates
+                .Where(m => string.Equals(m.Name, name, StringComparison.OrdinalIgnoreCase) || IsConstructorAlias(m, name))
+                .ToList();
             if (matches.Count == 0)
             {
                 notFound.Add(name);
@@ -134,7 +136,7 @@ internal sealed class CodeReadService(
         List<(CodeFileIndex File, bool Truncated)> parsed,
         List<string> warnings)
     {
-        output.TryAppendLine($"# Batch C# File Analysis: {parsed.Count} file(s)");
+        output.TryAppendLine($"# Batch File Analysis: {parsed.Count} file(s)");
         output.TryAppendLine();
         output.TryAppendLine($"**Workspace:** {workspace}");
         output.TryAppendLine();
@@ -155,7 +157,9 @@ internal sealed class CodeReadService(
         {
             var file = parsed[i].File;
             var methods = file.Members.Count(m => m.Kind is CodeMemberKind.Method or CodeMemberKind.Constructor);
-            output.TryAppendLine($"{i + 1}. **{Path.GetFileName(file.Stamp.RelativePath)}** → {file.Types.Count} type(s), {methods} method(s)");
+            var functions = file.Members.Count(m => m.Kind == CodeMemberKind.Function);
+            var functionText = functions == 0 ? string.Empty : $", {functions} function(s)";
+            output.TryAppendLine($"{i + 1}. **{Path.GetFileName(file.Stamp.RelativePath)}** → {file.Types.Count} type(s), {methods} method(s){functionText}");
         }
 
         output.TryAppendLine();
@@ -166,6 +170,10 @@ internal sealed class CodeReadService(
     private static bool TypeMatches(CodeTypeEntry type, string wanted) =>
         string.Equals(type.Name, wanted, StringComparison.OrdinalIgnoreCase)
         || string.Equals(type.FullName, wanted, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>A Python class is created through <c>__init__</c>, so that name also reaches the constructor, which the index names after its class.</summary>
+    private static bool IsConstructorAlias(CodeMemberEntry member, string name) =>
+        member.Kind == CodeMemberKind.Constructor && string.Equals(name, "__init__", StringComparison.Ordinal);
 
     private static List<string> SplitList(string? value, string parameter, int max)
     {
@@ -186,10 +194,7 @@ internal sealed class CodeReadService(
     private async Task<(CodeFileIndex File, bool Truncated)> ParseAsync(Workspace workspace, string? relativePath, CancellationToken ct)
     {
         var target = guard.Resolve(workspace, relativePath);
-        if (!target.RelativePath.EndsWith(".cs", StringComparison.OrdinalIgnoreCase))
-        {
-            throw new ArgumentException($"'{target.RelativePath}' is not a C# file. Use code_read for other files.");
-        }
+        var indexer = languages.For(target.RelativePath);
 
         if (!File.Exists(target.AbsolutePath))
         {
@@ -202,6 +207,8 @@ internal sealed class CodeReadService(
             SyntaxIndexOutcome.Indexed => (result.File!, result.Truncated),
             SyntaxIndexOutcome.TooLarge => throw new ArgumentException($"'{target.RelativePath}' is too large to analyze. Read a range of it with code_read."),
             SyntaxIndexOutcome.NotText => throw new ArgumentException($"'{target.RelativePath}' looks binary and cannot be analyzed."),
+            SyntaxIndexOutcome.Unavailable => throw new ArgumentException(
+                $"'{target.RelativePath}' cannot be analyzed on this computer: the {CodeLanguages.DisplayName(indexer.Language)} parser did not load. Use code_read."),
             _ => throw new InvalidOperationException("The indexer returned an unexpected outcome."),
         };
     }
