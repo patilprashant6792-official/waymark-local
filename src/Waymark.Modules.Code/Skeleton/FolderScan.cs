@@ -86,7 +86,7 @@ internal sealed class FolderScanner(FileAccessPolicy policy, SkeletonOptions opt
     private const string FolderProbeName = "waymark-folder-probe";
 
     // The Python files that mark a folder as a project, shown in the folder summary the way a .csproj is.
-    private static readonly HashSet<string> PythonProjectFiles = new(StringComparer.OrdinalIgnoreCase) { "pyproject.toml", "setup.py", "Pipfile" };
+    private static readonly HashSet<string> PythonProjectFiles = new(StringComparer.OrdinalIgnoreCase) { "pyproject.toml", "setup.py", "Pipfile", "package.json" };
 
     /// <param name="workspaceRoot">Absolute workspace folder; relative paths are measured from it.</param>
     /// <param name="startAbsolute">Absolute folder to scan.</param>

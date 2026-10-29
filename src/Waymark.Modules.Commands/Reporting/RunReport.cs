@@ -97,7 +97,7 @@ public static class RunReport
 
         IReadOnlyList<BuildDiagnostic> diagnostics = workspaceRoot is null
             ? Array.Empty<BuildDiagnostic>()
-            : run.Operation.StartsWith("dotnet.", StringComparison.Ordinal)
+            : run.Operation.StartsWith("dotnet.", StringComparison.Ordinal) || run.Operation.StartsWith("node.", StringComparison.Ordinal)
                 ? DiagnosticsParser.ParseBuild(plainOutput, workspaceRoot)
                 : run.Operation.StartsWith("python.", StringComparison.Ordinal)
                     ? DiagnosticsParser.ParsePython(plainOutput, workspaceRoot)
@@ -138,6 +138,7 @@ public static class RunReport
         {
             "dotnet.test" => DiagnosticsParser.ParseTests(plainOutput),
             "python.test" => DiagnosticsParser.ParsePytest(plainOutput),
+            "node.test" => DiagnosticsParser.ParseNodeTests(plainOutput),
             _ => null,
         };
         if (tests is not null)

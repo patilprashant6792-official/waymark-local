@@ -11,6 +11,7 @@ using Waymark.Modules.Code.Rewriting;
 using Waymark.Modules.Code.Search;
 using Waymark.Modules.Code.Skeleton;
 using Waymark.Languages.Python;
+using Waymark.Languages.TypeScript;
 using Waymark.Modules.Code.Tools;
 
 namespace Waymark.Modules.Code;
@@ -28,6 +29,7 @@ public sealed class CodeModule : IMcpModule
         services.TryAddSingleton<CodeIndexLimits>(provider => provider.GetRequiredService<CodeIndexOptions>().Limits);
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ILanguageIndexer, CSharpIndexer>());
         services.TryAddEnumerable(ServiceDescriptor.Singleton<ILanguageIndexer, PythonIndexer>());
+        services.TryAddEnumerable(ServiceDescriptor.Singleton<ILanguageIndexer, TypeScriptIndexer>());
         services.TryAddSingleton<LanguageIndexers>();
         services.TryAddSingleton<WorkspaceIndexer>();
         services.TryAddSingleton<IndexScheduler>();

@@ -6,7 +6,7 @@ Typed tools run programs in a workspace without a shell, and the owner watches e
 
 | Need | Tool |
 |---|---|
-| build, test, format, packages, EF Core, run a .NET project; install, test, lint, type-check, run a Python project (actions starting with `py_`) | `cmd_project` |
+| build, test, format, packages, EF Core, run a .NET project; install, test, lint, type-check, run a Python project (actions starting with `py_`); install, type-check, build, test, run a Node project (actions starting with `node_`) | `cmd_project` |
 | git | `cmd_git` |
 | ports, stop a program, build servers, delete bin/obj | `cmd_proc` |
 | anything none of those can do | `cmd_shell` (last resort) |
@@ -75,6 +75,31 @@ Python actions start with `py_` and work on one project: option `project` is its
 5. `py_run` keeps a server running until stopped: give the user the run id and let them watch the Console. End it with `cmd_stop(runId)` (that ends its whole process tree); `cmd_proc stop_port` queues behind a running `py_run` in the same workspace, so use it only for a server that was started elsewhere.
 6. A passing test run is the proof that a refactor works. The code index cannot see dynamic Python, so a clean `py_lint` is not proof.
 
+## cmd_project: Node
+
+Node actions start with `node_` and work on one project: option `project` is its folder (or its package.json), default the workspace folder, and the command runs there. `node_info` shows what this computer has (Node, npm) and what the project has (package manager, node_modules, TypeScript, scripts); call it first when you do not know.
+
+| Gate by default | Actions |
+|---|---|
+| Auto | node_info |
+| Ask | node_list, node_install, node_typecheck, node_build, node_test, node_lint, node_script, node_run, node_package_add, node_package_remove |
+
+### How the Node actions keep the owner safe
+
+- **npm is started as `node npm-cli.js`**, never as the `npm.cmd` shim: a .cmd file is read by cmd.exe, which would interpret the arguments.
+- **Installs run no lifecycle scripts.** `node_install` is `npm ci --ignore-scripts` from `package-lock.json` (it refuses a project without one); `node_package_add` is `npm install name@exact --save-exact --ignore-scripts`. A package that needs its install script (esbuild, sharp, prisma) must be set up by the owner through `cmd_shell`.
+- **A script runs only when package.json names it.** `node_build`, `node_test`, `node_lint`, `node_script` and `node_run` read package.json first; an unknown name is refused with the list of real ones, and the approval card shows the script's text. Extra `args` go after `--`, limited to plain characters; options that load or evaluate code (`--require`, `--import`, `--loader`, `--eval`, `--inspect`) are refused.
+- **npm only for installs.** A pnpm, yarn or bun project can still build, test and run its scripts (`npm run`), but `node_install` and `node_package_*` refuse it and say so; use `cmd_shell` for those.
+- `CI=1` is set for every run, so test runners do not start in watch mode.
+
+### Typical flows
+
+1. Fresh clone with a lock file: `node_install`, then `node_typecheck`, then `node_test`. The typecheck result lists `file(line): error TS...` findings; fix errors before warnings and run it again.
+2. A failing test run lists the failed tests (`failed: ...`) and the last lines; read the test and the code it calls (`code_method`), fix, and run `node_test` again with `args` naming just that test (for vitest and jest `["-t", "name"]`, or a file path). Run the whole suite once at the end.
+3. Adding a package: look it up first (`pkg_find` with `ecosystem: "npm"`), confirm with the user, then `node_package_add` with the exact `version` (and `dev: true` for a development dependency). It edits package.json and package-lock.json.
+4. `node_run` keeps a dev server running until stopped: give the user the run id and let them watch the Console. End it with `cmd_stop(runId)`.
+5. Starting from an empty folder: write package.json, tsconfig.json and the sources with the file tools, create the lock file with `npm install --package-lock-only --ignore-scripts` through `cmd_shell`, then `node_install`.
+
 ## cmd_git
 
 - Reading (status, diff, log, show, branches, stashes, remotes) is automatic. Changes ask the owner unless the owner set them to Auto. Nothing can force-push.
@@ -84,7 +109,7 @@ Python actions start with `py_` and work on one project: option `project` is its
 
 ## cmd_proc
 
-Use it for a port that stays busy (`ports`, then `stop_port`), for files locked by compiler servers (`build_server`), or for stale build output (`clean_outputs` with `dryRun` first). `stop_port` only ends programs that run from the workspace or are dotnet programs, never Waymark.
+Use it for a port that stays busy (`ports`, then `stop_port`), for files locked by compiler servers (`build_server`), or for stale build output (`clean_outputs` with `dryRun` first). `stop_port` only ends programs that run from the workspace, or that are dotnet, Python or Node programs, never Waymark.
 
 ## cmd_shell
 

@@ -5,6 +5,7 @@ using Waymark.Core.Events;
 using Waymark.Core.Workspaces;
 using Waymark.Host.Commands;
 using Waymark.Host.Components.Shared;
+using Waymark.Host.Ui;
 using Waymark.Modules.Commands;
 using Waymark.Modules.Commands.Execution;
 
@@ -47,14 +48,25 @@ public partial class CommandSettings : LiveComponentBase
 
     private sealed record FamilyGroup(string Key, string Title, IReadOnlyList<OperationInfo> Operations);
 
-    private IReadOnlyList<FamilyGroup> Families =>
-    [
-        Group(CommandCatalog.DotnetFamily, ".NET"),
-        Group(CommandCatalog.PythonFamily, "Python"),
-        Group(CommandCatalog.GitFamily, "Git"),
-        Group(CommandCatalog.ProcessFamily, "Processes and ports"),
-        Group(CommandCatalog.ShellFamily, "System shell")
-    ];
+    private string _filter = string.Empty;
+
+    [SupplyParameterFromQuery(Name = "toolchain")]
+    public string? ToolchainQuery { get; set; }
+
+    [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
+
+    private string ToolchainKey => Toolchains.Find(ToolchainQuery)?.Key ?? Toolchains.All;
+
+    // One toolchain picked, or a filter typed: the sections open. Everything shown at once: they stay closed, one summary line each.
+    private bool ExpandFamilies => ToolchainKey != Toolchains.All || _filter.Trim().Length > 0;
+
+    private IEnumerable<FamilyGroup> VisibleFamilies =>
+        Toolchains.Ordered
+            .Where(t => ToolchainKey == Toolchains.All || t.Key == ToolchainKey)
+            .Select(t => new FamilyGroup(t.Key, t.Title, Matching(Toolchains.OperationsOf(t.Key))))
+            .Where(f => f.Operations.Count > 0)
+            .ToList();
 
     private long? ResolveScope => _scope == CommandCatalog.AllWorkspaces ? null : _scope;
 
@@ -68,8 +80,42 @@ public partial class CommandSettings : LiveComponentBase
 
     private int OwnCount => _settings.Count(s => s.WorkspaceId == _scope);
 
-    private static FamilyGroup Group(string family, string title) =>
-        new(family, title, CommandCatalog.Operations.Where(o => o.Family == family).ToList());
+    private IReadOnlyList<OperationInfo> Matching(IReadOnlyList<OperationInfo> operations)
+    {
+        var text = _filter.Trim();
+        return text.Length == 0
+            ? operations
+            : operations.Where(o => o.Label.Contains(text, StringComparison.OrdinalIgnoreCase)
+                || o.Description.Contains(text, StringComparison.OrdinalIgnoreCase)
+                || o.Key.Contains(text, StringComparison.OrdinalIgnoreCase)).ToList();
+    }
+
+    private sealed record GateCounts(int Total, int Ask, int Off, int Auto, int AutoRunsCode);
+
+    /// <summary>What the owner has chosen across one toolchain, for the scope on screen: shown on the closed section so nothing risky hides in it.</summary>
+    private GateCounts CountsOf(string family)
+    {
+        var operations = Toolchains.OperationsOf(family);
+        var gates = operations.Select(o => (Operation: o, Gate: Effective(o))).ToList();
+        return new GateCounts(
+            operations.Count,
+            gates.Count(g => g.Gate == CommandGate.Ask),
+            gates.Count(g => g.Gate == CommandGate.Off),
+            gates.Count(g => g.Gate == CommandGate.Auto),
+            gates.Count(g => g.Gate == CommandGate.Auto && RiskTiers.RunsProjectCode(g.Operation)));
+    }
+
+    private string ToolchainLabel(Toolchains.Toolchain toolchain)
+    {
+        var counts = CountsOf(toolchain.Key);
+        return counts.Auto > 0 ? $"{toolchain.Title} ({counts.Total}, {counts.Auto} Auto)" : $"{toolchain.Title} ({counts.Total})";
+    }
+
+    private string ToolchainHelp => Toolchains.Find(ToolchainKey) is { } toolchain
+        ? $"{toolchain.Title}: {toolchain.Hint}. The choices below apply to {ScopeName}."
+        : "Every toolchain, closed to one line each. Open one to change its operations, or pick it above to see only that one.";
+
+    private bool FamilyHasOwn(string family) => Toolchains.OperationsOf(family).Any(HasOwn);
 
     private static string GateClass(CommandGate gate) => gate switch
     {
@@ -143,6 +189,13 @@ public partial class CommandSettings : LiveComponentBase
         _scope = long.TryParse(args.Value?.ToString(), out var id) ? id : CommandCatalog.AllWorkspaces;
     }
 
+    // The choice lives in the address (/commands?toolchain=node), so the Safety page, approval cards and bookmarks can link straight to a toolchain.
+    private void OnToolchainChanged(ChangeEventArgs args)
+    {
+        var key = Toolchains.Find(args.Value?.ToString())?.Key ?? Toolchains.All;
+        Navigation.NavigateTo(key == Toolchains.All ? "commands" : $"commands?toolchain={Uri.EscapeDataString(key)}", replace: true);
+    }
+
     private async Task SetAsync(OperationInfo operation, CommandGate gate)
     {
         if (_busy || gate == Effective(operation) && HasOwn(operation))
@@ -173,6 +226,29 @@ public partial class CommandSettings : LiveComponentBase
 
     private Task ResetAsync(OperationInfo operation) =>
         RunAsync(() => Admin.ClearGateAsync(_scope, ScopeName, operation.Key, Cancel), $"{operation.Label} follows the next level again");
+
+    /// <summary>Sets every operation of a toolchain that allows the choice, for the scope on screen. Only Off and Ask are offered in bulk: a choice that runs code unasked is made one operation at a time, with its warning.</summary>
+    private Task SetFamilyAsync(string family, CommandGate gate) =>
+        RunAsync(
+            async () =>
+            {
+                foreach (var operation in Toolchains.OperationsOf(family).Where(o => gate <= o.MaxGate && !(Effective(o) == gate && HasOwn(o))))
+                {
+                    await Admin.SetGateAsync(_scope, ScopeName, operation.Key, gate, Cancel);
+                }
+            },
+            $"{Toolchains.TitleOf(family)}: all {gate}");
+
+    private Task ResetFamilyAsync(string family) =>
+        RunAsync(
+            async () =>
+            {
+                foreach (var operation in Toolchains.OperationsOf(family).Where(HasOwn))
+                {
+                    await Admin.ClearGateAsync(_scope, ScopeName, operation.Key, Cancel);
+                }
+            },
+            $"{Toolchains.TitleOf(family)} follows the defaults again");
 
     private async Task ResetScopeAsync()
     {

@@ -69,7 +69,39 @@ internal static class CodeFileWalker
     public static bool IsIndexable(string relativePath, FileAccessPolicy policy)
     {
         ArgumentNullException.ThrowIfNull(policy);
-        return !relativePath.Contains(':') && !HasShortNameMarker(relativePath) && policy.Evaluate(relativePath) is null;
+        return !relativePath.Contains(':') && !HasShortNameMarker(relativePath) && policy.Evaluate(relativePath) is null && !IsGeneratedOutput(relativePath);
+    }
+
+    /// <summary>
+    /// Build output of a JavaScript or TypeScript project: anything in a dist, out or .output folder, and JavaScript in a build folder. It repeats the source in
+    /// a form nobody reads, and it would fill the index with duplicates. C# files are never judged by this.
+    /// </summary>
+    internal static bool IsGeneratedOutput(string relativePath)
+    {
+        var extension = Path.GetExtension(relativePath);
+        var isScript = extension.Equals(".js", StringComparison.OrdinalIgnoreCase) || extension.Equals(".mjs", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".cjs", StringComparison.OrdinalIgnoreCase) || extension.Equals(".jsx", StringComparison.OrdinalIgnoreCase);
+        var isTypeScript = extension.Equals(".ts", StringComparison.OrdinalIgnoreCase) || extension.Equals(".tsx", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".mts", StringComparison.OrdinalIgnoreCase) || extension.Equals(".cts", StringComparison.OrdinalIgnoreCase);
+        if (!isScript && !isTypeScript)
+        {
+            return false;
+        }
+
+        foreach (var folder in relativePath.Split('/').SkipLast(1))
+        {
+            if (folder.Equals("dist", StringComparison.OrdinalIgnoreCase) || folder.Equals("out", StringComparison.OrdinalIgnoreCase) || folder.Equals(".output", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+
+            if (isScript && folder.Equals("build", StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>

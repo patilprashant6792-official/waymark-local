@@ -117,6 +117,16 @@ public partial class Home : LiveComponentBase
 
     private int IndexedTypes => _stats.Values.Sum(s => s.Types);
 
+    // Files per language across every workspace, the biggest first, for the code index tile.
+    private string IndexedLanguages => string.Join(" · ", _stats.Values
+        .Where(s => s.FilesByLanguage is not null)
+        .SelectMany(s => s.FilesByLanguage!)
+        .GroupBy(pair => pair.Key)
+        .Select(group => (Name: CodeLanguages.DisplayName(group.Key), Files: group.Sum(pair => pair.Value)))
+        .Where(item => item.Files > 0)
+        .OrderByDescending(item => item.Files)
+        .Select(item => $"{item.Name} {DisplayFormat.Count(item.Files)}"));
+
     private CodeIndexProgress? Indexing =>
         _progress.Values.FirstOrDefault(p => p.Phase is CodeIndexPhase.Started or CodeIndexPhase.Running);
 
@@ -145,7 +155,7 @@ public partial class Home : LiveComponentBase
 
             if (_nuget is { Failed: > 0 } nuget)
             {
-                items.Add(new AttentionItem($"{nuget.Failed} NuGet {(nuget.Failed == 1 ? "package" : "packages")} failed", "nuget", StatusState.Failed));
+                items.Add(new AttentionItem($"{nuget.Failed} {(nuget.Failed == 1 ? "package" : "packages")} failed to index", "packages", StatusState.Failed));
             }
 
             return items;

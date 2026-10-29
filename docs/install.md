@@ -7,6 +7,7 @@ Waymark is a local program for Windows. It is built on your own computer from th
 - Windows 10 or 11 with `winget` (included in Windows 11 and in current Windows 10 through the App Installer). Without winget the script tells you where to download the .NET 10 SDK by hand, and ngrok must be installed by hand too.
 - git, to get the repository and to update.
 - Internet access for the first build (NuGet packages) and, if you use claude.ai, for the tunnel.
+- Optional, only for the matching project actions: Python 3 (with [uv](https://docs.astral.sh/uv/) for lock-file installs) for `py_*`, and Node.js with npm for `node_*`. Waymark finds them on PATH and in their usual install folders; `py_info` and `node_info` show what it found.
 
 The .NET 10 SDK is installed by the script when it is missing. No administrator rights are needed for Waymark itself; `winget` may ask for them when it installs the SDK.
 

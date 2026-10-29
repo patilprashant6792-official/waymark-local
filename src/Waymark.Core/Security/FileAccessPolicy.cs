@@ -17,12 +17,13 @@ public sealed class FileAccessPolicy
     {
         ".git", ".ssh", "node_modules", "bin", "obj", "packages", ".vs", ".idea", "backups", "logs",
         ".venv", "venv", "__pycache__", "site-packages", ".tox", ".nox", ".eggs", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+        ".next", ".nuxt", ".svelte-kit", ".turbo", ".parcel-cache", ".angular", ".nx", "coverage",
     };
 
     private static readonly HashSet<string> BlockedFileNames = new(StringComparer.OrdinalIgnoreCase)
     {
         ".env", "connectionstrings.config", "web.config", "app.config", "id_rsa", "id_rsa.pub", "gcp-key.json",
-        ".npmrc", ".pypirc", ".netrc", "pip.conf", "pip.ini",
+        ".npmrc", ".yarnrc", ".yarnrc.yml", ".pypirc", ".netrc", "pip.conf", "pip.ini",
     };
 
     private static readonly string[] BlockedNameGlobs =
@@ -39,7 +40,7 @@ public sealed class FileAccessPolicy
         ".py", ".pyi",
         ".csproj", ".vbproj", ".fsproj", ".sln", ".slnx", ".props", ".targets", ".config",
         ".md", ".txt", ".rst",
-        ".html", ".htm", ".css", ".js", ".ts", ".jsx", ".tsx", ".razor", ".cshtml",
+        ".html", ".htm", ".css", ".scss", ".less", ".js", ".ts", ".jsx", ".tsx", ".mjs", ".cjs", ".mts", ".cts", ".vue", ".svelte", ".razor", ".cshtml",
         ".ps1", ".sh", ".bat", ".cmd",
         ".xml", ".yml", ".yaml", ".toml", ".json", ".sql", ".resx", ".xaml",
         ".cfg", ".ini", ".in", ".lock",

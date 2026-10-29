@@ -45,6 +45,27 @@ public sealed class ExecutableLocator
         return found;
     }
 
+    /// <summary>
+    /// The <c>npm-cli.js</c> that belongs to a node: <c>node_modules/npm/bin/npm-cli.js</c> beside node.exe (Windows) or under <c>../lib</c> (Linux, macOS).
+    /// npm is started as <c>node npm-cli.js</c>, never as the npm.cmd shim, because a .cmd file is read by cmd.exe and would interpret its arguments.
+    /// </summary>
+    public string? FindNpmCli(string nodePath)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(nodePath);
+        var folder = Path.GetDirectoryName(nodePath);
+        if (folder is null)
+        {
+            return null;
+        }
+
+        string[] candidates =
+        [
+            Path.Combine(folder, "node_modules", "npm", "bin", "npm-cli.js"),
+            Path.GetFullPath(Path.Combine(folder, "..", "lib", "node_modules", "npm", "bin", "npm-cli.js")),
+        ];
+        return candidates.FirstOrDefault(File.Exists);
+    }
+
     private static string? LocatePython()
     {
         string[] names = OperatingSystem.IsWindows() ? ["py", "python"] : ["python3", "python"];
@@ -87,6 +108,22 @@ public sealed class ExecutableLocator
             {
                 folders.Add(Path.Combine(home, ".local", "bin"));
                 folders.Add(Path.Combine(home, ".cargo", "bin"));
+            }
+        }
+
+        if (string.Equals(name, "node", StringComparison.OrdinalIgnoreCase))
+        {
+            // The Windows installer, nvm-windows (NVM_SYMLINK) and a per-user install put node.exe in folders a service's PATH does not always list.
+            var symlink = Environment.GetEnvironmentVariable("NVM_SYMLINK");
+            if (!string.IsNullOrWhiteSpace(symlink))
+            {
+                folders.Add(symlink);
+            }
+
+            if (OperatingSystem.IsWindows())
+            {
+                folders.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFiles), "nodejs"));
+                folders.Add(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "nodejs"));
             }
         }
 

@@ -20,7 +20,7 @@
         <h2 id="ws-add" class="wm-section">Add a workspace</h2>
         <div class="wm-row">
             <MudTextField T="string" Label="Name" @bind-Value="_name" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Short, for example waymark" />
-            <MudTextField T="string" Label="Folder" @bind-Value="_path" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Full path to an existing folder: a C# or Python project, or an empty folder to start one" Style="min-width:360px" />
+            <MudTextField T="string" Label="Folder" @bind-Value="_path" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Full path to an existing folder: a C#, Python or Node project, or an empty folder to start one" Style="min-width:360px" />
             <MudButton Variant="Variant.Outlined" OnClick="CheckAsync" Disabled="@(string.IsNullOrWhiteSpace(_path))">Check folder</MudButton>
             <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddAsync" Disabled="@(_busy || string.IsNullOrWhiteSpace(_path) || string.IsNullOrWhiteSpace(_name))">Add workspace</MudButton>
         </div>
@@ -55,7 +55,19 @@
                                 }
                             </dd>
                         }
-                        @if (meta.SolutionFiles.Count == 0 && meta.ProjectFiles.Count == 0 && meta.PythonProjectFiles.Count == 0 && meta.PythonSourceFiles == 0)
+                        @if (meta.NodeProjectFiles.Count > 0 || meta.NodeSourceFiles > 0)
+                        {
+                            <dt>Node.js</dt>
+                            <dd>
+                                @DisplayFormat.Count(meta.NodeProjectFiles.Count) package.json@(meta.PackageManager is null ? string.Empty : ", " + meta.PackageManager),
+                                @DisplayFormat.Count(meta.NodeSourceFiles) JavaScript/TypeScript file(s)
+                                @if (meta.NodeProjectFiles.Count > 0)
+                                {
+                                    <div class="wm-mono wm-muted">@string.Join(", ", meta.NodeProjectFiles.Take(5))</div>
+                                }
+                            </dd>
+                        }
+                        @if (meta.SolutionFiles.Count == 0 && meta.ProjectFiles.Count == 0 && meta.PythonProjectFiles.Count == 0 && meta.PythonSourceFiles == 0 && meta.NodeProjectFiles.Count == 0 && meta.NodeSourceFiles == 0)
                         {
                             <dt>Contents</dt>
                             <dd>No project yet. That is fine: Claude can create the project and its files here.</dd>
@@ -81,7 +93,7 @@
             <table class="wm-table">
                 <caption class="visually-hidden">Workspaces and their index state</caption>
                 <thead>
-                    <tr><th scope="col">Name</th><th scope="col">Status</th><th scope="col">Index</th><th scope="col">Last indexed</th><th scope="col">On</th><th scope="col">Actions</th></tr>
+                    <tr><th scope="col">Name</th><th scope="col">Status</th><th scope="col">Languages</th><th scope="col">Index</th><th scope="col">Last indexed</th><th scope="col">On</th><th scope="col">Actions</th></tr>
                 </thead>
                 <tbody>
                     @foreach (var item in _items)
@@ -90,6 +102,12 @@
                         <tr>
                             <th scope="row" class="wm-rowhead"><div>@item.Name</div><div class="wm-mono wm-muted">@ShownPath(item.Path)</div></th>
                             <td><StateChip State="state.State" Text="@state.Text" /> <span class="wm-muted">@ProgressText(item.Id)</span></td>
+                            <td>
+                                @foreach (var language in LanguagesOf(_stats.GetValueOrDefault(item.Id)))
+                                {
+                                    <span class="wm-chip info" title="@($"{language.Files} {language.Name} files indexed")">@language.Name @DisplayFormat.Count(language.Files)</span>
+                                }
+                            </td>
                             <td class="wm-stats">@StatsText(_stats.GetValueOrDefault(item.Id))</td>
                             <td>@DisplayFormat.Ago(item.LastIndexedUtc, Time.GetUtcNow())</td>
                             <td><MudSwitch T="bool" Value="item.Enabled" ValueChanged="v => ToggleAsync(item, v)" Color="Color.Primary" aria-label="@($"Enable {item.Name}")" /></td>

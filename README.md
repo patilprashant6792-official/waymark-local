@@ -6,7 +6,7 @@
 
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue) ![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D4) ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4) ![MCP server](https://img.shields.io/badge/MCP-server-black) ![Status: v0.1](https://img.shields.io/badge/status-v0.1-orange)
 
-Local MCP server for .NET developers: token-efficient code, NuGet and data context for claude.ai and Claude Code, over your own tunnel. Windows, SQLite, secrets stay on your machine.
+Local MCP server for developers working in C#, Python and TypeScript/JavaScript: token-efficient code, package and project context for claude.ai and Claude Code, over your own tunnel. Windows, SQLite, secrets stay on your machine.
 
 > **Read this first.** Waymark gives an AI assistant real access to this computer: what it reads can reach your Claude chat, and what it runs acts as you. Changes and commands wait for your approval by default, approvals can only be given on this computer, and secrets in tool results are hidden before they leave. None of that is perfect, so read [docs/safety.md](docs/safety.md) before you install, and see [SECURITY.md](SECURITY.md) to report a problem. This is early software (v0.1), provided as is under the [MIT License](LICENSE).
 >
@@ -20,11 +20,11 @@ Local MCP server for .NET developers: token-efficient code, NuGet and data conte
 
 | | |
 |---|---|
-| **Real NuGet APIs** | `nuget_find` and `nuget_expand` show exact signatures from the package at the version your project pins. A member that was not confirmed there does not exist. |
-| **Workspace structure** | `code_skeleton` gives an overview that fits any workspace size: folders open level by level, the rest are summarised in one line each and opened on demand with `path`. Package pins, SDK and target framework come with it. |
-| **Your C# code** | `code_search`, `code_outline`, `code_method`, `code_callers` and `code_types` read a syntax index (Roslyn, no source text stored) that a file watcher keeps current. |
+| **Real package APIs** | `pkg_find` and `pkg_expand` show exact signatures from the package at the version your project pins: NuGet (the compiled package), PyPI (the wheel, with its stub package) and npm (declaration files or `@types`). A member that was not confirmed there does not exist. |
+| **Workspace structure** | `code_skeleton` gives an overview that fits any workspace size: folders open level by level, the rest are summarised in one line each and opened on demand with `path`. Package pins from your lock files, SDK and target framework come with it. |
+| **Your code, in three languages** | `code_search`, `code_outline`, `code_method`, `code_callers` and `code_types` read a syntax index (Roslyn for C#, tree-sitter for Python, TypeScript and JavaScript; no source text stored) that a file watcher keeps current. |
 | **Text in any file** | `code_grep` finds literal text in any readable file, read from disk on every call, so it is never stale. `code_read` reads files and line ranges. |
-| **Edit and build** | `file_edit_lines` and `file_write` change files (off until you switch them on) and can copy instead of retype: lines, whole files or whole folder trees, between workspaces, with namespace/identifier renames, so migrations cost almost no output tokens; `cmd_dotnet`, `cmd_git`, `cmd_proc` and `cmd_shell` run commands, each operation set to Off, Ask or Auto. |
+| **Edit and build** | `file_edit_lines` and `file_write` change files (off until you switch them on) and can copy instead of retype: lines, whole files or whole folder trees, between workspaces, with namespace/identifier renames, so migrations cost almost no output tokens; `cmd_project` (build, test, install, type-check and run for .NET, Python and Node projects), `cmd_git`, `cmd_proc` and `cmd_shell` run commands, each operation set to Off, Ask or Auto. |
 | **Safety** | Approvals only on this computer, never by Claude. Secrets are hidden in tool output, every call is audited, and **Pause all** stops every tool at once. There is no sandbox: read the note above. |
 
 ## Install
@@ -92,7 +92,7 @@ uninstall.cmd -RemoveData  removes the data too (database, keys and secrets; ask
 
 ## Before you connect Claude
 
-Waymark lets Claude read your code and, when you allow it, run commands on your computer. Running tests, `dotnet run`, EF commands and the shell can all execute code that can read your files, so they ask for your approval by default. Waymark hides secrets it recognises in tool output, but detection is shape-based and not a guarantee. The **Safety** page in the admin UI lists every risky operation and every redaction. If a secret ever reaches a chat, rotate it and delete the chat. Details: [docs/safety.md](docs/safety.md).
+Waymark lets Claude read your code and, when you allow it, run commands on your computer. Running tests, `dotnet run`, `pytest`, `npm run`, EF commands and the shell can all execute code that can read your files, so they ask for your approval by default. Waymark hides secrets it recognises in tool output, but detection is shape-based and not a guarantee. The **Safety** page in the admin UI lists every risky operation and every redaction. If a secret ever reaches a chat, rotate it and delete the chat. Details: [docs/safety.md](docs/safety.md).
 
 ## More
 

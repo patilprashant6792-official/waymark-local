@@ -22,7 +22,7 @@ internal sealed record PythonExtraction(
 /// </remarks>
 internal sealed class PythonExtractor(string moduleName, int lineCount, CodeIndexLimits limits, CancellationToken ct)
 {
-    private const int MaxSignatureChars = 1000;
+    private const int MaxSignatureChars = 4000;
     private const int MaxAttributeChars = 500;
     private const int MaxImportChars = 300;
     private const int MaxSummaryChars = 500;

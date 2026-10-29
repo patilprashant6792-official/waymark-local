@@ -6,6 +6,7 @@ using Waymark.Core.Security;
 using Waymark.Core.Tools;
 using Waymark.Host.Commands;
 using Waymark.Host.Components.Shared;
+using Waymark.Host.Ui;
 
 namespace Waymark.Host.Components.Pages;
 
@@ -57,6 +58,23 @@ public partial class RiskGuide : LiveComponentBase
     private int AskingProjectCodeCount => ProjectCodeCount - AutoProjectCode.Count;
 
     private CommandGate GateOf(OperationInfo operation) => CommandCatalog.Resolve(operation, null, _settings);
+
+    [SupplyParameterFromQuery(Name = "toolchain")]
+    public string? ToolchainQuery { get; set; }
+
+    [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
+
+    private string ToolchainKey => Toolchains.Find(ToolchainQuery)?.Key ?? Toolchains.All;
+
+    private IEnumerable<OperationInfo> VisibleOperations =>
+        ToolchainKey == Toolchains.All ? Operations : Operations.Where(o => o.Family == ToolchainKey);
+
+    private void OnToolchainChanged(ChangeEventArgs args)
+    {
+        var key = Toolchains.Find(args.Value?.ToString())?.Key ?? Toolchains.All;
+        Navigation.NavigateTo(key == Toolchains.All ? "safety" : $"safety?toolchain={Uri.EscapeDataString(key)}", replace: true);
+    }
 
     private static StatusState GateState(OperationInfo operation, CommandGate gate) => gate switch
     {

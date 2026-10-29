@@ -1,6 +1,6 @@
 # Language support: TypeScript / JavaScript (Node)
 
-Branch: `feature/polyglot-node`. Status: research done, nothing implemented yet.
+Branch: `feature/node-typescript`. Status: implemented and tested on a TypeScript sample (outline, callers, search, skeleton pins, `node_*` commands, npm package lookup). Still open: reading `node_modules` instead of downloading, pnpm and yarn installs, Vue and Svelte parsing, the xUnit test project. Decisions D1 and D2 were taken as recommended (`pkg_*`, `cmd_project`); D4: npm installs first.
 Sibling plans: [python.md](python.md). This file also defines the shared groundwork (language registry, migration 013, `pkg_*` / `cmd_project`) that every language plan builds on.
 
 ## Goal

@@ -6,7 +6,7 @@ Waymark teaches a connected agent in two layers, both delivered through MCP tool
 
 A short text, written by Waymark, that an agent loads once per conversation with `waymark_guide`. The server instructions tell it to, and the tool is marked `anthropic/alwaysLoad` for clients that support it. It holds:
 
-- the four groups (code, nuget, files, commands) and how to ask for a group's guide;
+- the four groups (code, packages, files, commands) and how to ask for a group's guide;
 - a few cross-cutting rules: a refusal is a decision, a missing tool is switched off, never write a `[redacted:...]` marker into a file, what to do if a secret shows up, ask before anything hard to undo;
 - **your instructions**, under "Instructions from the owner" (edit them on the **Host prompt** page; up to 40,000 characters; secrets are refused because every agent receives the text);
 - the **live setup**: tools switched off, workspaces, and the command operations that ask first or are refused.

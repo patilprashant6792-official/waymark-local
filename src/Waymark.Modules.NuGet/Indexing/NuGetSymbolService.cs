@@ -1,5 +1,6 @@
 ﻿using Waymark.Core.NuGetIndex;
 using Waymark.Modules.NuGet.Loading;
+using Waymark.Modules.NuGet.Npm;
 using Waymark.Modules.NuGet.Pypi;
 
 namespace Waymark.Modules.NuGet.Indexing;
@@ -9,6 +10,7 @@ internal sealed class NuGetSymbolService(
     INuGetIndexStore store,
     PackageFeed feed,
     PypiPackageSearch pypiSearch,
+    NpmPackageSearch npmSearch,
     NuGetIndexOptions options,
     TimeProvider time) : INuGetSymbolService
 {
@@ -25,9 +27,12 @@ internal sealed class NuGetSymbolService(
         IReadOnlyList<PackageSearchHit> hits;
         try
         {
-            hits = kind == PackageEcosystems.PyPI
-                ? await pypiSearch.SearchAsync(query.Trim(), count, cancellationToken).ConfigureAwait(false)
-                : await feed.SearchPackagesAsync(query.Trim(), count, includePrerelease, cancellationToken).ConfigureAwait(false);
+            hits = kind switch
+            {
+                PackageEcosystems.PyPI => await pypiSearch.SearchAsync(query.Trim(), count, cancellationToken).ConfigureAwait(false),
+                PackageEcosystems.Npm => await npmSearch.SearchAsync(query.Trim(), count, cancellationToken).ConfigureAwait(false),
+                _ => await feed.SearchPackagesAsync(query.Trim(), count, includePrerelease, cancellationToken).ConfigureAwait(false),
+            };
         }
         catch (Exception ex) when (ex is InvalidOperationException or TimeoutException or HttpRequestException)
         {

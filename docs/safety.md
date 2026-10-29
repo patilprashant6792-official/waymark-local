@@ -34,6 +34,16 @@ The line is off by default because the overview (see [guides.md](guides.md)) alr
 
 `RiskTiers` (`Waymark.Core/Commands`) places every operation: **Reads**, **Changes**, **Runs code**, **Sends out**. Operations that start the project's own code (test, run, EF, scripts) ask by default and show a red note if set to Auto.
 
+## Toolchains and packages (.NET, Python, Node)
+
+The same rules hold for every toolchain; what differs is where code can start.
+
+- **Installs run no package code.** Python: wheels only (`uv --no-build`, `pip --only-binary :all:`), the project itself is never built, a requirements file with editable, path or URL lines is refused. Node: `npm ci --ignore-scripts` from the lock file, `npm install name@exact --save-exact --ignore-scripts`. A package that needs its install script must be set up by you through `cmd_shell`.
+- **Programs inside the workspace are code.** `py_test`, `py_run`, mypy and pip start the project's own `.venv` interpreter; `node_typecheck` starts the project's own `node_modules/typescript`; `node_build`, `node_test`, `node_lint`, `node_script` and `node_run` start scripts of `package.json` (only names that exist there, their text is shown on the approval card). All of these ask by default and count as **Runs code**.
+- **npm is never started through a `.cmd` shim**, because cmd.exe would interpret the arguments; it runs as `node npm-cli.js`.
+- **Package lookups download, read and delete.** `pkg_*` contacts nuget.org, pypi.org (and files.pythonhosted.org) or registry.npmjs.org, checks the integrity hash the registry publishes, reads declaration or source text by syntax only, and never installs, imports or runs a package.
+- **Credential files are blocked for every tool:** `.npmrc`, `.yarnrc`, `.yarnrc.yml`, `.pypirc`, `pip.conf`, `pip.ini`, `.netrc`, and the folders `node_modules`, `.venv`, `venv`, `site-packages`, `__pycache__`.
+- **Project files that can run code are fingerprinted** for every toolchain: MSBuild files, `pyproject.toml`, `conftest.py`, lock files, `package.json`, `tsconfig*.json`, `*.config.js` and `*.config.ts`. When one changes after you last approved a command, the next command asks again.
 ## What this does not do
 
 - **No sandbox.** Code that runs (a test, the app, a script) can read your keys and use the network. The only protection is that it asks first.

@@ -13,6 +13,7 @@ public static partial class WorkspacePathRules
     {
         "bin", "obj", ".vs", ".git", "node_modules", "packages",
         ".venv", "venv", "__pycache__", "site-packages", ".tox", ".nox", ".eggs", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+        ".next", ".nuxt", ".svelte-kit", ".turbo", ".parcel-cache", ".angular", ".nx", "coverage",
     };
 
     /// <summary>Null when the name is acceptable. '*' is reserved because tools use it to mean every workspace.</summary>

@@ -95,7 +95,7 @@
         }
         else
         {
-            <p class="wm-muted">Claude can only see folders you add. <a href="workspaces">Add your first workspace</a>.</p>
+            <p class="wm-muted">Claude can only see folders you add: a C#, Python or Node project, several projects in one folder, or an empty folder to start a new one. <a href="workspaces">Add your first workspace</a>.</p>
         }
     </section>
 
@@ -105,6 +105,7 @@
             <li>Only what a tool returns to Claude: file text, search results, package signatures. Each call is limited in size and listed in the audit trail.</li>
             <li>Your files stay on this computer. Nothing is uploaded in the background.</li>
             <li>Secrets and your ngrok authtoken are stored encrypted here and are never sent to Claude.</li>
+            <li>To show a package's API, Waymark itself contacts nuget.org, pypi.org or registry.npmjs.org and sends only the package name and version. Nothing from your projects goes with it.</li>
             <li>The tunnel carries sign-in and tool traffic only; the admin pages are never reachable through it.</li>
         </ul>
     </section>

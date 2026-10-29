@@ -1,3 +1,4 @@
+@page "/packages"
 @page "/nuget"
 @inherits LiveComponentBase
 @using MudBlazor
@@ -6,11 +7,11 @@
 @using Waymark.Host.NuGetAdmin
 @using Waymark.Host.Ui
 
-<PageTitle>NuGet - Waymark</PageTitle>
+<PageTitle>Packages - Waymark</PageTitle>
 
 <div class="wm-page">
-    <h1 class="wm-title">NuGet packages</h1>
-    <p class="wm-lead">Every package Claude has looked up. Waymark keeps a searchable index of each one and the result of reading it, so the next lookup is instant. The package files themselves live in the shared NuGet folder of this computer, the one dotnet uses, and Waymark never deletes from it. If a package misbehaves, reload it (downloads and reads it again) or clear it (it is fetched afresh the next time it is asked for).</p>
+    <h1 class="wm-title">Packages</h1>
+    <p class="wm-lead">Every NuGet, PyPI and npm package Claude has looked up. Waymark keeps a searchable index of each one and the result of reading it, so the next lookup is instant. NuGet packages are read from the shared NuGet folder of this computer, the one dotnet uses, and Waymark never deletes from it. PyPI and npm packages are downloaded to a temporary folder, checked against the registry's hash, read by syntax only, and deleted again; nothing is installed or run. If a package misbehaves, reload it (reads it again) or clear it (it is fetched afresh the next time it is asked for).</p>
 
     @if (_error is not null)
     {
@@ -24,7 +25,7 @@
     else
     {
         var stats = _overview.Stats;
-        <section class="wm-kpis" aria-label="NuGet statistics">
+        <section class="wm-kpis" aria-label="Package statistics">
             <div class="wm-kpi"><div class="wm-kpi-label">Ready</div><div class="wm-kpi-value">@DisplayFormat.Count(stats.Ready)</div><div class="wm-kpi-sub">packages searchable@(stats.Building > 0 ? $", {stats.Building} building" : string.Empty)</div></div>
             <div class="wm-kpi @(stats.Failed > 0 ? "bad" : string.Empty)"><div class="wm-kpi-label">Failed</div><div class="wm-kpi-value">@DisplayFormat.Count(stats.Failed)</div><div class="wm-kpi-sub">@(stats.Failed > 0 ? "need a reload or a clear" : "none")</div></div>
             <div class="wm-kpi"><div class="wm-kpi-label">Types</div><div class="wm-kpi-value">@DisplayFormat.Count(stats.Types)</div><div class="wm-kpi-sub">@DisplayFormat.Count(stats.Symbols) symbols</div></div>
@@ -35,6 +36,13 @@
 
         <div class="wm-row">
             <MudTextField T="string" Label="Filter by package" @bind-Value="_filter" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:260px" />
+            <label class="visually-hidden" for="pkg-ecosystem">Ecosystem</label>
+            <select id="pkg-ecosystem" class="wm-input" value="@_ecosystem" @onchange="e => _ecosystem = e.Value?.ToString() ?? string.Empty">
+                <option value="">All ecosystems (@_overview.Entries.Count)</option>
+                <option value="@PackageEcosystems.NuGet">NuGet - .NET (@CountOf(PackageEcosystems.NuGet))</option>
+                <option value="@PackageEcosystems.PyPI">PyPI - Python (@CountOf(PackageEcosystems.PyPI))</option>
+                <option value="@PackageEcosystems.Npm">npm - JavaScript and TypeScript (@CountOf(PackageEcosystems.Npm))</option>
+            </select>
             <MudButton Variant="Variant.Outlined" Disabled="_busy" OnClick="LoadAsync">Refresh</MudButton>
             <MudButton Variant="Variant.Outlined" Disabled="@(_busy || stats.Failed == 0)" OnClick="ReloadFailedAsync">Reload failed</MudButton>
             <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="@(_busy || stats.Failed == 0)" OnClick="ClearFailedAsync">Clear failed</MudButton>
@@ -48,7 +56,7 @@
         <h2 class="wm-section" style="margin-top:24px">Indexed packages</h2>
         @if (_overview.Entries.Count == 0)
         {
-            <EmptyState Icon="@Icons.Material.Outlined.Inventory" Title="Nothing indexed yet" Text="A package appears here the first time Claude looks it up with the nuget tools." />
+            <EmptyState Icon="@Icons.Material.Outlined.Inventory" Title="Nothing indexed yet" Text="A package appears here the first time Claude looks it up with the pkg tools (NuGet, PyPI or npm)." />
         }
         else if (Visible.Count == 0)
         {
@@ -58,9 +66,9 @@
         {
             <div class="wm-table-wrap">
                 <table class="wm-table">
-                    <caption class="visually-hidden">Indexed NuGet packages with their size and state</caption>
+                    <caption class="visually-hidden">Indexed packages with their ecosystem, size and state</caption>
                     <thead>
-                        <tr><th scope="col">Package</th><th scope="col">Framework</th><th scope="col">State</th><th scope="col">Types</th><th scope="col">Symbols</th><th scope="col">Index</th><th scope="col">Stored results</th><th scope="col">Indexed</th><th scope="col">Actions</th></tr>
+                        <tr><th scope="col">Package</th><th scope="col">Ecosystem</th><th scope="col">Target</th><th scope="col">State</th><th scope="col">Types</th><th scope="col">Symbols</th><th scope="col">Index</th><th scope="col">Stored results</th><th scope="col">Indexed</th><th scope="col">Actions</th></tr>
                     </thead>
                     <tbody>
                         @foreach (var entry in Visible)
@@ -79,7 +87,7 @@
                                         <div class="wm-muted">@package.Error</div>
                                     }
                                 </th>
-                                <td class="wm-mono">@package.Key.TargetFramework</td>
+                                <td class="wm-mono">@(PackageEcosystems.Of(package.Key) == PackageEcosystems.NuGet ? package.Key.TargetFramework : "-")</td>
                                 <td><StateChip State="state.State" Text="@state.Text" /></td>
                                 <td>@DisplayFormat.Count(package.TypeCount)</td>
                                 <td>@DisplayFormat.Count(package.SymbolCount)</td>

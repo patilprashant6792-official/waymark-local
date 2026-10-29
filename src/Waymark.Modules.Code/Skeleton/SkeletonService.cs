@@ -32,6 +32,7 @@ internal sealed class SkeletonService(
     private readonly FolderTreeRenderer _tree = new(options);
     private readonly ProjectFileSummarizer _projects = new(policy, options);
     private readonly PythonProjectSummarizer _python = new(policy, options);
+    private readonly NodeProjectSummarizer _node = new(policy, options);
     private readonly ChangedFilesReporter _changes = new(policy, options);
     private readonly FolderFileLister _folders = new(policy, options);
 
@@ -95,6 +96,14 @@ internal sealed class SkeletonService(
         if (python.Length > 0)
         {
             projects = projects.Length == 0 ? python : projects + "\n\n" + python;
+        }
+
+        var node = await _node
+            .RenderAsync(root, start, relative, found.Name, rules, request.IsOverview, pipeline.MaxOutputChars, ct)
+            .ConfigureAwait(false);
+        if (node.Length > 0)
+        {
+            projects = projects.Length == 0 ? node : projects + "\n\n" + node;
         }
 
         var output = new OutputBudget(pipeline.MaxOutputChars);

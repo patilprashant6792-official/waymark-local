@@ -21,6 +21,7 @@ public sealed class CommandService(
     ShellLocator shells,
     ProcRecipes proc,
     PythonRecipes python,
+    NodeRecipes node,
     IWorkspaceStore workspaces,
     ToolPipelineOptions pipeline,
     TimeProvider time)
@@ -35,12 +36,17 @@ public sealed class CommandService(
     private const int MaxOutputLines = 500;
     private const int MaxListed = 30;
 
-    /// <summary>The project toolchains: a .NET action (build, test, ef_...) or a Python action (py_test, py_install ...). The action's name says which; they never overlap.</summary>
+    /// <summary>The project toolchains: a .NET action (build, test, ef_...), a Python action (py_test, py_install ...) or a Node action (node_test, node_install ...). The action's name says which; they never overlap.</summary>
     public Task<string> ProjectAsync(string workspace, string action, string purpose, string? optionsJson, int? waitSeconds, CancellationToken ct)
     {
         var name = action?.Trim().ToLowerInvariant() ?? string.Empty;
-        return PythonRecipes.Handles(name)
-            ? RecipeAsync(workspace, purpose, waitSeconds, optionsJson, (context, token) => python.PlanAsync(name, context, token), ct)
+        if (PythonRecipes.Handles(name))
+        {
+            return RecipeAsync(workspace, purpose, waitSeconds, optionsJson, (context, token) => python.PlanAsync(name, context, token), ct);
+        }
+
+        return NodeRecipes.Handles(name)
+            ? RecipeAsync(workspace, purpose, waitSeconds, optionsJson, (context, token) => node.PlanAsync(name, context, token), ct)
             : RecipeAsync(workspace, purpose, waitSeconds, optionsJson, (context, _) => Task.FromResult(DotnetRecipes.Plan(name, context)), ct);
     }
 

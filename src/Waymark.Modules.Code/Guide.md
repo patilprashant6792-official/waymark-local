@@ -1,6 +1,6 @@
 # Waymark code tools
 
-Find before you read, and read only what the task needs: a full read of a large file costs context that the targeted calls avoid. Workspace names are exact; `code_skeleton('*')` lists them. The code tools understand C# (`.cs`) and Python (`.py`, `.pyi`); other files go through `code_read` and `code_grep`.
+Find before you read, and read only what the task needs: a full read of a large file costs context that the targeted calls avoid. Workspace names are exact; `code_skeleton('*')` lists them. The code tools understand C# (`.cs`), Python (`.py`, `.pyi`) and TypeScript and JavaScript (`.ts .tsx .mts .cts .js .jsx .mjs .cjs`); other files go through `code_read` and `code_grep`.
 
 ## Which call
 
@@ -59,6 +59,16 @@ Numbers from `code_method`, `code_read` and `code_outline` are real file lines a
 - Python is dynamic. A call's receiver type is known only for `self` and `cls`, and guessed for a capitalised name, so `code_callers` shows many calls marked `?`. Monkeypatching, `getattr` and decorators that change a signature are invisible. A test run is the proof, not the index.
 - Blocked for every tool: `.venv`, `venv`, `__pycache__`, `site-packages` and the tool caches (`.mypy_cache`, `.pytest_cache`, `.ruff_cache`, `.tox`).
 
+## TypeScript and JavaScript
+
+- `.ts .tsx .mts .cts .js .jsx .mjs .cjs` are indexed like C# and Python. A class, an interface, an enum, a type alias and a namespace (or `declare module "x"`) are types; a method, a constructor, a get accessor, a field (a field that holds an arrow function is a method) and a constructor parameter with an access modifier (`private repo: Repo`) are members. Functions, arrow-function constants and other top-level constants are listed under *Functions* and *Variables*; `code_search` finds them with `memberType` Function or Variable, and a type alias with TypeAlias.
+- Decorators (`@Component(...)`, `@Injectable()`) are the attributes. The first line of a JSDoc comment is the summary. The *module* is the path without extension (`app/user.service`), without a leading `src/`; `components/Button/index.tsx` is `components/Button`.
+- A top-level name is public when it is exported (in a file with no import or export, such as a script or a `.d.ts`, everything is public); class members are public unless marked `private`, `protected` or `#name`. Non-public names show with `includePrivateMembers: true`.
+- `.d.ts` files are classified *declarations*; `.tsx` / `.jsx` files that export PascalCase functions are *component* files; `*.test.*`, `*.spec.*` and `__tests__` are tests; `vite.config.ts` and friends are configuration.
+- `code_callers` sees `foo()`, `obj.foo()` and `new Foo()`. A receiver type is known only for `this` and guessed for a capitalised name, so expect `?` for everything else. JSX tags (`<Button />`) are not calls: search `Button` with `code_grep` for those.
+- Minified and bundled files and build output (`dist`, `out`, `.output`, JavaScript in `build`) are left out of the index, and `.next`, `.nuxt`, `.svelte-kit`, `.turbo`, `.angular`, `coverage`, `node_modules` are blocked folders for every tool. Vue and Svelte single-file components are not parsed (`code_read` and `code_grep` work).
+- A JSON field is `userName` in TypeScript, `UserName` in C# and `user_name` in Python: search for each spelling when a name crosses a boundary.
+- `code_skeleton` lists Node projects (every `package.json`) with the version the lock file pins for each dependency, the package manager, TypeScript and Node versions, workspaces and scripts.
 ## Overview
 
 - Without `depth`, `code_skeleton` opens folders level by level until a size budget is used, so it fits any workspace. A folder left closed is marked ▸ with a summary in brackets: folders, files, size, large files (⚠️), main extensions, project file. Counts cover only what the tools may open.
@@ -83,4 +93,4 @@ Numbers from `code_method`, `code_read` and `code_outline` are real file lines a
 | Unknown workspace | `code_skeleton('*')` for the exact name |
 | File refused | see Reading; do not retry with another tool |
 | 'not a source file the code tools can analyze' | `code_read` the file instead |
-| 'parser did not load' | the Python parser could not start on this computer; `code_read` still works, and C# is not affected |
+| 'parser did not load' | the tree-sitter parser (Python, TypeScript and JavaScript) could not start on this computer; `code_read` still works, and C# is not affected |
