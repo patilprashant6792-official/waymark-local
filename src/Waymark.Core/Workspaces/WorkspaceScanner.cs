@@ -35,13 +35,14 @@ internal static partial class WorkspaceScanner
 
     public static async Task<WorkspaceMetadata> ScanAsync(string root, WorkspaceOptions options, CancellationToken ct)
     {
-        var (solutions, projects, python, sources, truncated) = await Task.Run(() => Walk(root, options, ct), ct).ConfigureAwait(false);
+        var (solutions, projects, python, sources, node, nodeSources, truncated) = await Task.Run(() => Walk(root, options, ct), ct).ConfigureAwait(false);
         var framework = await DetectFrameworkAsync(root, projects, ct).ConfigureAwait(false);
         var tool = await DetectPythonToolAsync(root, python, ct).ConfigureAwait(false);
-        return new WorkspaceMetadata(solutions, projects, framework, truncated, python, tool, sources);
+        var manager = await DetectPackageManagerAsync(root, node, ct).ConfigureAwait(false);
+        return new WorkspaceMetadata(solutions, projects, framework, truncated, python, tool, sources, node, manager, nodeSources);
     }
 
-    private static (List<string> Solutions, List<string> Projects, List<string> Python, int PythonSources, bool Truncated) Walk(string root, WorkspaceOptions options, CancellationToken ct)
+    private static (List<string> Solutions, List<string> Projects, List<string> Python, int PythonSources, List<string> Node, int NodeSources, bool Truncated) Walk(string root, WorkspaceOptions options, CancellationToken ct)
     {
         var solutions = Directory.EnumerateFiles(root, "*.sln", FileOptions)
             .Concat(Directory.EnumerateFiles(root, "*.slnx", FileOptions))
@@ -53,6 +54,8 @@ internal static partial class WorkspaceScanner
         var projects = new List<string>();
         var python = new List<string>();
         var sources = 0;
+        var node = new List<string>();
+        var nodeSources = 0;
         var pending = new Stack<string>();
         pending.Push(root);
         var directoriesScanned = 0;
@@ -70,6 +73,7 @@ internal static partial class WorkspaceScanner
             var directory = pending.Pop();
             string? pythonMarker = null;
             var pythonRank = int.MaxValue;
+            string? nodeManifest = null;
             foreach (var file in Directory.EnumerateFiles(directory, "*", FileOptions))
             {
                 var name = Path.GetFileName(file);
@@ -89,11 +93,34 @@ internal static partial class WorkspaceScanner
                 {
                     sources++;
                 }
+
+                if (name.Equals("package.json", StringComparison.OrdinalIgnoreCase))
+                {
+                    nodeManifest = file;
+                }
+
+                if (IsNodeSource(name))
+                {
+                    nodeSources++;
+                }
+
                 var rank = PythonRank(name);
                 if (rank < pythonRank)
                 {
                     pythonRank = rank;
                     pythonMarker = file;
+                }
+            }
+
+            if (nodeManifest is not null)
+            {
+                if (node.Count >= options.MaxProjectFiles)
+                {
+                    truncated = true;
+                }
+                else
+                {
+                    node.Add(Path.GetRelativePath(root, nodeManifest));
                 }
             }
 
@@ -120,9 +147,76 @@ internal static partial class WorkspaceScanner
 
         projects.Sort(StringComparer.OrdinalIgnoreCase);
         python.Sort(StringComparer.OrdinalIgnoreCase);
-        return (solutions, projects, python, sources, truncated);
+        node.Sort(StringComparer.OrdinalIgnoreCase);
+        return (solutions, projects, python, sources, node, nodeSources, truncated);
     }
 
+    /// <summary>A JavaScript or TypeScript source file, which a folder of plain scripts has without any package.json.</summary>
+    private static bool IsNodeSource(string fileName)
+    {
+        var extension = Path.GetExtension(fileName);
+        return extension.Equals(".ts", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".tsx", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".js", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".jsx", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".mjs", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".cjs", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".mts", StringComparison.OrdinalIgnoreCase)
+            || extension.Equals(".cts", StringComparison.OrdinalIgnoreCase);
+    }
+
+    /// <summary>The package manager of the first Node project: its lock file, then the packageManager field of its package.json, else npm.</summary>
+    private static async Task<string?> DetectPackageManagerAsync(string root, List<string> node, CancellationToken ct)
+    {
+        if (node.Count == 0)
+        {
+            return null;
+        }
+
+        var manifest = Path.Combine(root, node[0]);
+        var folders = new[] { Path.GetDirectoryName(manifest) ?? root, root }.Distinct(StringComparer.OrdinalIgnoreCase);
+        foreach (var folder in folders)
+        {
+            if (File.Exists(Path.Combine(folder, "pnpm-lock.yaml")))
+            {
+                return "pnpm";
+            }
+
+            if (File.Exists(Path.Combine(folder, "yarn.lock")))
+            {
+                return "yarn";
+            }
+
+            if (File.Exists(Path.Combine(folder, "bun.lockb")) || File.Exists(Path.Combine(folder, "bun.lock")))
+            {
+                return "bun";
+            }
+
+            if (File.Exists(Path.Combine(folder, "package-lock.json")))
+            {
+                return "npm";
+            }
+        }
+
+        try
+        {
+            if (new FileInfo(manifest).Length > MaxProjectFileBytes)
+            {
+                return "npm";
+            }
+
+            var content = await File.ReadAllTextAsync(manifest, ct).ConfigureAwait(false);
+            var match = PackageManagerRegex().Match(content);
+            return match.Success ? match.Groups[1].Value.ToLowerInvariant() : "npm";
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return "npm";
+        }
+    }
+
+    [GeneratedRegex("\"packageManager\"\\s*:\\s*\"(npm|pnpm|yarn|bun)@", RegexOptions.IgnoreCase)]
+    private static partial Regex PackageManagerRegex();
     /// <summary>Lower is a stronger marker of a Python project; <see cref="int.MaxValue"/> means the file is not one.</summary>
     private static int PythonRank(string fileName)
     {

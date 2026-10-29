@@ -28,6 +28,7 @@ public sealed class CommandsModule : IMcpModule
         services.TryAddSingleton<ListeningPorts>();
         services.TryAddSingleton<ProcRecipes>();
         services.TryAddSingleton<PythonRecipes>();
+        services.TryAddSingleton<NodeRecipes>();
         services.TryAddSingleton<CommandPolicy>();
         services.TryAddSingleton<CommandCoordinator>();
         services.TryAddSingleton<ICommandRuns>(provider => provider.GetRequiredService<CommandCoordinator>());

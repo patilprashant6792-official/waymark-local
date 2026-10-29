@@ -69,6 +69,18 @@ public static partial class RecipeRules
     [GeneratedRegex(@"^3(\.[0-9]{1,2}){0,2}$", RegexOptions.None, 100)]
     public static partial Regex PythonVersionRequest();
 
+    /// <summary>The name of a package.json script. It cannot start with '-' and has no space, so it is one argument that cannot be read as an option.</summary>
+    [GeneratedRegex(@"^[A-Za-z0-9][A-Za-z0-9:_.\-]{0,59}$", RegexOptions.None, 100)]
+    public static partial Regex NpmScriptName();
+
+    /// <summary>An npm package name, scoped or not: lower case, no leading dot, underscore or dash.</summary>
+    [GeneratedRegex(@"^(@[a-z0-9][a-z0-9._~\-]{0,99}/)?[a-z0-9][a-z0-9._~\-]{0,99}$", RegexOptions.None, 100)]
+    public static partial Regex NpmPackageName();
+
+    /// <summary>An exact semantic version: 1.2.3, 1.2.3-beta.1, 1.2.3+build.</summary>
+    [GeneratedRegex(@"^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.\-]{1,50})?(\+[0-9A-Za-z.\-]{1,50})?$", RegexOptions.None, 100)]
+    public static partial Regex NpmExactVersion();
+
     /// <summary>The names git itself refuses, which also cover the ones that would be read as options or paths.</summary>
     public static bool IsSafeBranchName(string name) =>
         GitBranch().IsMatch(name)

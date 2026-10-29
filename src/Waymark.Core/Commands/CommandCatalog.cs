@@ -23,6 +23,7 @@ public static class CommandCatalog
 
     public const string DotnetFamily = "dotnet";
     public const string PythonFamily = "python";
+    public const string NodeFamily = "node";
     public const string GitFamily = "git";
     public const string ProcessFamily = "processes";
     public const string ShellFamily = "shell";
@@ -63,6 +64,18 @@ public static class CommandCatalog
         new("python.run", PythonFamily, "Run a module or script", "python -m module or a script file (stays running until stopped)", CommandGate.Ask, true, true),
         new("python.package_add", PythonFamily, "Add a package", "uv add or pip install of one package at an exact version", CommandGate.Ask, true, false),
         new("python.package_remove", PythonFamily, "Remove a package", "uv remove or pip uninstall", CommandGate.Ask, true, false),
+
+        new("node.info", NodeFamily, "Node info", "Node, npm and TypeScript versions on this computer and in the project", CommandGate.Auto, false, false),
+        new("node.list", NodeFamily, "List installed packages", "npm ls --depth=0 (starts npm, reads node_modules)", CommandGate.Ask, false, true),
+        new("node.install", NodeFamily, "Install dependencies", "npm ci from package-lock.json with install scripts switched off", CommandGate.Ask, true, false),
+        new("node.typecheck", NodeFamily, "Type check", "tsc --noEmit with the project's own TypeScript (project code from node_modules)", CommandGate.Ask, false, true),
+        new("node.build", NodeFamily, "Build", "a build script of package.json (project code)", CommandGate.Ask, true, true),
+        new("node.test", NodeFamily, "Test", "a test script of package.json (runs the test code, which can be code Claude has just written)", CommandGate.Ask, true, true),
+        new("node.lint", NodeFamily, "Lint", "a lint script of package.json (project code)", CommandGate.Ask, true, true),
+        new("node.script", NodeFamily, "Run any package.json script", "a named script of package.json; its text is shown on the approval card", CommandGate.Ask, true, true, CommandGate.Ask),
+        new("node.run", NodeFamily, "Run a dev server or script", "a package.json script that stays running until stopped", CommandGate.Ask, true, true),
+        new("node.package_add", NodeFamily, "Add a package", "npm install --save-exact --ignore-scripts of one package at an exact version", CommandGate.Ask, true, false),
+        new("node.package_remove", NodeFamily, "Remove a package", "npm uninstall --ignore-scripts", CommandGate.Ask, true, false),
 
         new("git.read", GitFamily, "Read the repository", "status, diff, log, show, blame, branches, stashes", CommandGate.Auto, false, true),
         new("git.add", GitFamily, "Stage files", "git add", CommandGate.Ask, true, true),

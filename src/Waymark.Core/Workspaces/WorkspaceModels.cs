@@ -4,6 +4,9 @@
 /// <param name="PythonProjects">One marker file per Python project folder: pyproject.toml, else setup.py, else Pipfile, else a requirements file.</param>
 /// <param name="PythonTool">The tool that manages the first Python project: uv, poetry, pdm, pipenv, pylock or pip.</param>
 /// <param name="PythonSourceFiles">How many .py and .pyi files the scan saw; a folder of plain scripts has these and no project file.</param>
+/// <param name="NodeProjects">The package.json of every Node project folder.</param>
+/// <param name="PackageManager">The package manager of the first Node project: npm, pnpm, yarn or bun.</param>
+/// <param name="NodeSourceFiles">How many JavaScript and TypeScript files the scan saw.</param>
 public sealed record WorkspaceMetadata(
     IReadOnlyList<string> SolutionFiles,
     IReadOnlyList<string> ProjectFiles,
@@ -11,10 +14,16 @@ public sealed record WorkspaceMetadata(
     bool ProjectListTruncated,
     IReadOnlyList<string>? PythonProjects = null,
     string? PythonTool = null,
-    int PythonSourceFiles = 0)
+    int PythonSourceFiles = 0,
+    IReadOnlyList<string>? NodeProjects = null,
+    string? PackageManager = null,
+    int NodeSourceFiles = 0)
 {
     /// <summary>The Python project marker files; empty when there are none.</summary>
     public IReadOnlyList<string> PythonProjectFiles => PythonProjects ?? [];
+
+    /// <summary>The package.json files; empty when there are none.</summary>
+    public IReadOnlyList<string> NodeProjectFiles => NodeProjects ?? [];
 }
 
 /// <summary>Result of checking a folder. NormalizedPath is the canonical full path and is set only when IsValid.</summary>

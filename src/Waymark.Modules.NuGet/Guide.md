@@ -21,6 +21,14 @@ Pin `version` (from the skeleton) in find, expand and outline, so the API matche
 - Methods are shown without `self`/`cls`. A dataclass or model with no `__init__` shows its annotated fields as the constructor.
 - A package whose wheel is bigger than the owner's limit (`Waymark:Pypi:MaxArchiveBytes`, 150 MB by default) is refused.
 
+## npm packages (`ecosystem: "npm"`)
+
+- Pass `workspace` (and `project`, the folder of the package.json) and leave `version` out: the version is the one the project's lock file (package-lock.json, pnpm-lock.yaml, yarn.lock) pins. A package that is not in the lock file is refused. Package names are lower case, scoped ones keep their scope: `zod`, `@tanstack/react-query`.
+- `pkg_search(ecosystem: "npm")` uses the registry's own search. The tarball is downloaded from the public registry, checked against the integrity hash the registry publishes, and only its `package.json` and declaration files are unpacked: nothing is installed, imported or run. Private registries are not read (their tokens live in `.npmrc`, which Waymark never opens).
+- Shape comes in this order: the package's own `.d.ts` files; else the `@types/NAME` package (`@scope/pkg` is `@types/scope__pkg`) at its latest version; else the package's plain JavaScript, where parameters carry no types. The symbols reached first from the types entry (the `types` field, `exports`, `index.d.ts`) rank higher.
+- A module is the path of a declaration file inside the package (`lib/types`); the root `index.d.ts` is named after the package. `declare module "fs"` and `namespace X` blocks are modules of their own: `pkg_find(declaringType="fs")` lists the functions of that block. A type alias is shown as a struct, a class or interface as itself, an exported constant as a function.
+- Overloads are listed together; a method is shown as written (`on(event: string, handler: Handler): this`). Generic parameters are part of the signature.
+
 ## Rules
 
 - Shape is settled by `pkg_expand`: a member it did not confirm at the pinned version does not exist, so do not write the call.

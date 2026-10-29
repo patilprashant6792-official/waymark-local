@@ -5,6 +5,7 @@ using Waymark.Core.NuGetIndex;
 using Waymark.Languages.Python;
 using Waymark.Modules.NuGet.Indexing;
 using Waymark.Modules.NuGet.Loading;
+using Waymark.Modules.NuGet.Npm;
 
 namespace Waymark.Modules.NuGet.Pypi;
 
@@ -225,14 +226,17 @@ internal sealed class PypiPackageIndexer : IPackageIndexer, IDisposable
     private sealed record LatestVersion(string Version, DateTimeOffset ExpiresUtc);
 }
 
-/// <summary>Sends a package lookup to the NuGet indexer or the PyPI indexer, by the ecosystem the request names.</summary>
-internal sealed class EcosystemPackageIndexer(PackageIndexer nuget, PypiPackageIndexer pypi) : IPackageIndexer
+/// <summary>Sends a package lookup to the NuGet, PyPI or npm indexer, by the ecosystem the request names.</summary>
+internal sealed class EcosystemPackageIndexer(PackageIndexer nuget, PypiPackageIndexer pypi, NpmPackageIndexer npm) : IPackageIndexer
 {
     public Task<NuGetPackageIndex> EnsureIndexedAsync(PackageIndexRequest request, bool refresh, CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
-        return string.Equals(request.Ecosystem, PackageEcosystems.PyPI, StringComparison.OrdinalIgnoreCase)
-            ? pypi.EnsureIndexedAsync(request, refresh, cancellationToken)
-            : nuget.EnsureIndexedAsync(request, refresh, cancellationToken);
+        return request.Ecosystem.ToLowerInvariant() switch
+        {
+            PackageEcosystems.PyPI => pypi.EnsureIndexedAsync(request, refresh, cancellationToken),
+            PackageEcosystems.Npm => npm.EnsureIndexedAsync(request, refresh, cancellationToken),
+            _ => nuget.EnsureIndexedAsync(request, refresh, cancellationToken),
+        };
     }
 }

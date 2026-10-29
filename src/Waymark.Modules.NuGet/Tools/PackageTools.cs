@@ -10,24 +10,24 @@ using Waymark.Modules.NuGet.Pypi;
 namespace Waymark.Modules.NuGet.Tools;
 
 /// <summary>
-/// The four package lookups. One set of tools serves every ecosystem (NuGet and PyPI): the ecosystem is an argument, so the tool count stays the same
+/// The four package lookups. One set of tools serves every ecosystem (NuGet, PyPI and npm): the ecosystem is an argument, so the tool count stays the same
 /// when a language is added.
 /// </summary>
 [McpServerToolType]
 public sealed class PackageTools(INuGetSymbolService symbols, IPackagePins pins, ILogger<PackageTools> logger)
 {
-    private const string EcosystemHelp = "Optional: 'nuget' (default) or 'pypi'. Use pypi for a Python package.";
-    private const string WorkspaceHelp = "Optional, pypi only: workspace name. With it, and no version, the version comes from the project's lock file (uv.lock, poetry.lock, pdm.lock, pylock.toml).";
-    private const string ProjectHelp = "Optional, pypi only: the project folder (or its pyproject.toml) inside the workspace whose lock file decides the version; default the workspace folder.";
+    private const string EcosystemHelp = "Optional: 'nuget' (default), 'pypi' (a Python package) or 'npm' (a JavaScript or TypeScript package).";
+    private const string WorkspaceHelp = "Optional, pypi and npm only: workspace name. With it, and no version, the version comes from the project's lock file (uv.lock, poetry.lock, pdm.lock, pylock.toml; package-lock.json, pnpm-lock.yaml, yarn.lock).";
+    private const string ProjectHelp = "Optional, pypi and npm only: the project folder (or its pyproject.toml or package.json) inside the workspace whose lock file decides the version; default the workspace folder.";
 
     [McpServerTool(Name = "pkg_search", ReadOnly = true, Destructive = false, Idempotent = true)]
     [Description(
         "Looks a package up by name. NuGet (default): searches nuget.org and returns id, latest version, download count and a one-line description. " +
-        "PyPI (ecosystem='pypi'): PyPI has no search, so the query is tried as project names (words joined with '-', then each word) and returns the projects that exist. " +
+        "PyPI (ecosystem='pypi'): PyPI has no search, so the query is tried as project names (words joined with '-', then each word) and returns the projects that exist. npm (ecosystem='npm'): searches the npm registry. " +
         "Use it only when the exact package id is not known; skip it when the id is already in the project's package list. " +
         "Next step: pkg_find(packageId, query) to locate a type, class or function inside the package.")]
     public Task<string> Search(
-        [Description("Package name or keyword (e.g. 'openai', 'polly retry'; for pypi the project name, e.g. 'requests' or 'scikit learn')")]
+        [Description("Package name or keyword (e.g. 'openai', 'polly retry'; for pypi the project name, e.g. 'requests' or 'scikit learn'; for npm words such as 'react query')")]
         string query,
         [Description(EcosystemHelp)]
         string? ecosystem = null,
@@ -40,13 +40,13 @@ public sealed class PackageTools(INuGetSymbolService symbols, IPackagePins pins,
 
     [McpServerTool(Name = "pkg_outline", ReadOnly = true, Destructive = false, Idempotent = true)]
     [Description(
-        "Shows the map of a package (namespaces for NuGet, modules for PyPI, each with a count), never a listing of types. " +
+        "Shows the map of a package (namespaces for NuGet, modules for PyPI and npm, each with a count), never a listing of types. " +
         "Use it for a completely unfamiliar package, or with refresh=true after a version bump. Otherwise go straight to pkg_find. " +
         "The first call for a package version downloads and indexes it, which can take a few seconds; later calls are instant. " +
         "Pin the version (and for NuGet the targetFramework) of the project so the API matches what the project runs against. " +
-        "PyPI packages are read from their wheel without running or importing anything.")]
+        "PyPI packages are read from their wheel and npm packages from their declaration files, without installing, importing or running anything.")]
     public Task<string> Outline(
-        [Description("Package id (NuGet, e.g. 'Polly') or project name (PyPI, e.g. 'requests')")]
+        [Description("Package id (NuGet, e.g. 'Polly'), project name (PyPI, e.g. 'requests') or package name (npm, e.g. 'zod' or '@tanstack/react-query')")]
         string packageId,
         [Description(EcosystemHelp)]
         string? ecosystem = null,
@@ -79,17 +79,17 @@ public sealed class PackageTools(INuGetSymbolService symbols, IPackagePins pins,
         "An empty query browses the most prominent symbols. Filters: kind (class, interface, enum, struct, delegate, method), namespace (exact; the module for PyPI), declaringType (lists the methods of one type; for PyPI a module name lists its functions). " +
         "Pin the version to the project's (a Python project's lock file gives it: pass workspace). Next step: pkg_expand with the ids to see exact signatures.")]
     public Task<string> Find(
-        [Description("Package id (NuGet, e.g. 'Polly') or project name (PyPI, e.g. 'requests')")]
+        [Description("Package id (NuGet, e.g. 'Polly'), project name (PyPI, e.g. 'requests') or package name (npm, e.g. 'zod' or '@tanstack/react-query')")]
         string packageId,
         [Description("What you are looking for: a name, camel-case or snake_case words, or a description. Empty browses.")]
         string query = "",
         [Description(EcosystemHelp)]
         string? ecosystem = null,
-        [Description("Optional: class, interface, enum, struct, delegate or method (a PyPI function is a method)")]
+        [Description("Optional: class, interface, enum, struct, delegate or method (a PyPI or npm function is a method; an npm type alias is a struct)")]
         string? kind = null,
-        [Description("Optional: exact namespace to search in (the dotted module for PyPI)")]
+        [Description("Optional: exact namespace to search in (the module for PyPI and npm: a dotted module, or a path inside the package)")]
         string? @namespace = null,
-        [Description("Optional: exact type name; lists that type's methods (for PyPI a module name lists its functions)")]
+        [Description("Optional: exact type name; lists that type's methods (for PyPI and npm a module name lists its functions)")]
         string? declaringType = null,
         [Description("Optional: results to return (default 10, max 25)")]
         int limit = 10,
@@ -117,11 +117,11 @@ public sealed class PackageTools(INuGetSymbolService symbols, IPackagePins pins,
 
     [McpServerTool(Name = "pkg_expand", ReadOnly = true, Destructive = false, Idempotent = true)]
     [Description(
-        "Shows the exact shape of up to 5 symbols from pkg_find: constructors or overload signatures, methods, properties, enum values, documentation (XML comments for NuGet, docstrings for PyPI) and related type ids. " +
-        "The signatures come from the package itself (the compiled assembly for NuGet; the wheel, with the stub package's types when the package has none, for PyPI), so they are the source of truth for what exists. " +
+        "Shows the exact shape of up to 5 symbols from pkg_find: constructors or overload signatures, methods, properties, enum values, documentation (XML comments for NuGet, docstrings for PyPI, JSDoc for npm) and related type ids. " +
+        "The signatures come from the package itself (the compiled assembly for NuGet; the wheel, with the stub package's types when the package has none, for PyPI; the declaration files, or the @types package, for npm), so they are the source of truth for what exists. " +
         "Sections: sig, methods, props, data, doc, rel, or all (default depends on the kind of symbol). Pass the related ids straight back to expand them.")]
     public Task<string> Expand(
-        [Description("Package id (NuGet) or project name (PyPI)")]
+        [Description("Package id (NuGet), project name (PyPI) or package name (npm)")]
         string packageId,
         [Description("Symbol ids from pkg_find or related ids (max 5); a full or trailing type name also works")]
         string[] identifiers,
@@ -147,7 +147,7 @@ public sealed class PackageTools(INuGetSymbolService symbols, IPackagePins pins,
             cancellationToken).ConfigureAwait(false));
 
     /// <summary>
-    /// The request for the lookup. A PyPI request has no framework; when it names a workspace and no version, the version is the one the project's lock file pins.
+    /// The request for the lookup. A PyPI or npm request has no framework; when it names a workspace and no version, the version is the one the project's lock file pins.
     /// </summary>
     private async Task<PackageIndexRequest> RequestAsync(
         string packageId,
@@ -160,13 +160,14 @@ public sealed class PackageTools(INuGetSymbolService symbols, IPackagePins pins,
         string? project,
         CancellationToken ct)
     {
-        if (PackageEcosystems.Parse(ecosystem) != PackageEcosystems.PyPI)
+        var kind = PackageEcosystems.Parse(ecosystem);
+        if (kind == PackageEcosystems.NuGet)
         {
             return new PackageIndexRequest(packageId, version, targetFramework, includePrerelease, additionalPackageIds);
         }
 
-        var pinned = string.IsNullOrWhiteSpace(version) ? await pins.FindAsync(workspace, project, packageId, ct).ConfigureAwait(false) : version;
-        return new PackageIndexRequest(packageId, pinned, PackageEcosystems.PyPITarget, includePrerelease, null, PackageEcosystems.PyPI);
+        var pinned = string.IsNullOrWhiteSpace(version) ? await pins.FindAsync(kind, workspace, project, packageId, ct).ConfigureAwait(false) : version;
+        return new PackageIndexRequest(packageId, pinned, PackageEcosystems.TargetOf(kind), includePrerelease, null, kind);
     }
 
     private async Task<string> RunAsync(string? packageId, string? version, Func<Task<string>> action)
@@ -183,7 +184,7 @@ public sealed class PackageTools(INuGetSymbolService symbols, IPackagePins pins,
         {
             var subject = packageId is null ? string.Empty : $"'{packageId}' version '{version ?? "latest"}'";
             throw new McpException(
-                $"Could not resolve {subject}: {ex.Message} Check the package id (nuget.org or pypi.org), or use `pkg_search` to look it up.");
+                $"Could not resolve {subject}: {ex.Message} Check the package id (nuget.org, pypi.org or npmjs.com), or use `pkg_search` to look it up.");
         }
         catch (Exception ex) when (ex is ArgumentException or KeyNotFoundException or InvalidOperationException)
         {

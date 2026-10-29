@@ -3,6 +3,8 @@
 /// <summary>The values stored in <see cref="CodeFileIndex.Classification"/>. One value per file; the first matching rule in this order wins.</summary>
 public static class CodeFileClassification
 {
+    /// <summary>A UI component file: a .tsx or .jsx file that declares exported PascalCase functions or classes.</summary>
+    public const string Component = "component";
     /// <summary>Declares MCP tools (a type or member carries an McpServerTool attribute).</summary>
     public const string Tools = "tools";
 

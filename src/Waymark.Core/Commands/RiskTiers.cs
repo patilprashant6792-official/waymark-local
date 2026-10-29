@@ -23,6 +23,7 @@ public static class RiskTiers
     {
         "git.push", "git.pull", "dotnet.tool_restore", "dotnet.package_add",
         "python.install", "python.package_add", "python.venv",
+        "node.install", "node.package_add",
     };
 
     // These start the project's own code: tests, the app, EF design-time code. That code can be code Claude has just written, and no file
@@ -31,13 +32,14 @@ public static class RiskTiers
     {
         "dotnet.test", "dotnet.run", "dotnet.ef_read", "dotnet.ef_migrations_add", "dotnet.ef_migrations_remove", "dotnet.ef_database_update",
         "python.test", "python.run", "python.typecheck", "python.list",
+        "node.test", "node.run", "node.typecheck", "node.list", "node.build", "node.lint", "node.script",
     };
 
     public static RiskTier Of(OperationInfo operation)
     {
         ArgumentNullException.ThrowIfNull(operation);
         if (operation.Key == CommandCatalog.ShellRun
-            || ((operation.Family == CommandCatalog.DotnetFamily || operation.Family == CommandCatalog.PythonFamily) && operation.DriftSensitive))
+            || ((operation.Family == CommandCatalog.DotnetFamily || operation.Family == CommandCatalog.PythonFamily || operation.Family == CommandCatalog.NodeFamily) && operation.DriftSensitive))
         {
             return RiskTier.RunsCode;
         }

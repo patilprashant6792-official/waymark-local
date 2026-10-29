@@ -62,7 +62,7 @@ public partial class NuGetExplorerPage : LiveComponentBase
     [Inject]
     private ILogger<NuGetExplorerPage> Logger { get; set; } = default!;
 
-    private NuGetPackageKey Key => new(PackageId, Version, Framework);
+    private NuGetPackageKey Key => new(NuGetLinks.DecodeId(PackageId), Version, Framework);
 
     private bool HasFilters => !string.IsNullOrWhiteSpace(Q) || !string.IsNullOrEmpty(Ns) || !string.IsNullOrEmpty(KindFilter) || !string.IsNullOrEmpty(Type);
 

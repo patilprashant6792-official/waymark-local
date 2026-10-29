@@ -49,6 +49,17 @@ public static partial class DiagnosticsParser
     [GeneratedRegex(@"^(?:FAILED|ERROR) (?<name>\S+)", RegexOptions.None, 200)]
     private static partial Regex PytestFailedPattern();
 
+    // jest:    Tests:       1 failed, 1 skipped, 5 passed, 7 total       vitest:   Tests  1 failed | 5 passed (6)
+    [GeneratedRegex(@"^\s*Tests:?\s+(?<body>\d+ (?:failed|passed|skipped|todo).*)$", RegexOptions.None, 200)]
+    private static partial Regex NodeTestTotalsPattern();
+
+    [GeneratedRegex(@"(?<count>\d+) (?<kind>failed|passed|skipped|todo)", RegexOptions.None, 200)]
+    private static partial Regex NodeTestCountPattern();
+
+    // jest:  "  ● Suite › test name"     vitest:  " FAIL  src/a.test.ts > suite > test name"
+    [GeneratedRegex(@"^\s*(?:●|FAIL)\s+(?<name>\S.*)$", RegexOptions.None, 200)]
+    private static partial Regex NodeFailedTestPattern();
+
     /// <summary>Errors first, repeated lines (the same message is printed once per target framework and again in the summary) removed, paths made relative to the workspace.</summary>
     public static IReadOnlyList<BuildDiagnostic> ParseBuild(string plainOutput, string workspaceRoot)
     {
@@ -213,6 +224,65 @@ public static partial class DiagnosticsParser
         }
     }
 
+    /// <summary>
+    /// The totals and the failed tests of a jest or vitest run: <c>Tests:  1 failed, 5 passed, 6 total</c> (jest) or <c> Tests  1 failed | 5 passed (6)</c> (vitest).
+    /// Failed names come from jest's <c>● suite › name</c> lines and vitest's <c>FAIL file &gt; name</c> lines.
+    /// </summary>
+    public static TestSummary? ParseNodeTests(string plainOutput)
+    {
+        try
+        {
+            string? summary = null;
+            var failedNames = new List<string>();
+            foreach (var rawLine in plainOutput.Split('\n'))
+            {
+                var line = rawLine.TrimEnd('\r');
+                var totals = NodeTestTotalsPattern().Match(line);
+                if (totals.Success)
+                {
+                    summary = totals.Groups["body"].Value;
+                    continue;
+                }
+
+                var failed = NodeFailedTestPattern().Match(line);
+                if (failed.Success && failedNames.Count < 200 && !failedNames.Contains(failed.Groups["name"].Value.Trim(), StringComparer.Ordinal))
+                {
+                    failedNames.Add(failed.Groups["name"].Value.Trim());
+                }
+            }
+
+            if (summary is null)
+            {
+                return null;
+            }
+
+            var passed = 0;
+            var failedCount = 0;
+            var skipped = 0;
+            foreach (Match part in NodeTestCountPattern().Matches(summary))
+            {
+                var count = int.Parse(part.Groups["count"].Value, NumberStyles.None, CultureInfo.InvariantCulture);
+                switch (part.Groups["kind"].Value)
+                {
+                    case "passed":
+                        passed += count;
+                        break;
+                    case "failed":
+                        failedCount += count;
+                        break;
+                    default:
+                        skipped += count;
+                        break;
+                }
+            }
+
+            return new TestSummary(passed, failedCount, skipped, passed + failedCount + skipped, failedNames.Take(50).ToList());
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            return null;
+        }
+    }
     private static BuildDiagnostic? TryParsePython(string line, string workspaceRoot)
     {
         try

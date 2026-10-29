@@ -15,8 +15,8 @@ public sealed class CommandRunTools(CommandService service)
     [McpServerTool(Name = "cmd_project", ReadOnly = false, Destructive = false, Idempotent = false)]
     [ToolGate(ToolGate.Confirm)]
     [Description(
-        "Run a project command in a workspace as a typed action (no shell): .NET (build, test, packages, EF Core, run) or Python (actions that start with py_). The owner watches it live in the Waymark Console. Some actions run at once, others wait for the owner's approval - the result says which.\n" +
-        "Pick the project with options: .NET uses 'target' (a .sln, .slnx or project file); Python uses 'project' (a folder, or the pyproject.toml or requirements file in it; default the workspace folder) and the command runs in that folder.\n" +
+        "Run a project command in a workspace as a typed action (no shell): .NET (build, test, packages, EF Core, run), Python (actions that start with py_) or Node (actions that start with node_). The owner watches it live in the Waymark Console. Some actions run at once, others wait for the owner's approval - the result says which.\n" +
+        "Pick the project with options: .NET uses 'target' (a .sln, .slnx or project file); Python and Node use 'project' (a folder, or its pyproject.toml, requirements or package.json; default the workspace folder) and the command runs in that folder.\n" +
         ".NET ACTIONS and their optionsJson keys (* = required, all paths relative to the workspace, unknown keys are refused):\n" +
         "  build, rebuild, clean, restore: target, configuration, framework, noRestore, verbosity (quiet|minimal|normal|detailed), timeoutMinutes\n" +
         "  test: target, configuration, framework, filter, noBuild, noRestore\n" +
@@ -46,11 +46,21 @@ public sealed class CommandRunTools(CommandService service)
         "  py_run: venv, module* or script* (give one), appArgs (array)   - python -m module or a script; the program keeps running until stopped\n" +
         "  py_package_add: package*, version*, group, tool   - uv add of one package at an exact version\n" +
         "  py_package_remove: package*, group, tool   - uv remove\n" +
+        "NODE ACTIONS (every one accepts project, a folder or its package.json, default the workspace folder, where the command runs, and timeoutMinutes; npm runs as node npm-cli.js, installs run no lifecycle scripts):\n" +
+        "  node_info: -   - Node, npm and TypeScript versions, the project's package manager, node_modules and scripts\n" +
+        "  node_list: -   - npm ls --depth=0 (needs node_modules)\n" +
+        "  node_install: -   - npm ci from package-lock.json with --ignore-scripts (npm projects only)\n" +
+        "  node_typecheck: tsconfig   - tsc --noEmit with the project's own TypeScript\n" +
+        "  node_build, node_test, node_lint: script (default build, test, lint), args (array, passed after --)   - a script named in package.json\n" +
+        "  node_script: script*, args (array)   - any script of package.json; its text is shown on the approval card\n" +
+        "  node_run: script (default dev, else start), args (array)   - a script that keeps running until stopped\n" +
+        "  node_package_add: package*, version*, dev   - npm install of one package at an exact version, --save-exact --ignore-scripts\n" +
+        "  node_package_remove: package*   - npm uninstall --ignore-scripts\n" +
         "When 'target' is omitted the only .sln/.slnx file in the workspace root is used.\n" +
         "RETURNS: result, compiler or linter findings (workspace-relative paths), test summary and the last output lines. If it takes longer than waitSeconds you get a run id for cmd_wait / cmd_output.")]
     public Task<string> Project(
         [Description(WorkspaceHelp)] string workspace,
-        [Description("One of: build, rebuild, clean, restore, test, format_check, format, info, list, new, sln, reference, package_add, package_remove, tool_restore, ef_list, ef_migrations_add, ef_migrations_remove, ef_database_update, run, py_info, py_list, py_venv, py_install, py_test, py_lint, py_format, py_typecheck, py_run, py_package_add, py_package_remove")]
+        [Description("One of: build, rebuild, clean, restore, test, format_check, format, info, list, new, sln, reference, package_add, package_remove, tool_restore, ef_list, ef_migrations_add, ef_migrations_remove, ef_database_update, run, py_info, py_list, py_venv, py_install, py_test, py_lint, py_format, py_typecheck, py_run, py_package_add, py_package_remove, node_info, node_list, node_install, node_typecheck, node_build, node_test, node_lint, node_script, node_run, node_package_add, node_package_remove")]
         string action,
         [Description(PurposeHelp)] string purpose,
         [Description("JSON object with the options of the action, for example {\"configuration\":\"Release\",\"noRestore\":true} or {\"project\":\"api\",\"filter\":\"test_login\"}. Omit when none are needed.")]

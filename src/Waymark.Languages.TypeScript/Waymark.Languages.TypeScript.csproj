@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><AssemblyName>Waymark.Languages.TypeScript</AssemblyName><RootNamespace>Waymark.Languages.TypeScript</RootNamespace></PropertyGroup>
+  <ItemGroup><ProjectReference Include="..\Waymark.Core\Waymark.Core.csproj" /></ItemGroup>
+  <ItemGroup><PackageReference Include="TreeSitter.DotNet" /></ItemGroup>
+</Project>

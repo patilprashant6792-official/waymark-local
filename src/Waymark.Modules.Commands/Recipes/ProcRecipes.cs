@@ -120,7 +120,8 @@ public sealed class ProcRecipes(ListeningPorts ports)
             var path = TryGetPath(process);
             // A virtual environment's python.exe on Windows is a launcher: the process that listens is the base Python, which does not run from the workspace.
             var isHost = string.Equals(process.ProcessName, "dotnet", StringComparison.OrdinalIgnoreCase)
-                || process.ProcessName.StartsWith("python", StringComparison.OrdinalIgnoreCase);
+                || process.ProcessName.StartsWith("python", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(process.ProcessName, "node", StringComparison.OrdinalIgnoreCase);
             if (!isHost && (path is null || !IsInside(workspaceRoot, path)))
             {
                 write($"Refused: {label} does not run from this workspace and is not a dotnet or Python program ({path ?? "path unknown"}). Ask for a shell command if it must be ended.\n");

@@ -22,7 +22,10 @@ public enum CodeTypeKind
     RecordStruct,
     Enum,
     Delegate,
-    TypeAlias
+    TypeAlias,
+
+    /// <summary>A TypeScript namespace or module block: it groups declarations and has no instances.</summary>
+    Namespace
 }
 
 public enum CodeMemberKind

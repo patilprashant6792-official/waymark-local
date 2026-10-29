@@ -18,8 +18,9 @@ internal static partial class SymbolMarkdown
     public static string Packages(string ecosystem, string query, IReadOnlyList<PackageSearchHit> hits, int maxChars)
     {
         var pypi = string.Equals(ecosystem, PackageEcosystems.PyPI, StringComparison.Ordinal);
+        var npm = string.Equals(ecosystem, PackageEcosystems.Npm, StringComparison.Ordinal);
         var output = new OutputBudget(maxChars);
-        output.TryAppendLine(pypi ? $"# PyPI projects named like '{query}'" : $"# NuGet packages for '{query}'");
+        output.TryAppendLine(pypi ? $"# PyPI projects named like '{query}'" : npm ? $"# npm packages for '{query}'" : $"# NuGet packages for '{query}'");
         if (hits.Count == 0)
         {
             output.TryAppendLine();
@@ -39,7 +40,9 @@ internal static partial class SymbolMarkdown
         output.TryAppendLine();
         output.TryAppendLine(pypi
             ? "Next: `pkg_find(packageId, query, ecosystem=\"pypi\")` to locate a class or function inside the package, or `pkg_outline` for the module map."
-            : "Next: `pkg_find(packageId, query)` to locate a type or method, or `pkg_outline(packageId)` for the namespace map.");
+            : npm
+                ? "Next: `pkg_find(packageId, query, ecosystem=\"npm\")` to locate a function, class or type inside the package, or `pkg_outline` for the module map."
+                : "Next: `pkg_find(packageId, query)` to locate a type or method, or `pkg_outline(packageId)` for the namespace map.");
         return output.Build();
     }
 
@@ -49,7 +52,7 @@ internal static partial class SymbolMarkdown
         var package = outline.Package;
         var output = new OutputBudget(maxChars);
         output.TryAppendLine(Header(package.Key));
-        var parts = PackageEcosystems.IsPyPI(package.Key) ? "module(s)" : "namespace(s)";
+        var parts = PackageEcosystems.ContainerWord(package.Key);
         output.TryAppendLine(string.Create(CultureInfo.InvariantCulture,
             $"{package.TypeCount} types \u00b7 {package.SymbolCount} indexed symbols \u00b7 {outline.Namespaces.Count} {parts} \u00b7 indexed {Ago(age)}"));
         output.TryAppendLine();
@@ -106,7 +109,7 @@ internal static partial class SymbolMarkdown
     public static string Expand(NuGetPackageKey key, IReadOnlyList<ExpandItem> items, int maxChars)
     {
         var output = new OutputBudget(maxChars);
-        var fence = PackageEcosystems.IsPyPI(key) ? "python" : "csharp";
+        var fence = PackageEcosystems.Fence(key);
         output.TryAppendLine(Header(key));
         foreach (var item in items)
         {

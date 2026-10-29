@@ -16,6 +16,8 @@ internal static class OutlineRenderer
         CodeMemberKind.Event,
         CodeMemberKind.Operator,
         CodeMemberKind.Method,
+        CodeMemberKind.Function,
+        CodeMemberKind.Variable,
     ];
 
     private static readonly CodeMemberKind[] ModuleOrder = [CodeMemberKind.Function, CodeMemberKind.Variable];
@@ -50,10 +52,19 @@ internal static class OutlineRenderer
         output.TryAppendLine($"**Path:** `{path}`  ");
         output.TryAppendLine($"**Lines:** {file.LineCount} | **Classification:** {file.Classification}  ");
         var namespaces = file.Types.Select(t => t.Namespace).Where(n => !string.IsNullOrEmpty(n)).Distinct(StringComparer.Ordinal).ToList();
-        if (namespaces.Count == 0 && language == CodeLanguage.Python && Waymark.Languages.Python.PythonModuleNames.FromPath(path) is { Length: > 0 } module)
+        if (namespaces.Count == 0)
         {
             // A module with only functions or variables has no type to carry its name.
-            namespaces.Add(module);
+            var module = language switch
+            {
+                CodeLanguage.Python => Waymark.Languages.Python.PythonModuleNames.FromPath(path),
+                CodeLanguage.TypeScript or CodeLanguage.JavaScript => Waymark.Languages.TypeScript.TypeScriptModuleNames.FromPath(path),
+                _ => string.Empty,
+            };
+            if (module.Length > 0)
+            {
+                namespaces.Add(module);
+            }
         }
 
         output.TryAppendLine($"**{CodeLanguages.ContainerWord(language)}:** {(namespaces.Count == 0 ? "(none)" : string.Join(", ", namespaces.Select(n => $"`{n}`")))}");
@@ -190,6 +201,17 @@ internal static class OutlineRenderer
             return $"{modifiers}{KindWord(type.Kind)} {type.Name}{bases}";
         }
 
+        if (IsScript(language))
+        {
+            var exported = type.Modifiers is not null && type.Modifiers.Split(' ').Contains("public", StringComparer.Ordinal) ? "export " : string.Empty;
+            var isAbstract = type.Modifiers is not null && type.Modifiers.Split(' ').Contains("abstract", StringComparer.Ordinal) ? "abstract " : string.Empty;
+            var keyword = type.Kind == CodeTypeKind.TypeAlias ? "type" : KindWord(type.Kind);
+            var extends = string.IsNullOrEmpty(type.BaseList)
+                ? string.Empty
+                : type.Kind == CodeTypeKind.Class ? $"  // extends / implements: {type.BaseList}" : $" extends {type.BaseList}";
+            return $"{exported}{isAbstract}{keyword} {type.Name}{extends}";
+        }
+
         if (type.Kind == CodeTypeKind.TypeAlias)
         {
             return $"type {type.Name}  # type alias";
@@ -200,7 +222,9 @@ internal static class OutlineRenderer
         return $"class {type.Name}{parents}{note}";
     }
 
-    private static string CommentMarker(CodeLanguage language) => language == CodeLanguage.CSharp ? "//" : "#";
+    private static string CommentMarker(CodeLanguage language) => language == CodeLanguage.Python ? "#" : "//";
+
+    private static bool IsScript(CodeLanguage language) => language is CodeLanguage.TypeScript or CodeLanguage.JavaScript;
 
     private static void AppendAttributes(OutputBudget output, string? attributes, CodeLanguage language)
     {
@@ -224,6 +248,7 @@ internal static class OutlineRenderer
         CodeTypeKind.Enum => "enum",
         CodeTypeKind.Delegate => "delegate",
         CodeTypeKind.TypeAlias => "type alias",
+        CodeTypeKind.Namespace => "namespace",
         _ => "class",
     };
 }

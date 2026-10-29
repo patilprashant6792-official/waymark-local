@@ -6,16 +6,18 @@ using ModelContextProtocol.Server;
 using Waymark.Core.Code;
 using Waymark.Core.Modules;
 using Waymark.Languages.Python;
+using Waymark.Languages.TypeScript;
 using Waymark.Modules.NuGet.Indexing;
 using Waymark.Modules.NuGet.Loading;
+using Waymark.Modules.NuGet.Npm;
 using Waymark.Modules.NuGet.Pypi;
 using Waymark.Modules.NuGet.Tools;
 
 namespace Waymark.Modules.NuGet;
 
 /// <summary>
-/// The package lookups for every ecosystem: NuGet (reflection over the compiled package) and PyPI (the wheel's Python source, read by syntax only).
-/// The module is named <c>packages</c>; its project and namespaces keep the historic NuGet name.
+/// The package lookups for every ecosystem: NuGet (reflection over the compiled package), PyPI (the wheel's Python source, read by syntax only) and npm
+/// (the declaration files of the package, or of its @types package, read by syntax only). The module is named <c>packages</c>; its project and namespaces keep the historic NuGet name.
 /// </summary>
 public sealed class PackagesModule : IMcpModule
 {
@@ -44,8 +46,16 @@ public sealed class PackagesModule : IMcpModule
             new CodeIndexLimits((int)provider.GetRequiredService<PypiOptions>().MaxFileBytes, MaxMembersPerPackageFile, 1),
             provider.GetRequiredService<ILogger<PythonIndexer>>()));
         services.TryAddSingleton<PypiPackageIndexer>();
+        services.TryAddSingleton(NpmOptions.FromConfiguration(configuration));
+        services.TryAddSingleton<NpmRegistryClient>();
+        services.TryAddSingleton<NpmPackageLoader>();
+        services.TryAddSingleton<NpmPackageSearch>();
+        services.TryAddSingleton(provider => new TypeScriptIndexer(
+            new CodeIndexLimits((int)provider.GetRequiredService<NpmOptions>().MaxFileBytes, MaxMembersPerPackageFile, 1),
+            provider.GetRequiredService<ILogger<TypeScriptIndexer>>()));
+        services.TryAddSingleton<NpmPackageIndexer>();
         services.TryAddSingleton<IPackageIndexer, EcosystemPackageIndexer>();
-        services.TryAddSingleton<IPackagePins, PythonPackagePins>();
+        services.TryAddSingleton<IPackagePins, PackagePins>();
         services.TryAddSingleton<INuGetSymbolService, NuGetSymbolService>();
         services.TryAddSingleton<Waymark.Core.NuGetIndex.INuGetReloader, NuGetReloader>();
         services.TryAddSingleton<Waymark.Core.NuGetIndex.INuGetExplorer, NuGetExplorer>();

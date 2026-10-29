@@ -13,10 +13,13 @@ public static class BuildFingerprint
     private const int MaxFiles = 5000;
     private const long MaxFileBytes = 4 * 1024 * 1024;
 
+    private static readonly HashSet<string> NodeScriptExtensions = new(StringComparer.OrdinalIgnoreCase) { ".js", ".cjs", ".mjs", ".ts", ".cts", ".mts" };
+
     private static readonly HashSet<string> SkippedFolders = new(StringComparer.OrdinalIgnoreCase)
     {
         "bin", "obj", "node_modules", ".git", ".vs", ".idea", "packages", ".vscode", "TestResults",
         ".venv", "venv", "__pycache__", "site-packages", ".tox", ".nox", ".mypy_cache", ".pytest_cache", ".ruff_cache",
+        ".next", ".nuxt", ".svelte-kit", ".turbo", ".parcel-cache", ".angular", ".nx", "dist", "coverage",
     };
 
     private static readonly HashSet<string> BuildExtensions = new(StringComparer.OrdinalIgnoreCase)
@@ -30,6 +33,7 @@ public static class BuildFingerprint
         "global.json", "nuget.config", "dotnet-tools.json", ".gitattributes",
         "pyproject.toml", "setup.py", "setup.cfg", "uv.lock", "uv.toml", "poetry.lock", "pdm.lock", "pylock.toml", "Pipfile", "Pipfile.lock",
         "conftest.py", "noxfile.py", "tox.ini", "pytest.ini", "ruff.toml", ".ruff.toml", "mypy.ini", "pyrightconfig.json", ".python-version",
+        "package.json", "package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "pnpm-workspace.yaml", "yarn.lock", ".npmrc", ".yarnrc.yml", ".nvmrc", ".node-version",
     };
 
     private static readonly JsonSerializerOptions Json = new() { WriteIndented = false };
@@ -125,7 +129,11 @@ public static class BuildFingerprint
         var name = Path.GetFileName(path);
         return BuildFileNames.Contains(name)
             || BuildExtensions.Contains(Path.GetExtension(name))
-            || (name.StartsWith("requirements", StringComparison.OrdinalIgnoreCase) && name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase));
+            || (name.StartsWith("requirements", StringComparison.OrdinalIgnoreCase) && name.EndsWith(".txt", StringComparison.OrdinalIgnoreCase))
+            || (name.StartsWith("tsconfig", StringComparison.OrdinalIgnoreCase) && name.EndsWith(".json", StringComparison.OrdinalIgnoreCase))
+            || (name.Contains(".config.", StringComparison.OrdinalIgnoreCase) && NodeScriptExtensions.Contains(Path.GetExtension(name)))
+            || name.StartsWith(".eslintrc", StringComparison.OrdinalIgnoreCase)
+            || name.StartsWith(".babelrc", StringComparison.OrdinalIgnoreCase);
     }
 
     private static async Task AddGitAsync(SortedDictionary<string, string> hashes, string root, CancellationToken ct)

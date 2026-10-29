@@ -51,6 +51,7 @@ public partial class CommandSettings : LiveComponentBase
     [
         Group(CommandCatalog.DotnetFamily, ".NET"),
         Group(CommandCatalog.PythonFamily, "Python"),
+        Group(CommandCatalog.NodeFamily, "Node.js"),
         Group(CommandCatalog.GitFamily, "Git"),
         Group(CommandCatalog.ProcessFamily, "Processes and ports"),
         Group(CommandCatalog.ShellFamily, "System shell")

@@ -47,6 +47,10 @@ public static class ChildEnvironment
         ["PIP_DISABLE_PIP_VERSION_CHECK"] = "1",
         ["PIP_REQUIRE_VIRTUALENV"] = "1",
         ["UV_NO_PROGRESS"] = "1",
+        ["CI"] = "1",
+        ["NO_UPDATE_NOTIFIER"] = "1",
+        ["npm_config_update_notifier"] = "false",
+        ["npm_config_fund"] = "false",
     };
 
     public static Dictionary<string, string> Build(IReadOnlyDictionary<string, string>? extra = null)
