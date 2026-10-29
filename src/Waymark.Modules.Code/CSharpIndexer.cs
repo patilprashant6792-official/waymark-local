@@ -19,12 +19,15 @@ public sealed class CSharpIndexer(CodeIndexOptions options) : ILanguageIndexer
     private static readonly CSharpParseOptions ParseOptions =
         new(LanguageVersion.Latest, DocumentationMode.Parse, SourceCodeKind.Regular);
 
-    public async Task<SyntaxIndexResult> IndexFileAsync(string absolutePath, string relativePath, string? knownHash, CancellationToken ct)
+    public Task<SyntaxIndexResult> IndexFileAsync(string absolutePath, string relativePath, string? knownHash, CancellationToken ct) =>
+        IndexFileAsync(absolutePath, relativePath, knownHash, null, ct);
+
+    public async Task<SyntaxIndexResult> IndexFileAsync(string absolutePath, string relativePath, string? knownHash, DateTimeOffset? modifiedUtc, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(absolutePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
 
-        var modifiedUtc = File.GetLastWriteTimeUtc(absolutePath);
+        var modified = modifiedUtc ?? new DateTimeOffset(File.GetLastWriteTimeUtc(absolutePath), TimeSpan.Zero);
         byte[] content;
         await using (var stream = new FileStream(
             absolutePath,
@@ -61,7 +64,7 @@ public sealed class CSharpIndexer(CodeIndexOptions options) : ILanguageIndexer
 
         var tree = CSharpSyntaxTree.ParseText(text, ParseOptions, relativePath, ct);
         var extraction = new SyntaxExtractor(text, options, ct).Extract(tree.GetCompilationUnitRoot(ct));
-        var stamp = new CodeFileStamp(relativePath, hash, content.Length, new DateTimeOffset(modifiedUtc, TimeSpan.Zero));
+        var stamp = new CodeFileStamp(relativePath, hash, content.Length, modified);
         var file = new CodeFileIndex(
             stamp,
             SourceLines.Count(text),

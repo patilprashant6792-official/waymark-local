@@ -20,13 +20,29 @@ internal static class CodeFileWalker
         AttributesToSkip = FileAttributes.System | FileAttributes.ReparsePoint,
     };
 
-    public static (List<DiskFile> Files, bool Truncated) Enumerate(string root, FileAccessPolicy policy, int maxFiles, LanguageIndexers languages, CancellationToken ct)
+    public static (List<DiskFile> Files, bool Truncated) Enumerate(string root, FileAccessPolicy policy, int maxFiles, LanguageIndexers languages, CancellationToken ct) =>
+        Enumerate(root, null, policy, maxFiles, languages, ct);
+
+    /// <summary>Like the overload above, but from one folder of the workspace only (a workspace-relative path with '/'); null or empty means the whole workspace.</summary>
+    public static (List<DiskFile> Files, bool Truncated) Enumerate(string root, string? startFolder, FileAccessPolicy policy, int maxFiles, LanguageIndexers languages, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(policy);
         ArgumentNullException.ThrowIfNull(languages);
         var files = new List<DiskFile>();
         var pending = new Stack<DirectoryInfo>();
-        pending.Push(new DirectoryInfo(root));
+        if (string.IsNullOrEmpty(startFolder))
+        {
+            pending.Push(new DirectoryInfo(root));
+        }
+        else if (IsTraversableFolder(startFolder, policy))
+        {
+            // A folder that is gone, or is a link, has no files: the caller then removes whatever the index still holds below it.
+            var start = new DirectoryInfo(Path.Combine(root, startFolder.Replace('/', Path.DirectorySeparatorChar)));
+            if (start.Exists && (start.Attributes & FileAttributes.ReparsePoint) == 0)
+            {
+                pending.Push(start);
+            }
+        }
 
         while (pending.Count > 0)
         {

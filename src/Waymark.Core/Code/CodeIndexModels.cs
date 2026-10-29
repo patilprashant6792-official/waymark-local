@@ -105,3 +105,11 @@ public sealed record CodeIndexStats(
     int Members,
     int CallSites,
     IReadOnlyDictionary<CodeLanguage, int>? FilesByLanguage = null);
+
+/// <summary>A file a batch write could not store. It was rolled back on its own; the index keeps its earlier version.</summary>
+public sealed record CodeBatchFailure(string RelativePath, string Message);
+
+/// <param name="Replaced">Files stored.</param>
+/// <param name="Removed">Files that were indexed and are now removed.</param>
+/// <param name="Failed">Files that could not be stored.</param>
+public sealed record CodeBatchResult(int Replaced, int Removed, IReadOnlyList<CodeBatchFailure> Failed);

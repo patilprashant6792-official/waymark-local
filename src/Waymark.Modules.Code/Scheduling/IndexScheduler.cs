@@ -6,8 +6,9 @@ using Waymark.Core.Workspaces;
 namespace Waymark.Modules.Code.Scheduling;
 
 /// <summary>
-/// The single worker behind the code index. Requests are merged per workspace (a reconcile covers any pending file,
-/// too many pending files turn into a reconcile) and processed one workspace at a time.
+/// The single worker behind the code index. Requests are merged per workspace (a reconcile covers any pending file or folder,
+/// too many pending files or folders turn into a reconcile) and processed one workspace at a time. Inside a workspace the files
+/// are read and parsed in parallel and stored in batches (see <see cref="WorkspaceIndexer"/>).
 /// </summary>
 internal sealed class IndexScheduler(
     IWorkspaceService workspaceService,
@@ -16,6 +17,8 @@ internal sealed class IndexScheduler(
     CodeIndexOptions options,
     ILogger<IndexScheduler> logger) : BackgroundService, IIndexScheduler
 {
+    private const int MaxPendingFolders = 64;
+
     private readonly Lock _gate = new();
     private readonly Dictionary<long, PendingWork> _pending = [];
     private readonly SemaphoreSlim _signal = new(0);
@@ -27,25 +30,31 @@ internal sealed class IndexScheduler(
         work.Rebuild = true;
         work.Reconcile = true;
         work.Files.Clear();
+        work.Folders.Clear();
     });
 
     public void RequestFile(long workspaceId, string relativePath)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
-        Enqueue(workspaceId, work =>
-        {
-            if (work.Reconcile)
-            {
-                return;
-            }
+        RequestChanges(workspaceId, [relativePath], []);
+    }
 
-            work.Files.Add(relativePath);
-            if (work.Files.Count > options.MaxPendingFiles)
-            {
-                work.Reconcile = true;
-                work.Files.Clear();
-            }
-        });
+    public void RequestFolder(long workspaceId, string relativeFolder)
+    {
+        ArgumentNullException.ThrowIfNull(relativeFolder);
+        RequestChanges(workspaceId, [], [relativeFolder]);
+    }
+
+    public void RequestChanges(long workspaceId, IReadOnlyCollection<string> files, IReadOnlyCollection<string> folders)
+    {
+        ArgumentNullException.ThrowIfNull(files);
+        ArgumentNullException.ThrowIfNull(folders);
+        if (files.Count == 0 && folders.Count == 0)
+        {
+            return;
+        }
+
+        Enqueue(workspaceId, work => work.Merge(files, folders, options.MaxPendingFiles));
     }
 
     public void Forget(long workspaceId)
@@ -132,9 +141,17 @@ internal sealed class IndexScheduler(
                 return;
             }
 
-            foreach (var relativePath in work.Files)
+            // A folder is compared as a whole, so a changed file inside it needs no second look.
+            var folders = OutermostFolders(work.Folders);
+            foreach (var folder in folders)
             {
-                await indexer.IndexFileAsync(workspace, relativePath, ct).ConfigureAwait(false);
+                await indexer.ReconcileAsync(workspace, false, folder, ct).ConfigureAwait(false);
+            }
+
+            var files = work.Files.Where(file => !folders.Any(folder => IsInside(file, folder))).ToList();
+            if (files.Count > 0)
+            {
+                await indexer.IndexFilesAsync(workspace, files, ct).ConfigureAwait(false);
             }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
@@ -142,6 +159,25 @@ internal sealed class IndexScheduler(
             logger.LogError(ex, "Index work for workspace {WorkspaceId} failed", workspaceId);
         }
     }
+
+    private static List<string> OutermostFolders(IEnumerable<string> folders)
+    {
+        var kept = new List<string>();
+        foreach (var folder in folders.OrderBy(candidate => candidate.Length))
+        {
+            if (!kept.Any(parent => IsInside(folder, parent)))
+            {
+                kept.Add(folder);
+            }
+        }
+
+        return kept;
+    }
+
+    private static bool IsInside(string path, string folder) =>
+        path.Length > folder.Length
+        && path[folder.Length] == '/'
+        && path.StartsWith(folder, StringComparison.OrdinalIgnoreCase);
 
     private void Enqueue(long workspaceId, Action<PendingWork> merge)
     {
@@ -184,5 +220,45 @@ internal sealed class IndexScheduler(
         public bool Reconcile { get; set; }
 
         public HashSet<string> Files { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public HashSet<string> Folders { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Adds changes; too many of them, or a change of the workspace root, become one reconcile of the whole workspace.</summary>
+        public void Merge(IReadOnlyCollection<string> files, IReadOnlyCollection<string> folders, int maxFiles)
+        {
+            if (Reconcile)
+            {
+                return;
+            }
+
+            foreach (var raw in folders)
+            {
+                var folder = raw.Replace('\\', '/').Trim('/');
+                if (folder.Length == 0 || folder == ".")
+                {
+                    WholeWorkspace();
+                    return;
+                }
+
+                Folders.Add(folder);
+            }
+
+            foreach (var file in files)
+            {
+                Files.Add(file);
+            }
+
+            if (Files.Count > maxFiles || Folders.Count > MaxPendingFolders)
+            {
+                WholeWorkspace();
+            }
+        }
+
+        private void WholeWorkspace()
+        {
+            Reconcile = true;
+            Files.Clear();
+            Folders.Clear();
+        }
     }
 }
