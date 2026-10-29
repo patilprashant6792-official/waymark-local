@@ -1,3 +1,4 @@
+@page "/packages/{PackageId}/{Version}/{Framework}"
 @page "/nuget/{PackageId}/{Version}/{Framework}"
 @inherits LiveComponentBase
 @using MudBlazor
@@ -6,11 +7,11 @@
 @using Waymark.Host.NuGetAdmin
 @using Waymark.Host.Ui
 
-<PageTitle>@PackageId - NuGet - Waymark</PageTitle>
+<PageTitle>@NuGetLinks.DecodeId(PackageId) - Packages - Waymark</PageTitle>
 
 <div class="wm-page">
-    <p class="wm-muted"><a href="/nuget">NuGet packages</a> / @PackageId</p>
-    <h1 class="wm-title">@PackageId <span class="wm-muted wm-mono">@Version</span></h1>
+    <p class="wm-muted"><a href="/packages">Packages</a> / @NuGetLinks.DecodeId(PackageId)</p>
+    <h1 class="wm-title">@NuGetLinks.DecodeId(PackageId) <span class="wm-muted wm-mono">@Version</span></h1>
 
     @if (_error is not null)
     {
@@ -23,13 +24,13 @@
     }
     else if (_outline is null)
     {
-        <EmptyState Icon="@Icons.Material.Filled.Inventory" Title="This package is not indexed" Text="It has not been looked up for this framework yet, or it was cleared. Ask Claude to look it up, or reload it from the NuGet page." />
+        <EmptyState Icon="@Icons.Material.Filled.Inventory" Title="This package is not indexed" Text="It has not been looked up at this version yet, or it was cleared. Ask Claude to look it up, or reload it from the Packages page." />
     }
     else if (_outline.Package.State != NuGetIndexState.Ready)
     {
         <InlineAlert Severity="@(_outline.Package.State == NuGetIndexState.Failed ? Severity.Error : Severity.Info)">
             @(_outline.Package.State == NuGetIndexState.Failed
-                ? $"The index of this package failed: {_outline.Package.Error}. Reload it from the NuGet page."
+                ? $"The index of this package failed: {_outline.Package.Error}. Reload it from the Packages page."
                 : "The package is still being indexed. This page updates when it is ready.")
         </InlineAlert>
     }
@@ -37,16 +38,16 @@
     {
         var package = _outline.Package;
         <p class="wm-lead">
-            <span class="wm-mono">@Framework</span> - @DisplayFormat.Count(package.TypeCount) types, @DisplayFormat.Count(package.SymbolCount) symbols, @DisplayFormat.Count(_outline.Namespaces.Count) namespaces -
+            <span class="wm-chip info">@NuGetLinks.EcosystemLabel(Key)</span> @DisplayFormat.Count(package.TypeCount) types, @DisplayFormat.Count(package.SymbolCount) symbols, @DisplayFormat.Count(_outline.Namespaces.Count) @(PackageEcosystems.Of(Key) == PackageEcosystems.NuGet ? "namespaces" : "modules") -
             <a href="@NuGetLinks.OnNuGetOrg(Key)" target="_blank" rel="noopener noreferrer">@NuGetLinks.RegistryName(Key)</a>.
             This is the same index Claude searches, with the same matching and ranking.
         </p>
 
         <div class="wm-explorer">
-            <aside class="wm-card wm-ex-ns" aria-label="Namespaces">
-                <MudTextField T="string" @bind-Value="_nsFilter" Immediate="true" Label="Filter namespaces" Variant="Variant.Outlined" Margin="Margin.Dense" />
+            <aside class="wm-card wm-ex-ns" aria-label="@ContainerWord">
+                <MudTextField T="string" @bind-Value="_nsFilter" Immediate="true" Label="@($"Filter {ContainerWord}")" Variant="Variant.Outlined" Margin="Margin.Dense" />
                 <ul class="wm-ex-list">
-                    <li><a class="@(string.IsNullOrEmpty(Ns) ? "on" : string.Empty)" href="@Href(ns: null, type: null)">All namespaces</a></li>
+                    <li><a class="@(string.IsNullOrEmpty(Ns) ? "on" : string.Empty)" href="@Href(ns: null, type: null)">All @ContainerWord</a></li>
                     @foreach (var item in VisibleNamespaces)
                     {
                         var label = NamespaceLabel(item.Namespace);

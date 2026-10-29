@@ -31,12 +31,19 @@ public partial class NuGetCache : LiveComponentBase
     [Inject]
     private ILogger<NuGetCache> Logger { get; set; } = default!;
 
+    // Narrow the list by ecosystem (nuget, pypi, npm; empty is all) and by a part of the package name.
+    private string _ecosystem = string.Empty;
+
     private IReadOnlyList<NuGetCacheEntry> Visible =>
         _overview is null
             ? []
-            : string.IsNullOrWhiteSpace(_filter)
-                ? _overview.Entries
-                : _overview.Entries.Where(entry => entry.Package.Key.PackageId.Contains(_filter.Trim(), StringComparison.OrdinalIgnoreCase)).ToList();
+            : _overview.Entries
+                .Where(entry => _ecosystem.Length == 0 || PackageEcosystems.Of(entry.Package.Key) == _ecosystem)
+                .Where(entry => string.IsNullOrWhiteSpace(_filter) || entry.Package.Key.PackageId.Contains(_filter.Trim(), StringComparison.OrdinalIgnoreCase))
+                .ToList();
+
+    private int CountOf(string ecosystem) =>
+        _overview?.Entries.Count(entry => PackageEcosystems.Of(entry.Package.Key) == ecosystem) ?? 0;
 
     protected override async Task OnInitializedAsync()
     {
@@ -56,8 +63,8 @@ public partial class NuGetCache : LiveComponentBase
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "The NuGet overview could not be loaded");
-            _error = "The NuGet packages could not be loaded.";
+            Logger.LogError(ex, "The package overview could not be loaded");
+            _error = "The packages could not be loaded.";
         }
     }
 
@@ -141,7 +148,7 @@ public partial class NuGetCache : LiveComponentBase
         var confirmed = await ConfirmDialogs.AskAsync(
             Dialogs,
             "Clear this package?",
-            $"The index and the stored results of {key.PackageId} {key.Version} ({key.TargetFramework}) are deleted. It is downloaded and read again the next time Claude asks for it. The package files in the shared NuGet folder stay.",
+                $"The index and the stored results of {key.PackageId} {key.Version} ({PackageEcosystems.Of(key)}) are deleted. It is downloaded and read again the next time Claude asks for it. NuGet package files in the shared NuGet folder stay.",
             "Clear",
             destructive: true);
         if (confirmed)
@@ -169,7 +176,7 @@ public partial class NuGetCache : LiveComponentBase
         var confirmed = await ConfirmDialogs.AskAsync(
             Dialogs,
             "Clear everything?",
-            "All NuGet indexes and stored results are deleted. Each package is downloaded and read again the next time Claude asks for it, which is slow for large packages. The package files in the shared NuGet folder stay.",
+                    "All package indexes and stored results (NuGet, PyPI and npm) are deleted. Each package is downloaded and read again the next time Claude asks for it, which is slow for large packages. NuGet package files in the shared NuGet folder stay.",
             "Clear everything",
             destructive: true);
         if (confirmed)

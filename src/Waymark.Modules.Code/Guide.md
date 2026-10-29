@@ -1,6 +1,6 @@
 # Waymark code tools
 
-Find before you read, and read only what the task needs: a full read of a large file costs context that the targeted calls avoid. Workspace names are exact; `code_skeleton('*')` lists them. The code tools understand C# (`.cs`) and Python (`.py`, `.pyi`); other files go through `code_read` and `code_grep`.
+Find before you read, and read only what the task needs: a full read of a large file costs context that the targeted calls avoid. Workspace names are exact; `code_skeleton('*')` lists them. The code tools understand C# (`.cs`), Python (`.py`, `.pyi`) and TypeScript and JavaScript (`.ts .tsx .mts .cts .js .jsx .mjs .cjs`); other files go through `code_read` and `code_grep`.
 
 ## Which call
 
@@ -93,4 +93,4 @@ Numbers from `code_method`, `code_read` and `code_outline` are real file lines a
 | Unknown workspace | `code_skeleton('*')` for the exact name |
 | File refused | see Reading; do not retry with another tool |
 | 'not a source file the code tools can analyze' | `code_read` the file instead |
-| 'parser did not load' | the Python parser could not start on this computer; `code_read` still works, and C# is not affected |
+| 'parser did not load' | the tree-sitter parser (Python, TypeScript and JavaScript) could not start on this computer; `code_read` still works, and C# is not affected |

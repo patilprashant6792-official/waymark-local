@@ -18,10 +18,11 @@
         <h2 id="risk-title">Risk and responsible use</h2>
         <p>Anything Claude reads can end up in your Claude chat, and anything it runs acts as you.</p>
         <ul>
-            <li><strong>Code that runs is not sandboxed.</strong> A test, the app or a script can read your keys (<span class="wm-mono">.ssh</span>, <span class="wm-mono">.aws</span>, NuGet feed logins, user secrets) and reach the internet. That includes code Claude has just written.</li>
+            <li><strong>Code that runs is not sandboxed.</strong> A test, the app or a script can read your keys (<span class="wm-mono">.ssh</span>, <span class="wm-mono">.aws</span>, NuGet, npm and PyPI logins in <span class="wm-mono">.npmrc</span>, <span class="wm-mono">.pypirc</span> or <span class="wm-mono">pip.conf</span>, user secrets) and reach the internet. That includes code Claude has just written.</li>
             <li><strong>Deleting the chat does not take anything back.</strong> What already left this computer stays out there. If a secret reached the chat, rotate it.</li>
             <li><strong>Text from repositories, packages and commit messages is untrusted.</strong> It can try to steer the agent. Read what you approve, and ask why Claude wants it.</li>
             <li><strong>Keep "Runs code" on Ask</strong> unless the workspace is yours alone.</li>
+            <li><strong>Programs inside the workspace are code too.</strong> A project's own <span class="wm-mono">.venv</span> Python, <span class="wm-mono">node_modules</span> tools and <span class="wm-mono">package.json</span> scripts start when you approve a test, a build or a type check, and they can be code Claude has just written.</li>
             <li><strong>A push sends your commits away.</strong> A secret that was ever committed goes with them.</li>
         </ul>
     </section>
@@ -63,25 +64,61 @@
         <li>
             <div class="wm-row-main">
                 <strong>Operations that run code ask first</strong>
-                <div class="wm-muted">@AskingProjectCodeCount of @ProjectCodeCount operations that start the project's own code (tests, the app, EF, scripts) wait for your approval.</div>
+                <div class="wm-muted">@AskingProjectCodeCount of @ProjectCodeCount operations that start code from your project (tests, builds, scripts, dev servers and type checkers in .NET, Python and Node) wait for your approval.</div>
             </div>
             <StateChip State="@(AutoProjectCode.Count == 0 ? StatusState.Healthy : StatusState.Failed)" Text="@(AutoProjectCode.Count == 0 ? "All ask" : $"{AutoProjectCode.Count} automatic")" />
+        </li>
+        <li>
+            <div class="wm-row-main">
+                <strong>Installs run no package code</strong>
+                <div class="wm-muted">Python installs use wheels only (<span class="wm-mono">uv --no-build</span>, <span class="wm-mono">pip --only-binary :all:</span>) and never build the project; a requirements file with editable, path or URL lines is refused. Node installs are <span class="wm-mono">npm ci --ignore-scripts</span> from the lock file, and npm runs as <span class="wm-mono">node npm-cli.js</span>, never through a <span class="wm-mono">.cmd</span> shim. A package that needs its install script has to be set up by you through the shell.</div>
+            </div>
+            <StateChip State="StatusState.Healthy" Text="Always on" />
+        </li>
+        <li>
+            <div class="wm-row-main">
+                <strong>Scripts run only when named</strong>
+                <div class="wm-muted">A <span class="wm-mono">package.json</span> script runs only if it exists there, and its text is shown on the approval card. Extra arguments cannot load or evaluate code (<span class="wm-mono">--require</span>, <span class="wm-mono">--import</span>, <span class="wm-mono">--eval</span>).</div>
+            </div>
+            <StateChip State="StatusState.Healthy" Text="Always on" />
+        </li>
+        <li>
+            <div class="wm-row-main">
+                <strong>Package lookups read, never install</strong>
+                <div class="wm-muted">To show a package's API, Waymark itself contacts nuget.org, pypi.org (and files.pythonhosted.org) or registry.npmjs.org, checks the integrity hash the registry publishes, reads declarations or source by syntax, and deletes the download. Credential files (<span class="wm-mono">.npmrc</span>, <span class="wm-mono">.pypirc</span>, <span class="wm-mono">pip.conf</span>, <span class="wm-mono">.netrc</span>) are never read by any tool.</div>
+            </div>
+            <StateChip State="StatusState.Healthy" Text="Always on" />
         </li>
     </ul>
 
     <h2 class="wm-section">Operations by risk</h2>
+    <div class="wm-row">
+        <label class="wm-muted" for="risk-toolchain">Toolchain</label>
+        <select id="risk-toolchain" class="wm-input" value="@ToolchainKey" @onchange="OnToolchainChanged">
+            <option value="@Toolchains.All">All toolchains (@Operations.Count operations)</option>
+            @foreach (var toolchain in Toolchains.Ordered)
+            {
+                <option value="@toolchain.Key">@toolchain.Title (@Operations.Count(o => o.Family == toolchain.Key))</option>
+            }
+        </select>
+        @if (Toolchains.Find(ToolchainKey) is { } picked)
+        {
+            <a href="@($"commands?toolchain={picked.Key}")">Change these on Commands</a>
+        }
+    </div>
     <div class="wm-table-wrap">
         <table class="wm-table">
             <caption class="visually-hidden">Every command operation, how risky it is and whether it runs on its own</caption>
             <thead>
-                <tr><th scope="col">Operation</th><th scope="col">Risk</th><th scope="col">Default</th><th scope="col">Now, all workspaces</th></tr>
+                <tr><th scope="col">Operation</th><th scope="col">Toolchain</th><th scope="col">Risk</th><th scope="col">Default</th><th scope="col">Now, all workspaces</th></tr>
             </thead>
             <tbody>
-                @foreach (var operation in Operations)
+                @foreach (var operation in VisibleOperations)
                 {
                     var gate = GateOf(operation);
                     <tr>
                         <th scope="row">@operation.Label <span class="wm-muted wm-mono">@operation.Key</span></th>
+                        <td>@Toolchains.TitleOf(operation.Family)</td>
                         <td><RiskChip Operation="operation" /></td>
                         <td>@operation.Default</td>
                         <td><StateChip State="GateState(operation, gate)" Text="@gate.ToString()" /></td>

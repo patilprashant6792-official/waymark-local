@@ -211,20 +211,14 @@ public partial class Workspaces : LiveComponentBase
             ? $"{DisplayFormat.Count(p.FilesProcessed)} of {DisplayFormat.Count(p.FilesTotal)} files"
             : string.Empty;
 
-    private static string StatsText(CodeIndexStats? stats)
-    {
-        if (stats is null)
-        {
-            return "-";
-        }
+    private static string StatsText(CodeIndexStats? stats) =>
+        stats is null
+            ? "-"
+            : $"{DisplayFormat.Count(stats.Files)} files, {DisplayFormat.Count(stats.Types)} types, {DisplayFormat.Count(stats.Members)} members";
 
-        var text = $"{DisplayFormat.Count(stats.Files)} files, {DisplayFormat.Count(stats.Types)} types, {DisplayFormat.Count(stats.Members)} members";
-        if (stats.FilesByLanguage is { Count: > 0 } languages && (languages.Count > 1 || !languages.ContainsKey(CodeLanguage.CSharp)))
-        {
-            var parts = languages.OrderByDescending(pair => pair.Value).Select(pair => $"{CodeLanguages.DisplayName(pair.Key)} {DisplayFormat.Count(pair.Value)}");
-            text += " (" + string.Join(", ", parts) + ")";
-        }
-
-        return text;
-    }
+    /// <summary>The languages of a workspace, the biggest first, as (name, files).</summary>
+    private static IReadOnlyList<(string Name, int Files)> LanguagesOf(CodeIndexStats? stats) =>
+        stats?.FilesByLanguage is { Count: > 0 } languages
+            ? languages.Where(pair => pair.Value > 0).OrderByDescending(pair => pair.Value).Select(pair => (CodeLanguages.DisplayName(pair.Key), pair.Value)).ToList()
+            : [];
 }

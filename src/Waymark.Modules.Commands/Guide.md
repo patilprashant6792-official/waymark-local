@@ -6,7 +6,7 @@ Typed tools run programs in a workspace without a shell, and the owner watches e
 
 | Need | Tool |
 |---|---|
-| build, test, format, packages, EF Core, run a .NET project; install, test, lint, type-check, run a Python project (actions starting with `py_`) | `cmd_project` |
+| build, test, format, packages, EF Core, run a .NET project; install, test, lint, type-check, run a Python project (actions starting with `py_`); install, type-check, build, test, run a Node project (actions starting with `node_`) | `cmd_project` |
 | git | `cmd_git` |
 | ports, stop a program, build servers, delete bin/obj | `cmd_proc` |
 | anything none of those can do | `cmd_shell` (last resort) |
@@ -109,7 +109,7 @@ Node actions start with `node_` and work on one project: option `project` is its
 
 ## cmd_proc
 
-Use it for a port that stays busy (`ports`, then `stop_port`), for files locked by compiler servers (`build_server`), or for stale build output (`clean_outputs` with `dryRun` first). `stop_port` only ends programs that run from the workspace or are dotnet programs, never Waymark.
+Use it for a port that stays busy (`ports`, then `stop_port`), for files locked by compiler servers (`build_server`), or for stale build output (`clean_outputs` with `dryRun` first). `stop_port` only ends programs that run from the workspace, or that are dotnet, Python or Node programs, never Waymark.
 
 ## cmd_shell
 

@@ -64,6 +64,9 @@ public partial class NuGetExplorerPage : LiveComponentBase
 
     private NuGetPackageKey Key => new(NuGetLinks.DecodeId(PackageId), Version, Framework);
 
+    // A NuGet package has namespaces; a Python or npm package has modules.
+    private string ContainerWord => PackageEcosystems.Of(Key) == PackageEcosystems.NuGet ? "namespaces" : "modules";
+
     private bool HasFilters => !string.IsNullOrWhiteSpace(Q) || !string.IsNullOrEmpty(Ns) || !string.IsNullOrEmpty(KindFilter) || !string.IsNullOrEmpty(Type);
 
     private IEnumerable<NuGetNamespaceCount> VisibleNamespaces =>

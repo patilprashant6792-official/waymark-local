@@ -12,7 +12,7 @@ public static class NuGetLinks
     public static string Explore(NuGetPackageKey key, string? sid = null)
     {
         ArgumentNullException.ThrowIfNull(key);
-        var path = $"/nuget/{Uri.EscapeDataString(EncodeId(key.PackageId))}/{Uri.EscapeDataString(key.Version)}/{Uri.EscapeDataString(key.TargetFramework)}";
+        var path = $"/packages/{Uri.EscapeDataString(EncodeId(key.PackageId))}/{Uri.EscapeDataString(key.Version)}/{Uri.EscapeDataString(key.TargetFramework)}";
         return string.IsNullOrEmpty(sid) ? path : path + "?sid=" + Uri.EscapeDataString(sid);
     }
 
@@ -21,6 +21,18 @@ public static class NuGetLinks
 
     /// <summary>The package id back from a route segment.</summary>
     public static string DecodeId(string segment) => segment.Replace(SlashMarker, "/", StringComparison.Ordinal);
+
+    /// <summary>What kind of package it is, for a chip or a list line: <c>NuGet net10.0</c>, <c>PyPI</c> or <c>npm</c>.</summary>
+    public static string EcosystemLabel(NuGetPackageKey key)
+    {
+        ArgumentNullException.ThrowIfNull(key);
+        return PackageEcosystems.Of(key) switch
+        {
+            PackageEcosystems.PyPI => "PyPI",
+            PackageEcosystems.Npm => "npm",
+            _ => $"NuGet {key.TargetFramework}",
+        };
+    }
 
     /// <summary>The package's page on its registry: nuget.org, pypi.org or npmjs.com.</summary>
     public static string OnNuGetOrg(NuGetPackageKey key)

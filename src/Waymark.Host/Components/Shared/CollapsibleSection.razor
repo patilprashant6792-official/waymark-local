@@ -1,6 +1,6 @@
 @using MudBlazor
 
-<section class="wm-collapsible @(Card ? "wm-card" : null)" aria-labelledby="@HeadingId">
+<section class="wm-collapsible @(Card ? "wm-card" : null) @CssClass" aria-labelledby="@HeadingId">
     <div class="wm-collapse-head">
         <h2 id="@HeadingId" class="wm-section wm-collapse-title @TitleClass">
             <button type="button" class="wm-collapse-btn" aria-expanded="@(_expanded ? "true" : "false")" aria-controls="@BodyId" @onclick="Toggle">
@@ -36,6 +36,10 @@
 
     [Parameter]
     public bool Card { get; set; } = true;
+
+    // An extra class on the section, such as wm-risky.
+    [Parameter]
+    public string? CssClass { get; set; }
 
     // Always visible, even when collapsed: counts and chips that describe what is inside.
     [Parameter]

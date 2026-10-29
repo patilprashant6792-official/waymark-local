@@ -17,7 +17,7 @@
     <header class="wm-home-head">
         <div>
             <h1 class="wm-title">Dashboard</h1>
-            <p class="wm-lead" style="margin-bottom:0">What is happening on this machine right now.</p>
+        <p class="wm-lead" style="margin-bottom:0">What is happening on this machine right now: Claude's access to your code, packages and toolchains (.NET, Python, Node), with your approvals.</p>
         </div>
         @if (Attention.Count > 0)
         {
@@ -228,7 +228,7 @@
             <StateChip State="CodeIndexState.State" Text="@CodeIndexState.Text" />
         </div>
         <div class="wm-tile-value">@DisplayFormat.Count(IndexedFiles) <span class="wm-unit">files</span></div>
-        <p class="wm-tile-sub">@DisplayFormat.Count(IndexedTypes) types in @_workspaces.Count @(_workspaces.Count == 1 ? "workspace" : "workspaces")</p>
+        <p class="wm-tile-sub">@DisplayFormat.Count(IndexedTypes) types in @_workspaces.Count @(_workspaces.Count == 1 ? "workspace" : "workspaces")@(IndexedLanguages.Length > 0 ? " · " + IndexedLanguages : string.Empty)</p>
         <a class="wm-tile-link" href="workspaces">View all workspaces <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" /></a>
     </article>;
 
@@ -348,8 +348,8 @@
 
     private RenderFragment NuGetPanel => @<section class="wm-panel" aria-labelledby="nuget-title">
         <header class="wm-panel-head">
-            <h2 id="nuget-title">NuGet packages<ActivityDot Token="@CardToken(DashboardCards.NuGet)" /></h2>
-            <a href="nuget">View all <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" /></a>
+            <h2 id="nuget-title">Packages<ActivityDot Token="@CardToken(DashboardCards.NuGet)" /></h2>
+            <a href="packages">View all <MudIcon Icon="@Icons.Material.Filled.ArrowForward" Size="Size.Small" /></a>
         </header>
         @if (_nuget is not { } nuget)
         {
@@ -385,7 +385,7 @@
                                     <strong>@package.Key.PackageId</strong>
                                 }
                                 <span class="wm-muted wm-mono"> @package.Key.Version</span>
-                                <div class="wm-muted wm-ellipsis">@package.Key.TargetFramework - indexed @DisplayFormat.Ago(package.IndexedUtc ?? package.StartedUtc, Time.GetUtcNow())</div>
+                                <div class="wm-muted wm-ellipsis">@NuGetLinks.EcosystemLabel(package.Key) - indexed @DisplayFormat.Ago(package.IndexedUtc ?? package.StartedUtc, Time.GetUtcNow())</div>
                             </div>
                             <StateChip State="state.State" Text="@state.Text" />
                         </li>
