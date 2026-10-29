@@ -41,6 +41,7 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
     private readonly List<CodeMemberEntry> _members = [];
     private readonly List<CodeCallSiteEntry> _calls = [];
     private bool _topLevelPublic;
+    private readonly HashSet<string> _namedExports = new(StringComparer.Ordinal);
     private bool _membersFull;
     private bool _callsFull;
 
@@ -52,6 +53,22 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
     {
         ArgumentNullException.ThrowIfNull(root);
         _topLevelPublic = !root.NamedChildren.Any(n => n.Type is "export_statement" or "import_statement");
+
+        // export { A, B as C };  names a local declaration as exported without the export keyword on it.
+        foreach (var statement in root.NamedChildren.Where(n => n.Type == "export_statement" && n.GetChildForField("source") is null))
+        {
+            foreach (var clause in statement.NamedChildren.Where(c => c.Type == "export_clause"))
+            {
+                foreach (var specifier in clause.NamedChildren.Where(c => c.Type == "export_specifier"))
+                {
+                    var local = specifier.GetChildForField("name")?.Text;
+                    if (!string.IsNullOrEmpty(local))
+                    {
+                        _namedExports.Add(local);
+                    }
+                }
+            }
+        }
         WalkStatements(root.NamedChildren, null, 0);
         return new TypeScriptExtraction(_imports, _types, _members, _calls, _membersFull || _callsFull);
     }
@@ -158,6 +175,15 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
         var isDefault = node.Children.Any(c => c.Type == "default");
         var declaration = node.GetChildForField("declaration");
         var source = node.GetChildForField("source");
+
+        // export declare class X {}, export declare function f(): void, export declare const c: T: the declaration sits inside an ambient_declaration.
+        var ambient = declaration?.Type == "ambient_declaration" ? declaration : node.NamedChildren.FirstOrDefault(c => c.Type == "ambient_declaration");
+        if (ambient is not null)
+        {
+            WalkStatement(ambient, context with { Exported = true, IsDefault = isDefault, Decorators = decorators }, depth);
+            return;
+        }
+
         if (declaration is null)
         {
             // export { a } from "x";  export * from "x";  export default someValue;
@@ -256,7 +282,7 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
             }
         }
 
-        var modifiers = TopLevelVisibility(context);
+        var modifiers = TopLevelVisibility(context, name);
         if (node.Type == "abstract_class_declaration")
         {
             modifiers += " abstract";
@@ -295,7 +321,7 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
             }
         }
 
-        var scope = BeginType(CodeTypeKind.Interface, name, span, context, bases, TopLevelVisibility(context), node);
+        var scope = BeginType(CodeTypeKind.Interface, name, span, context, bases, TopLevelVisibility(context, name), node);
         var body = node.GetChildForField("body");
         if (body is not null)
         {
@@ -311,7 +337,7 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
             return;
         }
 
-        var scope = BeginType(CodeTypeKind.Enum, name, span, context, [], TopLevelVisibility(context), node);
+        var scope = BeginType(CodeTypeKind.Enum, name, span, context, [], TopLevelVisibility(context, name), node);
         var body = node.GetChildForField("body");
         if (body is null)
         {
@@ -356,7 +382,7 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
             return;
         }
 
-        BeginType(CodeTypeKind.TypeAlias, name, span, context, [], TopLevelVisibility(context), node);
+        BeginType(CodeTypeKind.TypeAlias, name, span, context, [], TopLevelVisibility(context, name), node);
     }
 
     private void AddNamespace(Node node, Node span, Context context, int depth)
@@ -368,7 +394,7 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
             return;
         }
 
-        var scope = BeginType(CodeTypeKind.Namespace, name, span, context, [], TopLevelVisibility(context), node);
+        var scope = BeginType(CodeTypeKind.Namespace, name, span, context, [], TopLevelVisibility(context, name), node);
         var body = node.GetChildForField("body");
         if (body is not null)
         {
@@ -484,7 +510,8 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
         var kind = isConstructor ? CodeMemberKind.Constructor : isAccessor ? CodeMemberKind.Property : CodeMemberKind.Method;
         var parameters = member.GetChildForField("parameters");
         var returnType = ReturnTypeText(member);
-        var signature = $"{name}{TypeParametersText(member)}{ParametersText(parameters)}{(returnType is null ? string.Empty : ": " + returnType)}";
+        var accessor = keywords.Contains("get") ? "get " : keywords.Contains("set") ? "set " : string.Empty;
+        var signature = $"{accessor}{name}{TypeParametersText(member)}{ParametersText(parameters)}{(returnType is null ? string.Empty : ": " + returnType)}";
         var (start, end) = Lines(member);
         var memberName = isConstructor ? scope.Name : name;
 
@@ -619,7 +646,7 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
         var star = keywords.Contains("*") || node.Type == "generator_function_declaration" ? "*" : string.Empty;
         var signature = $"{(keywords.Contains("async") ? "async " : string.Empty)}function{star} {name}{TypeParametersText(node)}{ParametersText(node.GetChildForField("parameters"))}{(returnType is null ? string.Empty : ": " + returnType)}";
         var (start, end) = Lines(span);
-        var modifiers = TopLevelVisibility(context) + (context.IsDefault ? " default" : string.Empty);
+        var modifiers = TopLevelVisibility(context, name) + (context.IsDefault ? " default" : string.Empty);
         var added = AddMemberEntry(new CodeMemberEntry(
             context.Scope?.Index,
             CodeMemberKind.Function,
@@ -656,7 +683,7 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
             var typeNode = declarator.GetChildForField("type");
             var typeText = typeNode is null ? null : TrimTypeAnnotation(typeNode.Text);
             var (start, end) = Lines(span);
-            var modifiers = TopLevelVisibility(context);
+            var modifiers = TopLevelVisibility(context, name);
             if (value is not null && FunctionValues.Contains(value.Type))
             {
                 var returnType = ReturnTypeText(value);
@@ -862,8 +889,8 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
     }
 
     /// <summary>The visibility of a top-level name: exported (or any name in a script or declaration file) is public, the rest is internal to the module.</summary>
-    private string TopLevelVisibility(Context context) =>
-        context.Scope is not null ? "public" : context.Exported || _topLevelPublic ? "public" : "internal";
+    private string TopLevelVisibility(Context context, string name) =>
+        context.Scope is not null ? "public" : context.Exported || _topLevelPublic || _namedExports.Contains(name) ? "public" : "internal";
 
     private static string? MemberName(Node? node)
     {

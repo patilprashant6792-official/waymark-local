@@ -4,8 +4,8 @@ Waymark is a modular monolith. A module references `Waymark.Core` only; `Waymark
 
 | Module | Tools | Gate |
 |---|---|---|
-| Code | code_skeleton, code_folder_files, code_changes_since, code_outline, code_method, code_read, code_search, code_grep, code_callers, code_types (C# through Roslyn, Python through tree-sitter in `Waymark.Languages.Python`; a language is an `ILanguageIndexer`) | Read |
-| Packages (project `Waymark.Modules.NuGet`, module `packages`) | pkg_search, pkg_outline, pkg_find, pkg_expand (`ecosystem`: nuget or pypi) | Read |
+| Code | code_skeleton, code_folder_files, code_changes_since, code_outline, code_method, code_read, code_search, code_grep, code_callers, code_types (C# through Roslyn; Python and TypeScript/JavaScript through tree-sitter in `Waymark.Languages.Python` and `Waymark.Languages.TypeScript`; a language is an `ILanguageIndexer`) | Read |
+| Packages (project `Waymark.Modules.NuGet`, module `packages`) | pkg_search, pkg_outline, pkg_find, pkg_expand (`ecosystem`: nuget, pypi or npm) | Read |
 | Files | file_write, file_edit_lines (both can copy with `from` / `fromFolder`), folder_create, file_move, file_delete, folder_move, folder_delete | Confirm (off until switched on) |
 | Commands | cmd_project (.NET and Python actions), cmd_git, cmd_proc, cmd_shell, cmd_wait, cmd_output, cmd_list, cmd_stop | Confirm for the four that start something (off until switched on); the read tools are Read. Each operation also has an Off / Ask / Auto gate chosen by the owner, see `commands-policy.md` |
 | Host | waymark_ping, util_datetime | Read |

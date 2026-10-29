@@ -60,6 +60,13 @@ public static partial class DiagnosticsParser
     [GeneratedRegex(@"^\s*(?:●|FAIL)\s+(?<name>\S.*)$", RegexOptions.None, 200)]
     private static partial Regex NodeFailedTestPattern();
 
+    // node --test (TAP):  # pass 1   # fail 1   # skipped 0     not ok 2 - fails on purpose
+    [GeneratedRegex(@"^#\s+(?<kind>pass|fail|skipped)\s+(?<count>\d+)\s*$", RegexOptions.None, 200)]
+    private static partial Regex TapCountPattern();
+
+    [GeneratedRegex(@"^\s*not ok \d+ - (?<name>.+)$", RegexOptions.None, 200)]
+    private static partial Regex TapFailedPattern();
+
     /// <summary>Errors first, repeated lines (the same message is printed once per target framework and again in the summary) removed, paths made relative to the workspace.</summary>
     public static IReadOnlyList<BuildDiagnostic> ParseBuild(string plainOutput, string workspaceRoot)
     {
@@ -234,9 +241,38 @@ public static partial class DiagnosticsParser
         {
             string? summary = null;
             var failedNames = new List<string>();
+            int? tapPass = null;
+            int? tapFail = null;
+            int? tapSkipped = null;
             foreach (var rawLine in plainOutput.Split('\n'))
             {
                 var line = rawLine.TrimEnd('\r');
+                var tap = TapCountPattern().Match(line);
+                if (tap.Success)
+                {
+                    var number = int.Parse(tap.Groups["count"].Value, NumberStyles.None, CultureInfo.InvariantCulture);
+                    switch (tap.Groups["kind"].Value)
+                    {
+                        case "pass":
+                            tapPass = number;
+                            break;
+                        case "fail":
+                            tapFail = number;
+                            break;
+                        default:
+                            tapSkipped = number;
+                            break;
+                    }
+
+                    continue;
+                }
+
+                var tapFailed = TapFailedPattern().Match(line);
+                if (tapFailed.Success && failedNames.Count < 200 && !failedNames.Contains(tapFailed.Groups["name"].Value.Trim(), StringComparer.Ordinal))
+                {
+                    failedNames.Add(tapFailed.Groups["name"].Value.Trim());
+                    continue;
+                }
                 var totals = NodeTestTotalsPattern().Match(line);
                 if (totals.Success)
                 {
@@ -249,6 +285,12 @@ public static partial class DiagnosticsParser
                 {
                     failedNames.Add(failed.Groups["name"].Value.Trim());
                 }
+            }
+
+            if (summary is null && (tapPass is not null || tapFail is not null))
+            {
+                // node --test (TAP): '# pass 1', '# fail 1', '# skipped 0'.
+                summary = string.Create(CultureInfo.InvariantCulture, $"{tapPass ?? 0} passed, {tapFail ?? 0} failed, {tapSkipped ?? 0} skipped");
             }
 
             if (summary is null)
