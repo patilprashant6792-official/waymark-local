@@ -15,18 +15,21 @@ public sealed class PythonIndexer(CodeIndexLimits limits, ILogger<PythonIndexer>
 
     private static readonly char[] LineBreaks = ['\r', '\u0085', '\u2028', '\u2029'];
 
-    private bool _reportedUnavailable;
+    private int _reportedUnavailable;
 
     public CodeLanguage Language => CodeLanguage.Python;
 
     public IReadOnlySet<string> Extensions => SupportedExtensions;
 
-    public async Task<SyntaxIndexResult> IndexFileAsync(string absolutePath, string relativePath, string? knownHash, CancellationToken ct)
+    public Task<SyntaxIndexResult> IndexFileAsync(string absolutePath, string relativePath, string? knownHash, CancellationToken ct) =>
+        IndexFileAsync(absolutePath, relativePath, knownHash, null, ct);
+
+    public async Task<SyntaxIndexResult> IndexFileAsync(string absolutePath, string relativePath, string? knownHash, DateTimeOffset? modifiedUtc, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(absolutePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(relativePath);
 
-        var modifiedUtc = File.GetLastWriteTimeUtc(absolutePath);
+        var modified = modifiedUtc ?? new DateTimeOffset(File.GetLastWriteTimeUtc(absolutePath), TimeSpan.Zero);
         byte[] content;
         await using (var stream = new FileStream(
             absolutePath,
@@ -66,16 +69,15 @@ public sealed class PythonIndexer(CodeIndexLimits limits, ILogger<PythonIndexer>
         }
         catch (GrammarUnavailableException ex)
         {
-            if (!_reportedUnavailable)
+            if (Interlocked.Exchange(ref _reportedUnavailable, 1) == 0)
             {
-                _reportedUnavailable = true;
                 logger.LogWarning(ex, "Python files cannot be indexed on this computer: the tree-sitter library did not load. Other languages are not affected.");
             }
 
             return new SyntaxIndexResult(SyntaxIndexOutcome.Unavailable, null, false);
         }
 
-        var stamp = new CodeFileStamp(relativePath, hash, content.Length, new DateTimeOffset(modifiedUtc, TimeSpan.Zero));
+        var stamp = new CodeFileStamp(relativePath, hash, content.Length, modified);
         var file = new CodeFileIndex(
             stamp,
             lineCount,
@@ -90,8 +92,8 @@ public sealed class PythonIndexer(CodeIndexLimits limits, ILogger<PythonIndexer>
 
     private PythonExtraction Parse(string text, string moduleName, int lineCount, CancellationToken ct)
     {
-        using var parser = PythonGrammar.CreateParser();
-        using var tree = parser.Parse(text) ?? throw new InvalidDataException("The parser returned no tree.");
+        using var lease = PythonGrammar.RentParser();
+        using var tree = lease.Parser.Parse(text) ?? throw new InvalidDataException("The parser returned no tree.");
         return new PythonExtractor(moduleName, lineCount, limits, ct).Extract(tree.RootNode);
     }
 

@@ -9,65 +9,38 @@ public sealed class CodeIndexStore(ISqliteConnectionFactory connections, IWriteQ
 {
     private const char UsingSeparator = '\n';
 
-    public Task ReplaceFileAsync(long workspaceId, CodeFileIndex file, DateTimeOffset indexedUtc, CancellationToken ct)
+    public async Task ReplaceFileAsync(long workspaceId, CodeFileIndex file, DateTimeOffset indexedUtc, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(file);
         Validate(file);
-        return writes.RunAsync(async (connection, tx, k) =>
+        var result = await ApplyBatchAsync(workspaceId, [file], [], indexedUtc, ct);
+        if (result.Failed.Count > 0)
         {
-            await DeleteFileAsync(connection, tx, workspaceId, file.Stamp.RelativePath, k);
+            throw new InvalidOperationException($"The code index could not store '{result.Failed[0].RelativePath}': {result.Failed[0].Message}");
+        }
+    }
 
-            var fileId = await connection.QuerySingleAsync<long>(new CommandDefinition(
-                "INSERT INTO code_files (workspace_id, rel_path, hash, size, mtime_utc, line_count, classification, language, usings, indexed_utc) " +
-                "VALUES (@workspaceId, @path, @hash, @size, @mtime, @lines, @classification, @language, @usings, @indexed) RETURNING id",
-                new
-                {
-                    workspaceId,
-                    path = file.Stamp.RelativePath,
-                    hash = file.Stamp.Hash,
-                    size = file.Stamp.Size,
-                    mtime = Timestamp.Format(file.Stamp.ModifiedUtc),
-                    lines = file.LineCount,
-                    classification = file.Classification,
-                    language = EnumText.ToDb(file.Language),
-                    usings = string.Join(UsingSeparator, file.Usings),
-                    indexed = Timestamp.Format(indexedUtc)
-                },
-                tx,
-                cancellationToken: k));
+    public Task<CodeBatchResult> ApplyBatchAsync(
+        long workspaceId,
+        IReadOnlyList<CodeFileIndex> replace,
+        IReadOnlyList<string> remove,
+        DateTimeOffset indexedUtc,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(replace);
+        ArgumentNullException.ThrowIfNull(remove);
+        if (replace.Count == 0 && remove.Count == 0)
+        {
+            return Task.FromResult(new CodeBatchResult(0, 0, []));
+        }
 
-            var typeIds = new long[file.Types.Count];
-            for (var ordinal = 0; ordinal < file.Types.Count; ordinal++)
+        return writes.ExecuteAsync<CodeBatchResult>(
+            (connection, tx, k) =>
             {
-                typeIds[ordinal] = await InsertTypeAsync(connection, tx, fileId, ordinal, file.Types[ordinal], file.Stamp.RelativePath, k);
-            }
-
-            foreach (var member in file.Members)
-            {
-                var typeIndex = member.TypeIndex;
-                await InsertMemberAsync(connection, tx, fileId, typeIndex is null ? null : typeIds[typeIndex.Value], member, file, k);
-            }
-
-            foreach (var site in file.CallSites)
-            {
-                await connection.ExecuteAsync(new CommandDefinition(
-                    "INSERT INTO code_call_sites (file_id, caller_type, caller_member, callee_name, receiver, line, receiver_type, receiver_guessed) " +
-                    "VALUES (@fileId, @callerType, @callerMember, @calleeName, @receiver, @line, @receiverType, @receiverGuessed)",
-                    new
-                    {
-                        fileId,
-                        callerType = site.CallerType,
-                        callerMember = site.CallerMember,
-                        calleeName = site.CalleeName,
-                        receiver = site.Receiver,
-                        line = site.Line,
-                        receiverType = site.ReceiverType,
-                        receiverGuessed = site.ReceiverTypeGuessed ? 1 : 0
-                    },
-                    tx,
-                    cancellationToken: k));
-            }
-        }, ct);
+                using var writer = new CodeIndexBatchWriter(connection, tx);
+                return Task.FromResult(writer.Apply(workspaceId, replace, remove, indexedUtc, k));
+            },
+            ct);
     }
 
     public Task<bool> RemoveFileAsync(long workspaceId, string relativePath, CancellationToken ct)
@@ -95,6 +68,55 @@ public sealed class CodeIndexStore(ISqliteConnectionFactory connections, IWriteQ
             new { workspaceId },
             cancellationToken: ct));
         return rows.Select(ToStamp).ToList();
+    }
+
+    public async Task<IReadOnlyList<CodeFileStamp>> ListStampsUnderAsync(long workspaceId, string folder, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(folder);
+        var trimmed = folder.Trim('/');
+        await using var connection = await connections.OpenAsync(ct);
+
+        // Every path below the folder sorts between "folder/" and "folder0" ('0' is the character after '/'), so the unique index on
+        // (workspace_id, rel_path) answers this as a range, with the same case folding the column uses.
+        var rows = await connection.QueryAsync<StampRow>(new CommandDefinition(
+            "SELECT rel_path, hash, size, mtime_utc FROM code_files WHERE workspace_id = @workspaceId AND rel_path >= @low AND rel_path < @high ORDER BY rel_path",
+            new { workspaceId, low = trimmed + "/", high = trimmed + "0" },
+            cancellationToken: ct));
+        return rows.Select(ToStamp).ToList();
+    }
+
+    public async Task<IReadOnlyDictionary<string, CodeFileStamp>> GetStampsAsync(long workspaceId, IReadOnlyCollection<string> relativePaths, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(relativePaths);
+        var stamps = new Dictionary<string, CodeFileStamp>(relativePaths.Count, StringComparer.OrdinalIgnoreCase);
+        if (relativePaths.Count == 0)
+        {
+            return stamps;
+        }
+
+        await using var connection = await connections.OpenAsync(ct);
+        await using var command = connection.CreateCommand();
+        command.CommandText = "SELECT rel_path, hash, size, mtime_utc FROM code_files WHERE workspace_id = $workspaceId AND rel_path = $path";
+        var workspace = command.CreateParameter();
+        workspace.ParameterName = "$workspaceId";
+        workspace.Value = workspaceId;
+        command.Parameters.Add(workspace);
+        var path = command.CreateParameter();
+        path.ParameterName = "$path";
+        command.Parameters.Add(path);
+
+        foreach (var relativePath in relativePaths)
+        {
+            ct.ThrowIfCancellationRequested();
+            path.Value = relativePath;
+            await using var reader = await command.ExecuteReaderAsync(ct);
+            if (await reader.ReadAsync(ct))
+            {
+                stamps[relativePath] = new CodeFileStamp(reader.GetString(0), reader.GetString(1), reader.GetInt64(2), Timestamp.Parse(reader.GetString(3)));
+            }
+        }
+
+        return stamps;
     }
 
     public async Task<CodeFileIndex?> GetFileAsync(long workspaceId, string relativePath, CancellationToken ct)
@@ -165,7 +187,7 @@ public sealed class CodeIndexStore(ISqliteConnectionFactory connections, IWriteQ
         return new CodeIndexStats((int)row.Files, (int)row.Types, (int)row.Members, (int)row.CallSites, byLanguage);
     }
 
-    private static void Validate(CodeFileIndex file)
+    internal static void Validate(CodeFileIndex file)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(file.Stamp.RelativePath);
         ArgumentException.ThrowIfNullOrWhiteSpace(file.Stamp.Hash);
@@ -190,70 +212,6 @@ public sealed class CodeIndexStore(ISqliteConnectionFactory connections, IWriteQ
             new { workspaceId, relativePath },
             tx,
             cancellationToken: ct)) > 0;
-
-    private static async Task<long> InsertTypeAsync(
-        SqliteConnection connection, SqliteTransaction tx, long fileId, int ordinal, CodeTypeEntry type, string path, CancellationToken ct)
-    {
-        var typeId = await connection.QuerySingleAsync<long>(new CommandDefinition(
-            "INSERT INTO code_types (file_id, ordinal, kind, name, full_name, namespace, base_list, modifiers, attributes, doc_summary, start_line, end_line) " +
-            "VALUES (@fileId, @ordinal, @kind, @name, @fullName, @namespace, @baseList, @modifiers, @attributes, @doc, @startLine, @endLine) RETURNING id",
-            new
-            {
-                fileId,
-                ordinal,
-                kind = EnumText.ToDb(type.Kind),
-                name = type.Name,
-                fullName = type.FullName,
-                @namespace = type.Namespace,
-                baseList = type.BaseList,
-                modifiers = type.Modifiers,
-                attributes = type.Attributes,
-                doc = type.DocSummary,
-                startLine = type.StartLine,
-                endLine = type.EndLine
-            },
-            tx,
-            cancellationToken: ct));
-
-        await InsertSearchRowAsync(connection, tx, typeId * 2, type.Name, type.FullName, type.DocSummary, path, fileId, EnumText.ToDb(type.Kind), ct);
-        return typeId;
-    }
-
-    private static async Task InsertMemberAsync(
-        SqliteConnection connection, SqliteTransaction tx, long fileId, long? typeId, CodeMemberEntry member, CodeFileIndex file, CancellationToken ct)
-    {
-        var memberId = await connection.QuerySingleAsync<long>(new CommandDefinition(
-            "INSERT INTO code_members (file_id, type_id, kind, name, signature, return_type, modifiers, attributes, doc_summary, start_line, end_line) " +
-            "VALUES (@fileId, @typeId, @kind, @name, @signature, @returnType, @modifiers, @attributes, @doc, @startLine, @endLine) RETURNING id",
-            new
-            {
-                fileId,
-                typeId,
-                kind = EnumText.ToDb(member.Kind),
-                name = member.Name,
-                signature = member.Signature,
-                returnType = member.ReturnType,
-                modifiers = member.Modifiers,
-                attributes = member.Attributes,
-                doc = member.DocSummary,
-                startLine = member.StartLine,
-                endLine = member.EndLine
-            },
-            tx,
-            cancellationToken: ct));
-
-        var owner = member.TypeIndex is { } index ? file.Types[index].FullName : null;
-        var fullName = owner is null ? member.Name : owner + "." + member.Name;
-        await InsertSearchRowAsync(connection, tx, memberId * 2 + 1, member.Name, fullName, member.DocSummary, file.Stamp.RelativePath, fileId, EnumText.ToDb(member.Kind), ct);
-    }
-
-    private static Task InsertSearchRowAsync(
-        SqliteConnection connection, SqliteTransaction tx, long rowId, string name, string fullName, string? doc, string path, long fileId, string kind, CancellationToken ct) =>
-        connection.ExecuteAsync(new CommandDefinition(
-            "INSERT INTO code_fts (rowid, name, full_name, doc, path, file_id, kind) VALUES (@rowId, @name, @fullName, @doc, @path, @fileId, @kind)",
-            new { rowId, name, fullName, doc = doc ?? string.Empty, path, fileId, kind },
-            tx,
-            cancellationToken: ct));
 
     private static CodeFileStamp ToStamp(StampRow row) =>
         new(row.RelPath, row.Hash, row.Size, Timestamp.Parse(row.MtimeUtc));

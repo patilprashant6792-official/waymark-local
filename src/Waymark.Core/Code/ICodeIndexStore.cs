@@ -21,4 +21,16 @@ public interface ICodeIndexStore
     Task<CodeFileIndex?> GetFileAsync(long workspaceId, string relativePath, CancellationToken ct);
 
     Task<CodeIndexStats> GetStatsAsync(long workspaceId, CancellationToken ct);
+
+    /// <summary>
+    /// Stores and removes many files in one transaction. Every file is written under its own savepoint, so a file that cannot be stored is rolled back
+    /// alone and reported in the result while the others commit. Paths are compared ignoring case.
+    /// </summary>
+    Task<CodeBatchResult> ApplyBatchAsync(long workspaceId, IReadOnlyList<CodeFileIndex> replace, IReadOnlyList<string> remove, DateTimeOffset indexedUtc, CancellationToken ct);
+
+    /// <summary>The stamps of the given paths that are indexed, read on one connection. A path that is not indexed is missing from the result.</summary>
+    Task<IReadOnlyDictionary<string, CodeFileStamp>> GetStampsAsync(long workspaceId, IReadOnlyCollection<string> relativePaths, CancellationToken ct);
+
+    /// <summary>The stamps of every indexed file inside one folder (a workspace-relative path with '/'), for a reconcile of that folder alone.</summary>
+    Task<IReadOnlyList<CodeFileStamp>> ListStampsUnderAsync(long workspaceId, string folder, CancellationToken ct);
 }
