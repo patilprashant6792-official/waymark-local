@@ -1,0 +1,61 @@
+@using Waymark.Core.Workspaces
+@using Waymark.Host.Ui
+
+@{
+    var meta = Meta;
+}
+<dl class="wm-dl">
+    @if (!string.IsNullOrEmpty(Location))
+    {
+        <dt>Location</dt>
+        <dd class="wm-mono">@Location</dd>
+    }
+    @if (meta.SolutionFiles.Count > 0 || meta.ProjectFiles.Count > 0)
+    {
+        <dt>.NET</dt>
+        <dd>
+            @(meta.SolutionFiles.Count == 0 ? "no solution" : string.Join(", ", meta.SolutionFiles)),
+            @DisplayFormat.Count(meta.ProjectFiles.Count)@(meta.ProjectListTruncated ? "+" : string.Empty) project(s),
+            framework @(meta.DetectedFramework ?? "not detected")
+        </dd>
+    }
+    @if (meta.PythonProjectFiles.Count > 0 || meta.PythonSourceFiles > 0)
+    {
+        <dt>Python</dt>
+        <dd>
+            @DisplayFormat.Count(meta.PythonProjectFiles.Count) project(s)@(meta.PythonTool is null ? string.Empty : " managed by " + meta.PythonTool),
+            @DisplayFormat.Count(meta.PythonSourceFiles) source file(s)
+            @if (meta.PythonProjectFiles.Count > 0)
+            {
+                <div class="wm-mono wm-muted">@string.Join(", ", meta.PythonProjectFiles.Take(5))</div>
+            }
+        </dd>
+    }
+    @if (meta.NodeProjectFiles.Count > 0 || meta.NodeSourceFiles > 0)
+    {
+        <dt>Node.js</dt>
+        <dd>
+            @DisplayFormat.Count(meta.NodeProjectFiles.Count) package.json@(meta.PackageManager is null ? string.Empty : ", " + meta.PackageManager),
+            @DisplayFormat.Count(meta.NodeSourceFiles) JavaScript/TypeScript file(s)
+            @if (meta.NodeProjectFiles.Count > 0)
+            {
+                <div class="wm-mono wm-muted">@string.Join(", ", meta.NodeProjectFiles.Take(5))</div>
+            }
+        </dd>
+    }
+    @if (meta.SolutionFiles.Count == 0 && meta.ProjectFiles.Count == 0 && meta.PythonProjectFiles.Count == 0 && meta.PythonSourceFiles == 0 && meta.NodeProjectFiles.Count == 0 && meta.NodeSourceFiles == 0)
+    {
+        <dt>Contents</dt>
+        <dd>No project yet. That is fine: Claude can create the project and its files here.</dd>
+    }
+</dl>
+
+@code {
+    /// <summary>What the folder scan found.</summary>
+    [Parameter, EditorRequired]
+    public WorkspaceMetadata Meta { get; set; } = default!;
+
+    /// <summary>The folder, shown as the first line when set.</summary>
+    [Parameter]
+    public string? Location { get; set; }
+}

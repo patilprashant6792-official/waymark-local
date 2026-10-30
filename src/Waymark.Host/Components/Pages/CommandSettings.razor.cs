@@ -53,10 +53,20 @@ public partial class CommandSettings : LiveComponentBase
     [SupplyParameterFromQuery(Name = "toolchain")]
     public string? ToolchainQuery { get; set; }
 
+    /// <summary>Set when the page sits inside the details of one workspace: it then edits that workspace only and ignores the address.</summary>
+    [Parameter]
+    public long? WorkspaceId { get; set; }
+
+    private string? _toolchainLocal;
+
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
 
-    private string ToolchainKey => Toolchains.Find(ToolchainQuery)?.Key ?? Toolchains.All;
+    private string ToolchainKey => Toolchains.Find(Embedded ? _toolchainLocal : ToolchainQuery)?.Key ?? Toolchains.All;
+
+    private bool Embedded => WorkspaceId is not null;
+
+    private IReadOnlyList<Workspace> TrustScope => Embedded ? _workspaces.Where(w => w.Id == WorkspaceId).ToList() : _workspaces;
 
     // One toolchain picked, or a filter typed: the sections open. Everything shown at once: they stay closed, one summary line each.
     private bool ExpandFamilies => ToolchainKey != Toolchains.All || _filter.Trim().Length > 0;
@@ -126,9 +136,20 @@ public partial class CommandSettings : LiveComponentBase
 
     protected override async Task OnInitializedAsync()
     {
+        ApplyEmbeddedScope();
         await LoadAsync();
         RefreshOn<CommandPolicyChanged>(LoadAsync);
         RefreshOn<WorkspaceChanged>(LoadAsync);
+    }
+
+    protected override void OnParametersSet() => ApplyEmbeddedScope();
+
+    private void ApplyEmbeddedScope()
+    {
+        if (WorkspaceId is { } id)
+        {
+            _scope = id;
+        }
     }
 
     private CommandGate Effective(OperationInfo operation) => CommandCatalog.Resolve(operation, ResolveScope, _settings);
@@ -157,7 +178,7 @@ public partial class CommandSettings : LiveComponentBase
         {
             _workspaces = (await WorkspaceStore.ListAsync(Cancel)).OrderBy(w => w.Name, StringComparer.OrdinalIgnoreCase).ToList();
             _settings = await Admin.ListGatesAsync(Cancel);
-            if (_scope != CommandCatalog.AllWorkspaces && _workspaces.All(w => w.Id != _scope))
+            if (!Embedded && _scope != CommandCatalog.AllWorkspaces && _workspaces.All(w => w.Id != _scope))
             {
                 _scope = CommandCatalog.AllWorkspaces;
             }
@@ -193,6 +214,12 @@ public partial class CommandSettings : LiveComponentBase
     private void OnToolchainChanged(ChangeEventArgs args)
     {
         var key = Toolchains.Find(args.Value?.ToString())?.Key ?? Toolchains.All;
+        if (Embedded)
+        {
+            _toolchainLocal = key;
+            return;
+        }
+
         Navigation.NavigateTo(key == Toolchains.All ? "commands" : $"commands?toolchain={Uri.EscapeDataString(key)}", replace: true);
     }
 

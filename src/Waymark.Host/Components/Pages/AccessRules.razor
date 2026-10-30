@@ -8,8 +8,7 @@
 
 <PageTitle>Access rules - Waymark</PageTitle>
 
-<div class="wm-page">
-    <p><a href="/workspaces">Back to workspaces</a></p>
+<WorkspaceShell WorkspaceId="WorkspaceId">
 
     @if (!_loaded)
     {
@@ -21,7 +20,7 @@
     }
     else
     {
-        <h1 class="wm-title">Access rules: @_workspace.Name</h1>
+        <h2 class="wm-section" style="margin-top:0">Access rules</h2>
         <p class="wm-lead">Decide which files and folders Claude cannot open in this workspace. Your rules are added to the built-in protection and take effect at once. They never lift a built-in block, so secrets, keys, databases and version control stay protected.</p>
 
         @if (_error is not null)
@@ -167,4 +166,4 @@
             </dl>
         </section>
     }
-</div>
+</WorkspaceShell>

@@ -1,0 +1,68 @@
+@using Waymark.Core.Code
+@using Waymark.Core.Workspaces
+@using Waymark.Host.Ui
+
+@{
+    var status = WorkspaceView.StatusOf(Workspace, Progress);
+    var languages = WorkspaceView.LanguagesOf(Stats);
+    var progressText = WorkspaceView.ProgressText(Progress);
+}
+<article class="wm-tile wm-ws-card @WorkspaceView.AccentOf(status.State) @(Workspace.Enabled ? string.Empty : "is-off")">
+    <header class="wm-ws-card-head">
+        <span class="wm-ico"><MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Small" /></span>
+        <h2 class="wm-ws-name"><a class="wm-ws-link" href="@WorkspaceSections.Overview.Href(Workspace.Id)">@Workspace.Name</a></h2>
+        @if (Repo is { } repo)
+        {
+            <a class="wm-ws-gh" href="@repo.Url" target="_blank" rel="noopener noreferrer" title="@GitHubTitle(repo)" aria-label="@($"Open {repo.FullName} on GitHub (new tab)")">
+                <MudIcon Icon="@Icons.Custom.Brands.GitHub" Size="Size.Medium" />
+            </a>
+        }
+    </header>
+    <div class="wm-muted wm-mono wm-ellipsis" title="@ShownPath">@ShownPath</div>
+    <div class="wm-row">
+        <StateChip State="status.State" Text="@status.Text" />
+        @if (progressText.Length > 0)
+        {
+            <span class="wm-muted">@progressText</span>
+        }
+    </div>
+    @if (languages.Count > 0)
+    {
+        <div class="wm-row wm-ws-chips">
+            @foreach (var language in languages)
+            {
+                <span class="wm-chip info" title="@($"{language.Files} {language.Name} files indexed")">@language.Name @DisplayFormat.Count(language.Files)</span>
+            }
+        </div>
+    }
+    <p class="wm-tile-sub">@WorkspaceView.StatsText(Stats)</p>
+    <footer class="wm-ws-foot">
+        <span class="wm-muted">Indexed @DisplayFormat.Ago(Workspace.LastIndexedUtc, Now)</span>
+        <WorkspaceActions Workspace="Workspace" />
+    </footer>
+</article>
+
+@code {
+    [Parameter, EditorRequired]
+    public Workspace Workspace { get; set; } = default!;
+
+    [Parameter]
+    public CodeIndexStats? Stats { get; set; }
+
+    [Parameter]
+    public CodeIndexProgress? Progress { get; set; }
+
+    /// <summary>Set when the workspace folder is the root of a GitHub checkout.</summary>
+    [Parameter]
+    public GitHubRepo? Repo { get; set; }
+
+    /// <summary>The folder as the list shows it, without the part every workspace shares.</summary>
+    [Parameter]
+    public string ShownPath { get; set; } = string.Empty;
+
+    [Parameter]
+    public DateTimeOffset Now { get; set; }
+
+    private static string GitHubTitle(GitHubRepo repo) =>
+        repo.Branch is null ? $"{repo.FullName} on GitHub" : $"{repo.FullName} on GitHub (branch {repo.Branch})";
+}

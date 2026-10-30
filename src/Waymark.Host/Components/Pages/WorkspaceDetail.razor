@@ -1,0 +1,12 @@
+@page "/workspaces/{WorkspaceId:long}"
+
+<PageTitle>Workspace - Waymark</PageTitle>
+
+<WorkspaceShell WorkspaceId="WorkspaceId" Context="workspace">
+    <WorkspaceOverview Workspace="workspace" />
+</WorkspaceShell>
+
+@code {
+    [Parameter]
+    public long WorkspaceId { get; set; }
+}

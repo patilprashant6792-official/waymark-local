@@ -1,0 +1,12 @@
+@page "/workspaces/{WorkspaceId:long}/commands"
+
+<PageTitle>Commands - Waymark</PageTitle>
+
+<WorkspaceShell WorkspaceId="WorkspaceId">
+    <CommandSettings WorkspaceId="WorkspaceId" />
+</WorkspaceShell>
+
+@code {
+    [Parameter]
+    public long WorkspaceId { get; set; }
+}

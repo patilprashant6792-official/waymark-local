@@ -1,0 +1,22 @@
+@inherits LiveComponentBase
+@using MudBlazor
+
+<div class="wm-ws-actions" role="group" aria-label="@($"Actions for {Workspace.Name}")">
+    <MudTooltip Text="@(Workspace.Enabled ? "On: Claude can use this workspace. Switch it off to put it out of reach." : "Off: Claude cannot see this workspace.")">
+        <MudSwitch T="bool" Value="Workspace.Enabled" ValueChanged="ToggleAsync" Color="Color.Primary" Disabled="_busy" aria-label="@($"Enable {Workspace.Name}")" />
+    </MudTooltip>
+    @if (Labels)
+    {
+        <MudButton Size="Size.Small" Variant="Variant.Outlined" StartIcon="@Icons.Material.Outlined.Refresh" Disabled="@(!Workspace.Enabled)" OnClick="Reindex">Re-index</MudButton>
+        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" StartIcon="@Icons.Material.Outlined.Delete" OnClick="RemoveAsync">Remove</MudButton>
+    }
+    else
+    {
+        <MudTooltip Text="Re-index">
+            <MudIconButton Icon="@Icons.Material.Outlined.Refresh" Size="Size.Small" Disabled="@(!Workspace.Enabled)" OnClick="Reindex" aria-label="@($"Re-index {Workspace.Name}")" />
+        </MudTooltip>
+        <MudTooltip Text="Remove">
+            <MudIconButton Icon="@Icons.Material.Outlined.Delete" Size="Size.Small" Color="Color.Error" OnClick="RemoveAsync" aria-label="@($"Remove {Workspace.Name}")" />
+        </MudTooltip>
+    }
+</div>

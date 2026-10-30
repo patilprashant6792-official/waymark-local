@@ -1,0 +1,39 @@
+@inherits LiveComponentBase
+@using MudBlazor
+
+<MudDialog>
+    <DialogContent>
+        <div class="wm-stack">
+            <p class="wm-muted" style="margin:0">Pick a folder Claude may read and, when you allow it, change. Waymark indexes it so Claude can search it quickly.</p>
+            @if (_error is not null)
+            {
+                <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
+            }
+            <MudTextField T="string" Label="Folder" @bind-Value="_path" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Full path to an existing folder: a C#, Python or Node project, or an empty folder to start one" />
+            <MudTextField T="string" Label="Name" @bind-Value="_name" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Short, for example waymark" />
+            <div>
+                <MudButton Variant="Variant.Outlined" OnClick="CheckAsync" Disabled="@(string.IsNullOrWhiteSpace(_path))">Check folder</MudButton>
+            </div>
+            @if (_check is { } check)
+            {
+                <div aria-live="polite">
+                    @if (check.IsValid && check.Metadata is { } meta)
+                    {
+                        <StateChip State="StatusState.Healthy" Text="Folder looks right" />
+                        <div style="margin-top:8px">
+                            <WorkspaceProjectSummary Meta="meta" Location="@check.NormalizedPath" />
+                        </div>
+                    }
+                    else
+                    {
+                        <InlineAlert Severity="Severity.Warning">@check.Error</InlineAlert>
+                    }
+                </div>
+            }
+        </div>
+    </DialogContent>
+    <DialogActions>
+        <MudButton Variant="Variant.Outlined" OnClick="Close">Cancel</MudButton>
+        <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="AddAsync" Disabled="@(!CanAdd)">Add workspace</MudButton>
+    </DialogActions>
+</MudDialog>

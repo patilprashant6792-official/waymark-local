@@ -1060,3 +1060,46 @@ kbd { padding: 1px 6px; font: 12px ui-monospace, Consolas, monospace; border: 1p
 .wm-collapse-body { margin-top: 12px; }
 .wm-collapse-body[hidden] { display: none; }
 .wm-cap { text-transform: capitalize; }
+
+/* ---------- workspaces: card grid and the details page ---------- */
+.wm-page-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.wm-page-head > div { min-width: 0; flex: 1 1 360px; }
+
+.wm-ws-grid { list-style: none; margin: 0; padding: 0; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); }
+.wm-ws-grid > li { display: flex; min-width: 0; }
+.wm-ws-grid > li > .wm-ws-card { flex: 1; min-width: 0; }
+.wm-ws-card { min-height: 0; }
+.wm-ws-card-head { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.wm-ws-name { flex: 1; min-width: 0; margin: 0; font-size: 1.1rem; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+/* The name is the link of the whole card: its ::after covers the card, and the controls sit above it. */
+.wm-ws-link { color: inherit; text-decoration: none; }
+.wm-ws-link::after { content: ""; position: absolute; inset: 0; z-index: 1; }
+.wm-ws-link:hover { text-decoration: underline; }
+.wm-ws-link:focus-visible { outline: none; }
+.wm-ws-link:focus-visible::after { outline: 2px solid var(--mud-palette-primary); outline-offset: -2px; border-radius: 12px; }
+
+.wm-ws-gh { position: relative; z-index: 2; display: inline-flex; padding: 2px; border-radius: 6px; color: var(--mud-palette-text-secondary); }
+.wm-ws-gh:hover, .wm-ws-gh:focus-visible { color: var(--mud-palette-text-primary); }
+.wm-ws-chips { gap: 6px; }
+.wm-ws-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-top: auto; padding-top: 10px; border-top: 1px solid var(--mud-palette-lines-default); }
+.wm-ws-actions { position: relative; z-index: 2; display: inline-flex; align-items: center; gap: 4px; flex-wrap: wrap; }
+.wm-ws-card.is-off > :not(.wm-ws-foot) { opacity: 0.6; }
+
+.wm-back { display: inline-flex; align-items: center; gap: 4px; margin-bottom: 12px; font-weight: 600; text-decoration: none; color: var(--mud-palette-primary); }
+.wm-back:hover { text-decoration: underline; }
+.wm-ws-hero { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; margin-bottom: 16px; }
+.wm-ws-hero-main { flex: 1 1 320px; min-width: 0; }
+.wm-ws-meta { margin-top: 8px; }
+.wm-gh-link { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; text-decoration: none; color: var(--mud-palette-text-primary); }
+.wm-gh-link:hover { text-decoration: underline; }
+
+.wm-subnav { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 20px; border-bottom: 1px solid var(--mud-palette-lines-default); }
+.wm-subnav-item { display: inline-flex; align-items: center; gap: 6px; margin-bottom: -1px; padding: 8px 14px; border-bottom: 2px solid transparent; font-weight: 600; text-decoration: none; color: var(--mud-palette-text-secondary); }
+.wm-subnav-item:hover { color: var(--mud-palette-text-primary); }
+.wm-subnav-item.active { color: var(--mud-palette-primary); border-bottom-color: var(--mud-palette-primary); }
+
+@media (forced-colors: active) {
+    .wm-subnav-item.active { border-bottom-color: Highlight; }
+    .wm-ws-link:focus-visible::after { outline-color: Highlight; }
+}

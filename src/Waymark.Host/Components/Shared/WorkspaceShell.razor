@@ -1,0 +1,65 @@
+@inherits LiveComponentBase
+@using MudBlazor
+@using Waymark.Host.Ui
+
+<div class="wm-page">
+    <a class="wm-back" href="/workspaces">
+        <MudIcon Icon="@Icons.Material.Filled.ArrowBack" Size="Size.Small" />
+        <span>Back to workspaces</span>
+    </a>
+
+    @if (_error is not null)
+    {
+        <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
+    }
+
+    @if (!_loaded)
+    {
+        <p class="wm-lead" aria-live="polite">Loading...</p>
+    }
+    else if (_workspace is { } workspace)
+    {
+        var status = WorkspaceView.StatusOf(workspace, _progress);
+        var progressText = WorkspaceView.ProgressText(_progress);
+        <header class="wm-ws-hero">
+            <div class="wm-ws-hero-main">
+                <h1 class="wm-title">@workspace.Name</h1>
+                <div class="wm-muted wm-mono wm-ellipsis" title="@WorkspacePathDisplay.Relative(workspace.Path, _pathRoot)">@WorkspacePathDisplay.Relative(workspace.Path, _pathRoot)</div>
+                <div class="wm-row wm-ws-meta">
+                    <StateChip State="status.State" Text="@status.Text" />
+                    @if (progressText.Length > 0)
+                    {
+                        <span class="wm-muted">@progressText</span>
+                    }
+                    @if (_repo is { } repo)
+                    {
+                        <a class="wm-gh-link" href="@repo.Url" target="_blank" rel="noopener noreferrer" aria-label="@($"Open {repo.FullName} on GitHub (new tab)")">
+                            <MudIcon Icon="@Icons.Custom.Brands.GitHub" Size="Size.Small" />
+                            <span>@repo.FullName</span>
+                            @if (repo.Branch is not null)
+                            {
+                                <span class="wm-muted wm-mono">@repo.Branch</span>
+                            }
+                        </a>
+                    }
+                </div>
+            </div>
+            <WorkspaceActions Workspace="workspace" Labels="true" OnRemoved="OnRemoved" />
+        </header>
+
+        <nav class="wm-subnav" aria-label="Workspace sections">
+            @foreach (var section in WorkspaceSections.All)
+            {
+                <NavLink class="wm-subnav-item" ActiveClass="active" href="@section.Href(workspace.Id)" Match="NavLinkMatch.All">
+                    <MudIcon Icon="@section.Icon" Size="Size.Small" /><span>@section.Title</span>
+                </NavLink>
+            }
+        </nav>
+
+        <div class="wm-ws-body">@ChildContent?.Invoke(workspace)</div>
+    }
+    else if (_error is null)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.FolderOpen" Title="Workspace not found" Text="It may have been removed. Go back to the list of workspaces." />
+    }
+</div>

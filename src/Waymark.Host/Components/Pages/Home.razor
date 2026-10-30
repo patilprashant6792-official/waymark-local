@@ -303,7 +303,7 @@
                 {
                     <li>
                         <div class="wm-row-main">
-                            <strong>@workspace.Name</strong>
+                            <strong><a href="@($"workspaces/{workspace.Id}")">@workspace.Name</a></strong>
                             <div class="wm-muted wm-mono wm-ellipsis" title="@workspace.Path">@ShownPath(workspace.Path)</div>
                             <div class="wm-muted">@FilesOf(workspace) - indexed @DisplayFormat.Ago(workspace.LastIndexedUtc, Time.GetUtcNow())</div>
                         </div>

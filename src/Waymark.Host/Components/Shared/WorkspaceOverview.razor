@@ -1,0 +1,58 @@
+@inherits LiveComponentBase
+@using MudBlazor
+@using Waymark.Host.Ui
+
+@{
+    var languages = WorkspaceView.LanguagesOf(_stats);
+}
+<section class="wm-card" aria-labelledby="ov-index">
+    <h2 id="ov-index" class="wm-section" style="margin-top:0">Index</h2>
+    @if (!Workspace.Enabled)
+    {
+        <InlineAlert Severity="Severity.Info">This workspace is switched off. Claude cannot see it, and it is not indexed until you switch it on.</InlineAlert>
+    }
+    <dl class="wm-dl">
+        <dt>Files</dt>
+        <dd>@(_stats is null ? "-" : DisplayFormat.Count(_stats.Files))</dd>
+        <dt>Types</dt>
+        <dd>@(_stats is null ? "-" : DisplayFormat.Count(_stats.Types))</dd>
+        <dt>Members</dt>
+        <dd>@(_stats is null ? "-" : DisplayFormat.Count(_stats.Members))</dd>
+        <dt>Languages</dt>
+        <dd>
+            @if (languages.Count == 0)
+            {
+                <span class="wm-muted">None indexed yet</span>
+            }
+            else
+            {
+                <span class="wm-row wm-ws-chips">
+                    @foreach (var language in languages)
+                    {
+                        <span class="wm-chip info" title="@($"{language.Files} {language.Name} files indexed")">@language.Name @DisplayFormat.Count(language.Files)</span>
+                    }
+                </span>
+            }
+        </dd>
+        <dt>Last indexed</dt>
+        <dd>@DisplayFormat.Ago(Workspace.LastIndexedUtc, Time.GetUtcNow())</dd>
+        <dt>Added</dt>
+        <dd>@DisplayFormat.DateAndClock(Workspace.AddedUtc)</dd>
+    </dl>
+</section>
+
+<section class="wm-card" aria-labelledby="ov-projects">
+    <h2 id="ov-projects" class="wm-section" style="margin-top:0">Projects found</h2>
+    @if (_scanning)
+    {
+        <p class="wm-muted" aria-live="polite" style="margin:0">Scanning the folder...</p>
+    }
+    else if (_scanError is not null)
+    {
+        <InlineAlert Severity="Severity.Warning">@_scanError</InlineAlert>
+    }
+    else if (_meta is not null)
+    {
+        <WorkspaceProjectSummary Meta="_meta" />
+    }
+</section>

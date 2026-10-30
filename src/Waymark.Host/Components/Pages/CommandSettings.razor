@@ -5,17 +5,30 @@
 @using Waymark.Host.Components.Shared
 @using Waymark.Host.Ui
 
-<PageTitle>Commands - Waymark</PageTitle>
+@if (!Embedded)
+{
+    <PageTitle>Commands - Waymark</PageTitle>
+}
 
-<div class="wm-page">
+<div class="@(Embedded ? null : "wm-page")">
+    @if (Embedded)
+    {
+        <h2 class="wm-section" style="margin-top:0">Commands in @ScopeName</h2>
+        <p class="wm-lead">What Claude may run in this workspace. Each operation is Off (refused), Ask (waits for you in the Console or on the Dashboard) or Auto (runs at once). A choice here wins over the choice for all workspaces, which you set on the <a href="commands">Commands</a> page.</p>
+    }
+    else
+    {
     <h1 class="wm-title">Commands</h1>
     <p class="wm-lead">What Claude may run on this computer. Each operation is Off (refused), Ask (waits for you in the Console or on the Dashboard) or Auto (runs at once). Only you can approve, and only from this computer. Operations that run code ask by default - see <a href="safety">Safety</a> for why.</p>
+    }
 
     @if (_error is not null)
     {
         <InlineAlert Severity="Severity.Warning">@_error</InlineAlert>
     }
 
+    @if (!Embedded)
+    {
     <section class="wm-card" aria-labelledby="cmd-scope">
         <h2 id="cmd-scope" class="wm-section">Where the choices apply</h2>
         <div class="wm-row">
@@ -29,8 +42,25 @@
             </select>
             <MudButton Variant="Variant.Outlined" Disabled="@(_busy || OwnCount == 0)" OnClick="ResetScopeAsync">Reset @OwnCount @(OwnCount == 1 ? "choice" : "choices")</MudButton>
         </div>
-        <p class="wm-muted" style="margin-bottom:0">@ScopeHelp</p>
+        <p class="wm-muted" style="margin-bottom:0">
+            @ScopeHelp
+            @if (_scope != CommandCatalog.AllWorkspaces)
+            {
+                <a href="@($"workspaces/{_scope}/commands")">Open @ScopeName</a>
+            }
+        </p>
     </section>
+    }
+    else
+    {
+        <section class="wm-card" aria-labelledby="cmd-scope">
+            <h2 id="cmd-scope" class="wm-section" style="margin-top:0">Where the choices apply</h2>
+            <div class="wm-row">
+                <MudButton Variant="Variant.Outlined" Disabled="@(_busy || OwnCount == 0)" OnClick="ResetScopeAsync">Reset @OwnCount @(OwnCount == 1 ? "choice" : "choices")</MudButton>
+            </div>
+            <p class="wm-muted" style="margin-bottom:0">@ScopeHelp</p>
+        </section>
+    }
 
     <section class="wm-card" aria-labelledby="cmd-toolchain">
         <h2 id="cmd-toolchain" class="wm-section">What to show</h2>
@@ -155,14 +185,14 @@
     <section class="wm-card" aria-labelledby="cmd-trust">
         <h2 id="cmd-trust" class="wm-section">Trusted project files</h2>
         <p class="wm-muted">Files that can make a command run code: project and build files (.csproj, .props, nuget.config, pyproject.toml, conftest.py, package.json, tsconfig.json, *.config.js and *.config.ts), lock files, and git hooks. When one changes after you last approved something, the next command asks again.</p>
-        @if (_workspaces.Count == 0)
+        @if (TrustScope.Count == 0)
         {
             <p class="wm-muted" style="margin-bottom:0">No workspaces yet.</p>
         }
         else
         {
             <ul class="wm-rows" aria-label="Trusted project files">
-                @foreach (var workspace in _workspaces)
+                @foreach (var workspace in TrustScope)
                 {
                     _trust.TryGetValue(workspace.Id, out var trust);
                     <li>
@@ -180,6 +210,8 @@
         }
     </section>
 
+    @if (!Embedded)
+    {
     <section class="wm-card" aria-labelledby="cmd-limits">
         <h2 id="cmd-limits" class="wm-section">Limits</h2>
         <dl class="wm-dl">
@@ -194,4 +226,5 @@
         </dl>
         <p class="wm-muted" style="margin-bottom:0">Set with Waymark:Commands:ApprovalMinutes, MaxParallelRuns and RetentionDays in the configuration.</p>
     </section>
+    }
 </div>
