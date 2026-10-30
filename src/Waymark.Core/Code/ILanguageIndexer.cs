@@ -46,4 +46,11 @@ public interface ILanguageIndexer
     /// <param name="knownHash">The hash of the indexed version, if any; when the file still has it nothing is parsed.</param>
     /// <exception cref="IOException">The file cannot be read (missing, locked exclusively, removed while reading).</exception>
     Task<SyntaxIndexResult> IndexFileAsync(string absolutePath, string relativePath, string? knownHash, CancellationToken ct);
+
+    /// <summary>
+    /// Like the overload above, with the modified time the caller already read (a directory walk has it), so the file is not asked for it twice.
+    /// The default ignores it. Null means "read it from the file".
+    /// </summary>
+    Task<SyntaxIndexResult> IndexFileAsync(string absolutePath, string relativePath, string? knownHash, DateTimeOffset? modifiedUtc, CancellationToken ct) =>
+        IndexFileAsync(absolutePath, relativePath, knownHash, ct);
 }

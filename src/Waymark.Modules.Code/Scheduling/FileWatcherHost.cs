@@ -1,4 +1,5 @@
 ﻿using System.Globalization;
+using System.Threading.Channels;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Waymark.Core.Events;
@@ -9,9 +10,11 @@ using Waymark.Core.Workspaces;
 namespace Waymark.Modules.Code.Scheduling;
 
 /// <summary>
-/// Watches every enabled workspace for source file changes (C#, Python) and feeds the index scheduler. Events are debounced per file
-/// (editors fire several per save). Changes made by Waymark's own file tools arrive as FileChanged and FolderChanged
-/// events. A watcher buffer overflow or error triggers a reconcile of that workspace.
+/// Watches every enabled workspace for source file changes (C#, Python) and feeds the index scheduler.
+/// The watcher callbacks only put the event on a queue, so the operating system's event buffer is emptied at once; one reader then judges each event
+/// (policy, language, folder or file) and notes it for its workspace. A workspace has one timer that is pushed back by every new event, so a burst
+/// (a save, a branch switch, a build) is handed to the scheduler once, after it is quiet for <c>WatcherDebounceMs</c>.
+/// Changes made by Waymark's own file tools arrive as FileChanged and FolderChanged events. A watcher buffer overflow or error triggers a reconcile of that workspace.
 /// </summary>
 internal sealed class FileWatcherHost(
     IWorkspaceService workspaceService,
@@ -23,14 +26,14 @@ internal sealed class FileWatcherHost(
     ILogger<FileWatcherHost> logger) : BackgroundService
 {
     private const int WatcherBufferBytes = 64 * 1024;
-    private const string WholeWorkspaceKey = "*";
 
     private readonly Lock _gate = new();
     private readonly Dictionary<long, FileSystemWatcher> _watchers = [];
-    private readonly Dictionary<(long WorkspaceId, string Path), CancellationTokenSource> _debounce = [];
-    private CancellationToken _stopping;
     private readonly Dictionary<long, string> _names = [];
+    private readonly Dictionary<long, PendingChanges> _pending = [];
+    private readonly Channel<DiskEvent> _diskEvents = Channel.CreateUnbounded<DiskEvent>(new UnboundedChannelOptions { SingleReader = true });
     private readonly WatchLog _watchLog = new();
+    private CancellationToken _stopping;
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
@@ -38,7 +41,8 @@ internal sealed class FileWatcherHost(
         _stopping = stoppingToken;
         using var workspaceSubscription = events.Subscribe<WorkspaceChanged>(OnWorkspaceChangedAsync);
         using var fileSubscription = events.Subscribe<FileChanged>(change => OnToolFileChanged(change.WorkspaceId, change.RelativePath));
-        using var folderSubscription = events.Subscribe<FolderChanged>(change => OnToolFolderChanged(change.WorkspaceId));
+        using var folderSubscription = events.Subscribe<FolderChanged>(change => OnToolFolderChanged(change.WorkspaceId, change.RelativePath));
+        var reader = Task.Run(() => ReadEventsAsync(stoppingToken), CancellationToken.None);
         try
         {
             await StartAllAsync(stoppingToken).ConfigureAwait(false);
@@ -50,6 +54,8 @@ internal sealed class FileWatcherHost(
         finally
         {
             StopAll();
+            _diskEvents.Writer.TryComplete();
+            await reader.ConfigureAwait(false);
             logger.LogInformation("Code file watcher stopped");
         }
     }
@@ -112,15 +118,15 @@ internal sealed class FileWatcherHost(
     {
         if (languages.Handles(relativePath) && CodeFileWalker.IsIndexable(relativePath, policy))
         {
-            ScheduleFile(workspaceId, relativePath);
+            Mark(workspaceId, relativePath, null);
         }
 
         return ValueTask.CompletedTask;
     }
 
-    private ValueTask OnToolFolderChanged(long workspaceId)
+    private ValueTask OnToolFolderChanged(long workspaceId, string relativePath)
     {
-        ScheduleWorkspace(workspaceId);
+        Mark(workspaceId, null, relativePath);
         return ValueTask.CompletedTask;
     }
 
@@ -136,11 +142,12 @@ internal sealed class FileWatcherHost(
         FileSystemWatcher watcher;
         try
         {
+            // LastWrite already reports a changed file, so the Size notification would only double the events of every save.
             watcher = new FileSystemWatcher(workspace.Path)
             {
                 Filter = "*",
                 IncludeSubdirectories = true,
-                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite | NotifyFilters.Size,
+                NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite,
                 InternalBufferSize = WatcherBufferBytes,
             };
         }
@@ -152,13 +159,13 @@ internal sealed class FileWatcherHost(
 
         var id = workspace.Id;
         var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(workspace.Path));
-        watcher.Created += (_, e) => OnDiskEvent(id, root, e.FullPath, directoryMayBeNew: true);
-        watcher.Changed += (_, e) => OnDiskEvent(id, root, e.FullPath, directoryMayBeNew: false);
-        watcher.Deleted += (_, e) => OnDiskEvent(id, root, e.FullPath, directoryMayBeNew: false, removed: true);
+        watcher.Created += (_, e) => Post(new DiskEvent(id, root, e.FullPath, DirectoryMayBeNew: true, Removed: false));
+        watcher.Changed += (_, e) => Post(new DiskEvent(id, root, e.FullPath, DirectoryMayBeNew: false, Removed: false));
+        watcher.Deleted += (_, e) => Post(new DiskEvent(id, root, e.FullPath, DirectoryMayBeNew: false, Removed: true));
         watcher.Renamed += (_, e) =>
         {
-            OnDiskEvent(id, root, e.OldFullPath, directoryMayBeNew: false, removed: true);
-            OnDiskEvent(id, root, e.FullPath, directoryMayBeNew: true);
+            Post(new DiskEvent(id, root, e.OldFullPath, DirectoryMayBeNew: false, Removed: true));
+            Post(new DiskEvent(id, root, e.FullPath, DirectoryMayBeNew: true, Removed: false));
         };
         watcher.Error += (_, e) =>
         {
@@ -179,12 +186,15 @@ internal sealed class FileWatcherHost(
     private void StopWatching(long workspaceId)
     {
         FileSystemWatcher? watcher;
+        PendingChanges? pending;
         lock (_gate)
         {
             _watchers.Remove(workspaceId, out watcher);
             _names.Remove(workspaceId);
+            _pending.Remove(workspaceId, out pending);
         }
 
+        pending?.Debounce.Dispose();
         if (watcher is null)
         {
             return;
@@ -192,7 +202,6 @@ internal sealed class FileWatcherHost(
 
         watcher.EnableRaisingEvents = false;
         watcher.Dispose();
-        CancelDebounce(workspaceId);
     }
 
     private void StopAll()
@@ -200,7 +209,7 @@ internal sealed class FileWatcherHost(
         long[] ids;
         lock (_gate)
         {
-            ids = [.. _watchers.Keys];
+            ids = [.. _watchers.Keys.Concat(_pending.Keys).Distinct()];
         }
 
         foreach (var id in ids)
@@ -217,14 +226,31 @@ internal sealed class FileWatcherHost(
         }
     }
 
-    // A file path ending in .cs is one file. Any other path may be a folder that was created, moved or deleted with
-    // C# files inside; those events do not name the files, so the workspace is reconciled (folders the policy
-    // refuses, like bin and obj, are ignored). Folder names with a dot are repaired by the next reconcile or re-index.
-    private void OnDiskEvent(long workspaceId, string root, string fullPath, bool directoryMayBeNew, bool removed = false)
+    // Runs on the watcher's own thread: nothing here may touch the disk or take long, or the operating system's buffer overflows.
+    private void Post(DiskEvent change) => _diskEvents.Writer.TryWrite(change);
+
+    private async Task ReadEventsAsync(CancellationToken ct)
     {
         try
         {
-            var relative = CodeFileWalker.ToRelative(root, fullPath);
+            await foreach (var change in _diskEvents.Reader.ReadAllAsync(ct).ConfigureAwait(false))
+            {
+                Classify(change);
+            }
+        }
+        catch (OperationCanceledException) when (ct.IsCancellationRequested)
+        {
+        }
+    }
+
+    // A path of an indexed language is one file. Any other path may be a folder that was created, moved or deleted with source files inside;
+    // those events do not name the files, so that folder alone is compared with the index (folders the policy refuses, like bin and obj,
+    // are ignored). A removed folder whose name has a dot is repaired by the next reconcile or re-index.
+    private void Classify(DiskEvent change)
+    {
+        try
+        {
+            var relative = CodeFileWalker.ToRelative(change.Root, change.FullPath);
             if (relative.StartsWith("..", StringComparison.Ordinal) || !CodeFileWalker.IsIndexable(relative, policy))
             {
                 return;
@@ -232,16 +258,16 @@ internal sealed class FileWatcherHost(
 
             if (languages.Handles(relative))
             {
-                ScheduleFile(workspaceId, relative);
+                Mark(change.WorkspaceId, relative, null);
             }
-            else if ((directoryMayBeNew && Directory.Exists(fullPath)) || (removed && Path.GetExtension(relative).Length == 0))
+            else if ((change.DirectoryMayBeNew && Directory.Exists(change.FullPath)) || (change.Removed && Path.GetExtension(relative).Length == 0))
             {
-                ScheduleWorkspace(workspaceId);
+                Mark(change.WorkspaceId, null, relative);
             }
         }
         catch (Exception ex)
         {
-            logger.LogWatch(LogLevel.Warning, "event failed", NameOf(workspaceId), ex.Message, ex);
+            logger.LogWatch(LogLevel.Warning, "event failed", NameOf(change.WorkspaceId), ex.Message, ex);
         }
     }
 
@@ -253,73 +279,93 @@ internal sealed class FileWatcherHost(
         }
     }
 
-    private void ScheduleFile(long workspaceId, string relativePath) =>
-        Debounce((workspaceId, relativePath.ToLowerInvariant()), () =>
-        {
-            scheduler.RequestFile(workspaceId, relativePath);
-            _watchLog.Changed(logger, NameOf(workspaceId), relativePath);
-        });
-
-    private void ScheduleWorkspace(long workspaceId) =>
-        Debounce((workspaceId, WholeWorkspaceKey), () =>
-        {
-            scheduler.RequestReconcile(workspaceId);
-            logger.LogWatch(LogLevel.Information, "folders changed", NameOf(workspaceId), "checking the workspace again");
-        });
-
-    private void Debounce((long WorkspaceId, string Path) key, Action action)
+    // Notes one changed file or folder and pushes the workspace's timer back. A folder of "" or "." is the whole workspace.
+    private void Mark(long workspaceId, string? file, string? folder)
     {
-        var cts = CancellationTokenSource.CreateLinkedTokenSource(_stopping);
-        lock (_gate)
+        string? normalized = null;
+        var whole = false;
+        if (folder is not null)
         {
-            if (_debounce.Remove(key, out var superseded))
-            {
-                superseded.Cancel();
-                superseded.Dispose();
-            }
-
-            _debounce[key] = cts;
+            normalized = folder.Replace('\\', '/').Trim('/');
+            whole = normalized.Length == 0 || normalized == ".";
         }
 
-        _ = Task.Run(async () =>
-        {
-            try
-            {
-                await Task.Delay(options.WatcherDebounceMs, cts.Token).ConfigureAwait(false);
-                action();
-            }
-            catch (OperationCanceledException)
-            {
-            }
-            catch (Exception ex)
-            {
-                logger.LogWatch(LogLevel.Warning, "queue failed", NameOf(key.WorkspaceId), ex.Message, ex);
-            }
-            finally
-            {
-                lock (_gate)
-                {
-                    if (_debounce.TryGetValue(key, out var current) && ReferenceEquals(current, cts))
-                    {
-                        _debounce.Remove(key);
-                    }
-                }
-
-                cts.Dispose();
-            }
-        }, CancellationToken.None);
-    }
-
-    private void CancelDebounce(long workspaceId)
-    {
         lock (_gate)
         {
-            foreach (var key in _debounce.Keys.Where(key => key.WorkspaceId == workspaceId).ToArray())
+            if (!_pending.TryGetValue(workspaceId, out var pending))
             {
-                _debounce.Remove(key, out var cts);
-                cts?.Cancel();
-                cts?.Dispose();
+                pending = new PendingChanges(new Timer(_ => Flush(workspaceId), null, Timeout.Infinite, Timeout.Infinite));
+                _pending[workspaceId] = pending;
             }
+
+            if (file is not null)
+            {
+                pending.Files.Add(file);
+            }
+
+            if (whole)
+            {
+                pending.Whole = true;
+            }
+            else if (normalized is not null)
+            {
+                pending.Folders.Add(normalized);
+            }
+
+            pending.Debounce.Change(options.WatcherDebounceMs, Timeout.Infinite);
+        }
+    }
+
+    // The workspace has been quiet for the debounce time: everything noted so far goes to the scheduler in one request.
+    private void Flush(long workspaceId)
+    {
+        string[] files;
+        string[] folders;
+        bool whole;
+        lock (_gate)
+        {
+            if (!_pending.TryGetValue(workspaceId, out var pending))
+            {
+                return;
+            }
+
+            files = [.. pending.Files];
+            folders = [.. pending.Folders];
+            whole = pending.Whole;
+            pending.Files.Clear();
+            pending.Folders.Clear();
+            pending.Whole = false;
+        }
+
+        if (files.Length == 0 && folders.Length == 0 && !whole)
+        {
+            return;
+        }
+
+        try
+        {
+            var name = NameOf(workspaceId);
+            if (whole)
+            {
+                scheduler.RequestReconcile(workspaceId);
+                logger.LogWatch(LogLevel.Information, "folders changed", name, "checking the workspace again");
+                return;
+            }
+
+            scheduler.RequestChanges(workspaceId, files, folders);
+            foreach (var file in files)
+            {
+                _watchLog.Changed(logger, name, file);
+            }
+
+            if (folders.Length > 0)
+            {
+                logger.LogWatch(LogLevel.Information, "folders changed", name, string.Create(CultureInfo.InvariantCulture, $"checking {folders.Length} folder(s) again"));
+            }
+        }
+        catch (Exception ex)
+        {
+            logger.LogWatch(LogLevel.Warning, "queue failed", NameOf(workspaceId), ex.Message, ex);
         }
     }
 
@@ -327,5 +373,18 @@ internal sealed class FileWatcherHost(
     {
         StopAll();
         base.Dispose();
+    }
+
+    private readonly record struct DiskEvent(long WorkspaceId, string Root, string FullPath, bool DirectoryMayBeNew, bool Removed);
+
+    private sealed class PendingChanges(Timer debounce)
+    {
+        public Timer Debounce { get; } = debounce;
+
+        public HashSet<string> Files { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public HashSet<string> Folders { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        public bool Whole { get; set; }
     }
 }

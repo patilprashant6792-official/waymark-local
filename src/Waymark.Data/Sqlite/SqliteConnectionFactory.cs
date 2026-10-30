@@ -11,7 +11,7 @@ public interface ISqliteConnectionFactory
 
 /// <summary>
 /// Pooling is off: opening a SQLite file is cheap, and unpooled connections release the file on dispose.
-/// Every connection gets busy_timeout, foreign_keys, synchronous and temp_store; WAL is set once by the migrator
+/// Every connection gets busy_timeout, foreign_keys, synchronous, temp_store, a 64 MB page cache and memory-mapped reads; WAL is set once by the migrator
 /// because it persists in the database file.
 /// </summary>
 public sealed class SqliteConnectionFactory : ISqliteConnectionFactory
@@ -34,7 +34,7 @@ public sealed class SqliteConnectionFactory : ISqliteConnectionFactory
         var busyMilliseconds = (int)options.BusyTimeout.TotalMilliseconds;
         _pragmas = string.Create(
             CultureInfo.InvariantCulture,
-            $"PRAGMA busy_timeout={busyMilliseconds}; PRAGMA foreign_keys=ON; PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY;");
+            $"PRAGMA busy_timeout={busyMilliseconds}; PRAGMA foreign_keys=ON; PRAGMA synchronous=NORMAL; PRAGMA temp_store=MEMORY; PRAGMA cache_size=-65536; PRAGMA mmap_size=268435456;");
     }
 
     public async Task<SqliteConnection> OpenAsync(CancellationToken ct)
