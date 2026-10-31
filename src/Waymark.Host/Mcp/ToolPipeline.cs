@@ -129,6 +129,14 @@ public sealed class ToolPipeline(
             error = ex.Message;
             result = Failure(error);
         }
+        catch (JsonException ex) when (IsArgumentBindingFailure(ex))
+        {
+            // The client sent a value of the wrong type (a single text where the tool takes a list, say). That is the caller's to fix, so it gets the reason and the
+            // remedy instead of a reference code, and it is not an unexpected failure of Waymark.
+            outcome = AuditOutcome.Error;
+            error = $"The arguments of '{tool}' do not match its schema: {WithoutPath(ex.Message)} Send a list as a JSON array (for example [\"id1\"]), and a number or true or false without quotes.";
+            result = Failure(error);
+        }
         catch (Exception ex)
         {
             var reference = Guid.NewGuid().ToString("N")[..8];
@@ -263,6 +271,16 @@ public sealed class ToolPipeline(
     // The tokens the AI will read: every text block as it is finally sent, the safety line included.
     private int CountTokens(CallToolResult result) =>
         result.Content.OfType<TextContentBlock>().Sum(block => meter.CountTokens(block.Text));
+    // A JsonException thrown while the SDK turns the call's arguments into the tool's parameters; one thrown inside a tool is a bug of ours and stays an unexpected failure.
+    private static bool IsArgumentBindingFailure(JsonException ex) =>
+        ex.StackTrace is { } trace && trace.Contains("ParameterMarshaller", StringComparison.Ordinal);
+
+    // "The JSON value could not be converted to System.String[]. Path: $ | LineNumber: 0 ..." without the position noise.
+    private static string WithoutPath(string message)
+    {
+        var cut = message.IndexOf(" Path:", StringComparison.Ordinal);
+        return (cut < 0 ? message : message[..cut]).TrimEnd();
+    }
 
     // The text the AI received: every text block as it is finally sent (secrets hidden, size limit applied, closing note added), without the guide text Waymark attaches afterwards.
     private static string ReadOutput(CallToolResult result) =>
