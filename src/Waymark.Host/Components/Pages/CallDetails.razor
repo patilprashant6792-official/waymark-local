@@ -1,0 +1,158 @@
+@page "/calls/{Id:long}"
+@inherits LiveComponentBase
+@using MudBlazor
+@using Waymark.Core.Audit
+@using Waymark.Host.Components.Shared
+@using Waymark.Host.Ui
+
+<PageTitle>@(_entry is null ? "Call" : _entry.Entry.Action) - Waymark</PageTitle>
+
+<div class="wm-page wide">
+    <p class="wm-muted" style="margin:0 0 8px"><a href="audit">Audit</a> / call <span class="wm-mono">#@Id</span></p>
+
+    @if (_loading)
+    {
+        <p class="wm-muted" role="status">Loading the call...</p>
+    }
+    else if (_error is not null)
+    {
+        <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
+    }
+    else if (_entry is null)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.SearchOff" Title="This call is not in the audit trail" Text="The reference may be wrong, or the call is older than the audit retention period. Go back to the audit to find another one.">
+            <a href="audit">Open the audit</a>
+        </EmptyState>
+    }
+    else
+    {
+        var entry = _entry.Entry;
+        var outcome = DisplayFormat.Outcome(entry.Outcome);
+        <div class="wm-row spread">
+            <div>
+                <h1 class="wm-title wm-mono" style="margin-bottom:4px">@entry.Action</h1>
+                <p class="wm-lead" style="margin-bottom:12px">
+                    <StateChip State="outcome.State" Text="@outcome.Text" />
+                    @DisplayFormat.DateAndClock(entry.TimestampUtc) (your time) &middot; @(entry.Target ?? "no workspace")
+                </p>
+            </div>
+        </div>
+
+        @if (entry.Purpose is { Length: > 0 } purpose)
+        {
+            <InlineAlert Severity="Severity.Info" Title="Why the AI said it made this call">@purpose</InlineAlert>
+        }
+
+        @if (entry.Error is { Length: > 0 } problem)
+        {
+            <InlineAlert Severity="Severity.Warning" Title="What went wrong">@problem</InlineAlert>
+        }
+
+        <section class="wm-card" aria-labelledby="call-summary">
+            <h2 id="call-summary" class="wm-section">Summary</h2>
+            <dl class="wm-dl">
+                <dt>Reference</dt>
+                <dd class="wm-mono">#@_entry.Id</dd>
+                <dt>Kind</dt>
+                <dd>@entry.Category</dd>
+                <dt>Client</dt>
+                <dd class="wm-mono">@(entry.Actor ?? "-")</dd>
+                <dt>Workspace</dt>
+                <dd>@(entry.Target ?? "-")</dd>
+                <dt>Time taken</dt>
+                <dd>@DisplayFormat.Duration(entry.DurationMs)</dd>
+                <dt>Output size</dt>
+                <dd>@DisplayFormat.Bytes(entry.ResultBytes)</dd>
+                <dt>Tokens</dt>
+                <dd>@DisplayFormat.Tokens(entry.ResultTokens, entry.ResultBytes) <span class="wm-muted">(@(entry.ResultTokens is null ? "estimated from the size" : "OpenAI o200k_base"))</span></dd>
+                <dt>Argument names</dt>
+                <dd class="wm-mono">@(entry.ArgsRedacted ?? "-")</dd>
+            </dl>
+        </section>
+
+        @if (entry.Category != AuditCategory.Tool)
+        {
+            <InlineAlert Severity="Severity.Info">Only tool calls keep an input and an output. This entry is a @entry.Category.ToString().ToLowerInvariant() record: what happened is in the summary above.</InlineAlert>
+        }
+        else if (_payload is null)
+        {
+            <section class="wm-card" aria-labelledby="call-nodata">
+                <h2 id="call-nodata" class="wm-section">Input and output</h2>
+                <p class="wm-muted" style="margin:0">
+                    Nothing was kept for this call. It was made before inputs and outputs were kept, or keeping was switched off at the time, or it is older than the @(_settings?.Days ?? ToolPayloadLimits.DefaultDays) days they are kept for.
+                    <a href="audit">Change this on the Audit page.</a>
+                </p>
+            </section>
+        }
+        else
+        {
+            <section class="wm-card" aria-labelledby="call-input">
+                <div class="wm-row spread">
+                    <h2 id="call-input" class="wm-section" style="margin:0">Input</h2>
+                    <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="CopyInputAsync">Copy input</MudButton>
+                </div>
+                <p class="wm-muted">What the AI sent, with secrets hidden. @(_payload.InputCut ? $"Only the first {DisplayFormat.Count(_payload.Input.Length)} of {DisplayFormat.Count(_payload.InputChars)} characters were kept." : string.Empty)</p>
+
+                @if (_arguments.Count == 0)
+                {
+                    <pre class="wm-term wm-payload" tabindex="0" aria-label="Input">@_payload.Input</pre>
+                }
+                else
+                {
+                    @foreach (var argument in _arguments)
+                    {
+                        var shown = IsExpanded(argument) ? argument.Text : argument.Preview;
+                        <div class="wm-arg">
+                            <div class="wm-arg-name">@argument.Name <span class="wm-muted">@argument.Kind</span></div>
+                            <pre class="wm-term wm-payload" tabindex="0" aria-label="@($"Input {argument.Name}")">@shown</pre>
+                            @if (argument.IsLong)
+                            {
+                                <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="() => ToggleArgument(argument.Name)">@(IsExpanded(argument) ? "Show less" : $"Show all {DisplayFormat.Count(argument.Text.Length)} characters")</MudButton>
+                            }
+                        </div>
+                    }
+                }
+            </section>
+
+            <section class="wm-card" aria-labelledby="call-output">
+                <div class="wm-row spread">
+                    <h2 id="call-output" class="wm-section" style="margin:0">Output</h2>
+                    @if (_output is not null)
+                    {
+                        <div class="wm-row">
+                            <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="CopyOutputAsync">Copy output</MudButton>
+                            <MudButton Variant="Variant.Text" Size="Size.Small" OnClick="HideOutput">Hide output</MudButton>
+                        </div>
+                    }
+                </div>
+                <p class="wm-muted">What the AI received after the secret check and the size limit, without the guide text Waymark may attach. @(_payload.OutputCut ? $"Only the first {DisplayFormat.Count(MaxOutputKept)} of {DisplayFormat.Count(_payload.OutputChars)} characters were kept." : string.Empty)</p>
+
+                @if (_output is null)
+                {
+                    <p style="margin:0">
+                        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_loadingOutput" StartIcon="@Icons.Material.Filled.Visibility" OnClick="ShowOutputAsync">@(_loadingOutput ? "Loading..." : "Show output")</MudButton>
+                        <span class="wm-muted">&nbsp;@DisplayFormat.Count(_payload.OutputChars) characters, loaded only when you ask.</span>
+                    </p>
+                }
+                else if (_output.Length == 0)
+                {
+                    <p class="wm-muted" style="margin:0">The tool returned no text.</p>
+                }
+                else
+                {
+                    <pre class="wm-term wm-payload" tabindex="0" aria-label="Output">@_output</pre>
+                }
+
+                @if (_copied is not null)
+                {
+                    <p class="wm-muted" role="status" style="margin:8px 0 0">Copied the @_copied.</p>
+                }
+            </section>
+
+            <p class="wm-muted">
+                Kept on this computer for @(_settings?.Days ?? ToolPayloadLimits.DefaultDays) days, then deleted; the audit row stays for @AuditRetentionService.DefaultRetentionDays days.
+                Shape-based secret hiding is not a guarantee: read before you share. <a href="audit">Settings for this are on the Audit page.</a>
+            </p>
+        }
+    }
+</div>

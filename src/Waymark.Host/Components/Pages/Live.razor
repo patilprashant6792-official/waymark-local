@@ -95,6 +95,10 @@
                             <span class="wm-live-why">@why</span>
                         }
                     </span>
+                    @if (LiveLineFormat.CallIdOf(entry) is { } callId)
+                    {
+                        <a class="wm-live-more" href="@($"calls/{callId}")" title="Open this call: its input and output">open</a>
+                    }
                     @if (HasDetails(entry))
                     {
                         <button type="button" class="wm-live-more" aria-expanded="@(_open.Contains(entry.Id) ? "true" : "false")" @onclick="() => Toggle(entry.Id)">details</button>

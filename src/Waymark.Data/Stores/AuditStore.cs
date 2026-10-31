@@ -42,6 +42,39 @@ public sealed class AuditStore(ISqliteConnectionFactory connections, IWriteQueue
         }
     }
 
+    public async Task<long> AppendToolCallAsync(AuditEntry entry, ToolPayload? payload, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        var id = await writes.ExecuteAsync<long>(async (connection, tx, k) =>
+        {
+            await InsertAsync(connection, tx, entry, k);
+            var rowId = await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT last_insert_rowid()", transaction: tx, cancellationToken: k));
+            if (payload is not null)
+            {
+                await connection.ExecuteAsync(new CommandDefinition(
+                    "INSERT INTO audit_payloads (audit_id, stored_utc, input_text, input_chars, input_cut, output_text, output_chars, output_cut) " +
+                    "VALUES (@id, @stored, @input, @inputChars, @inputCut, @output, @outputChars, @outputCut)",
+                    new
+                    {
+                        id = rowId,
+                        stored = Timestamp.Format(entry.TimestampUtc),
+                        input = payload.Input,
+                        inputChars = payload.InputChars,
+                        inputCut = payload.InputCut ? 1 : 0,
+                        output = payload.Output,
+                        outputChars = payload.OutputChars,
+                        outputCut = payload.OutputCut ? 1 : 0
+                    },
+                    tx,
+                    cancellationToken: k));
+            }
+
+            return rowId;
+        }, ct);
+        ShowLive(entry);
+        return id;
+    }
+
     /// <summary>
     /// The audit trail is stored. Sign-in and approval entries are also shown on the Live page (in memory only). Tool calls are shown by the
     /// tool pipeline, which knows the arguments; configuration changes and command decisions have their own places.
@@ -189,6 +222,63 @@ public sealed class AuditStore(ISqliteConnectionFactory connections, IWriteQueue
                 cancellationToken: k)),
             ct);
 
+    public async Task<StoredAuditEntry?> GetAsync(long id, CancellationToken ct)
+    {
+        await using var connection = await connections.OpenAsync(ct);
+        var row = await connection.QuerySingleOrDefaultAsync<AuditRow>(new CommandDefinition(
+            "SELECT id AS Id, ts_utc AS TsUtc, category AS Category, actor AS Actor, action AS Action, target AS Target, args_redacted AS ArgsRedacted, " +
+            "duration_ms AS DurationMs, result_bytes AS ResultBytes, outcome AS Outcome, error AS Error, result_tokens AS ResultTokens, purpose AS Purpose " +
+            "FROM audit_entries WHERE id = @id",
+            new { id },
+            cancellationToken: ct));
+        return row is null ? null : ToStored(row);
+    }
+
+    public async Task<StoredToolPayload?> GetPayloadAsync(long id, CancellationToken ct)
+    {
+        await using var connection = await connections.OpenAsync(ct);
+        var row = await connection.QuerySingleOrDefaultAsync<PayloadRow>(new CommandDefinition(
+            "SELECT input_text AS Input, input_cut AS InputCut, input_chars AS InputChars, output_cut AS OutputCut, output_chars AS OutputChars, stored_utc AS StoredUtc " +
+            "FROM audit_payloads WHERE audit_id = @id",
+            new { id },
+            cancellationToken: ct));
+        return row is null
+            ? null
+            : new StoredToolPayload(row.Input, row.InputCut != 0, checked((int)row.InputChars), row.OutputCut != 0, checked((int)row.OutputChars), Timestamp.Parse(row.StoredUtc));
+    }
+
+    public async Task<string?> GetPayloadOutputAsync(long id, CancellationToken ct)
+    {
+        await using var connection = await connections.OpenAsync(ct);
+        return await connection.QuerySingleOrDefaultAsync<string?>(new CommandDefinition(
+            "SELECT output_text FROM audit_payloads WHERE audit_id = @id",
+            new { id },
+            cancellationToken: ct));
+    }
+
+    public Task<int> PrunePayloadsAsync(DateTimeOffset olderThan, CancellationToken ct) =>
+        writes.ExecuteAsync<int>(async (connection, tx, k) =>
+            await connection.ExecuteAsync(new CommandDefinition(
+                "DELETE FROM audit_payloads WHERE stored_utc < @olderThan",
+                new { olderThan = Timestamp.Format(olderThan) },
+                tx,
+                cancellationToken: k)),
+            ct);
+
+    public Task<int> ClearPayloadsAsync(CancellationToken ct) =>
+        writes.ExecuteAsync<int>(async (connection, tx, k) =>
+            await connection.ExecuteAsync(new CommandDefinition("DELETE FROM audit_payloads", transaction: tx, cancellationToken: k)),
+            ct);
+
+    public async Task<ToolPayloadStats> PayloadStatsAsync(CancellationToken ct)
+    {
+        await using var connection = await connections.OpenAsync(ct);
+        var row = await connection.QuerySingleAsync<PayloadStatsRow>(new CommandDefinition(
+            "SELECT COUNT(*) AS Calls, IFNULL(SUM(LENGTH(input_text) + LENGTH(output_text)), 0) AS Chars FROM audit_payloads",
+            cancellationToken: ct));
+        return new ToolPayloadStats(checked((int)row.Calls), row.Chars);
+    }
+
     private static Task InsertAsync(SqliteConnection connection, SqliteTransaction tx, AuditEntry entry, CancellationToken ct) =>
         connection.ExecuteAsync(new CommandDefinition(
             InsertSql,
@@ -266,5 +356,27 @@ public sealed class AuditStore(ISqliteConnectionFactory connections, IWriteQueue
     private sealed class UsageByToolRow : UsageRow
     {
         public string Tool { get; set; } = string.Empty;
+    }
+
+    private sealed class PayloadRow
+    {
+        public string Input { get; set; } = string.Empty;
+
+        public long InputCut { get; set; }
+
+        public long InputChars { get; set; }
+
+        public long OutputCut { get; set; }
+
+        public long OutputChars { get; set; }
+
+        public string StoredUtc { get; set; } = string.Empty;
+    }
+
+    private sealed class PayloadStatsRow
+    {
+        public long Calls { get; set; }
+
+        public long Chars { get; set; }
     }
 }

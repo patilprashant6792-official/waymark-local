@@ -1,9 +1,10 @@
 ﻿using Waymark.Core.Audit;
+using Waymark.Host.Mcp;
 
 namespace Waymark.Host.Ui;
 
 /// <summary>Deletes audit entries older than the retention period, once at start-up and then every few hours.</summary>
-public sealed class AuditRetentionService(IAuditStore audit, IConfiguration configuration, TimeProvider time, ILogger<AuditRetentionService> logger)
+public sealed class AuditRetentionService(IAuditStore audit, ToolPayloadService payloads, IConfiguration configuration, TimeProvider time, ILogger<AuditRetentionService> logger)
     : BackgroundService
 {
     public const int DefaultRetentionDays = 90;
@@ -21,6 +22,13 @@ public sealed class AuditRetentionService(IAuditStore audit, IConfiguration conf
                 if (removed > 0)
                 {
                     logger.LogInformation("Removed {Count} audit entries older than {Days} days", removed, days);
+                }
+
+                // The kept inputs and outputs have their own, shorter period (chosen on the Audit page); the audit rows stay.
+                var payloadsRemoved = await payloads.PruneAsync(stoppingToken);
+                if (payloadsRemoved > 0)
+                {
+                    logger.LogInformation("Removed the kept input and output of {Count} tool calls older than the chosen period", payloadsRemoved);
                 }
             }
             catch (OperationCanceledException) when (stoppingToken.IsCancellationRequested)

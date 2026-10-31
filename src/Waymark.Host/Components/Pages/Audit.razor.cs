@@ -5,6 +5,7 @@ using Microsoft.AspNetCore.Components.Web;
 using Microsoft.JSInterop;
 using Waymark.Core.Audit;
 using Waymark.Host.Components.Shared;
+using Waymark.Host.Mcp;
 using Waymark.Host.Ui;
 
 namespace Waymark.Host.Components.Pages;
@@ -32,6 +33,10 @@ public partial class Audit : LiveComponentBase
     private int _total;
     private bool _live = true;
     private string? _error;
+    private PayloadSettings _keep = new(true, ToolPayloadLimits.DefaultDays);
+    private ToolPayloadStats _keepStats = new(0, 0);
+    private bool _confirmClear;
+    private string? _keepNote;
 
     [Inject]
     private IAuditStore Store { get; set; } = default!;
@@ -44,6 +49,9 @@ public partial class Audit : LiveComponentBase
 
     [Inject]
     private ILogger<Audit> Logger { get; set; } = default!;
+
+    [Inject]
+    private ToolPayloadService Payloads { get; set; } = default!;
 
     private int FirstShown => _rows.Count == 0 ? 0 : (_page * PageSize) + 1;
 
@@ -69,6 +77,7 @@ public partial class Audit : LiveComponentBase
             Logger.LogError(ex, "The audit filters could not be loaded");
         }
 
+        await LoadKeepAsync();
         await LoadAsync();
         _ = TailAsync();
     }
@@ -252,4 +261,75 @@ public partial class Audit : LiveComponentBase
         }
     }
     private static string ClientOf(AuditEntry entry) => entry.Actor ?? "-";
+
+    private async Task LoadKeepAsync()
+    {
+        try
+        {
+            _keep = await Payloads.GetSettingsAsync(Cancel);
+            _keepStats = await Store.PayloadStatsAsync(Cancel);
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "The settings for keeping inputs and outputs could not be loaded");
+        }
+    }
+
+    private Task OnKeepToggledAsync(ChangeEventArgs e) => SaveKeepAsync(e.Value is true, _keep.Days);
+
+    private Task OnKeepDaysChangedAsync(ChangeEventArgs e) =>
+        int.TryParse(e.Value?.ToString(), NumberStyles.None, CultureInfo.InvariantCulture, out var days) ? SaveKeepAsync(_keep.Enabled, days) : Task.CompletedTask;
+
+    private async Task SaveKeepAsync(bool enabled, int days)
+    {
+        try
+        {
+            await Payloads.SaveSettingsAsync(enabled, days, Cancel);
+            _keepNote = enabled
+                ? $"Inputs and outputs of new calls are kept for {days} days."
+                : "Inputs and outputs of new calls are no longer kept. Those already kept stay until they expire or you delete them.";
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "The settings for keeping inputs and outputs could not be saved");
+            _error = "The setting could not be saved.";
+        }
+
+        await LoadKeepAsync();
+    }
+
+    private async Task ClearKeepAsync()
+    {
+        if (!_confirmClear)
+        {
+            _confirmClear = true;
+            return;
+        }
+
+        _confirmClear = false;
+        try
+        {
+            var removed = await Payloads.ClearAsync(Cancel);
+            _keepNote = $"Deleted the kept input and output of {removed} calls.";
+        }
+        catch (OperationCanceledException)
+        {
+            return;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "The kept inputs and outputs could not be deleted");
+            _error = "They could not be deleted.";
+        }
+
+        await LoadKeepAsync();
+    }
 }

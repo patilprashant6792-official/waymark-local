@@ -1,4 +1,5 @@
 using Waymark.Core.LiveFeed;
+using Waymark.Logging;
 
 namespace Waymark.Host.Ui;
 
@@ -28,4 +29,15 @@ public static class LiveLineFormat
         LogLevel.Warning => "WARN",
         _ => string.Empty
     };
+
+    /// <summary>The audit reference of the tool call a live line shows, so the line can link to the call's details; null for any other line, or when the audit row could not be written.</summary>
+    public static long? CallIdOf(LogEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        return entry.Kind == LogKind.Tool
+            && entry.Fields.TryGetValue(ActivityLogging.CallIdField, out var text)
+            && long.TryParse(text, System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id)
+                ? id
+                : null;
+    }
 }

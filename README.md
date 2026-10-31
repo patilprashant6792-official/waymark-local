@@ -4,11 +4,11 @@
 
 <h1 align="center">Waymark</h1>
 
-![License: MIT](https://img.shields.io/badge/license-MIT-blue) ![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D4) ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4) ![MCP server](https://img.shields.io/badge/MCP-server-black) ![Status: v0.1](https://img.shields.io/badge/status-v0.1-orange)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue) ![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D4) ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4) ![MCP server](https://img.shields.io/badge/MCP-server-black) ![Status: v0.2](https://img.shields.io/badge/status-v0.2-orange)
 
 Local MCP server for developers working in C#, Python and TypeScript/JavaScript: token-efficient code, package and project context for claude.ai and Claude Code, over your own tunnel. Windows, SQLite, secrets stay on your machine.
 
-> **Read this first.** Waymark gives an AI assistant real access to this computer: what it reads can reach your Claude chat, and what it runs acts as you. Changes and commands wait for your approval by default, approvals can only be given on this computer, and secrets in tool results are hidden before they leave. None of that is perfect, so read [docs/safety.md](docs/safety.md) before you install, and see [SECURITY.md](SECURITY.md) to report a problem. This is early software (v0.1), provided as is under the [MIT License](LICENSE).
+> **Read this first.** Waymark gives an AI assistant real access to this computer: what it reads can reach your Claude chat, and what it runs acts as you. Changes and commands wait for your approval by default, approvals can only be given on this computer, and secrets in tool results are hidden before they leave. None of that is perfect, so read [docs/safety.md](docs/safety.md) before you install, and see [SECURITY.md](SECURITY.md) to report a problem. This is early software (v0.2), provided as is under the [MIT License](LICENSE).
 >
 > <img width="800" height="754" alt="image" src="https://github.com/user-attachments/assets/fb4312cc-4147-4892-aa36-41e63a7aea57" />
 

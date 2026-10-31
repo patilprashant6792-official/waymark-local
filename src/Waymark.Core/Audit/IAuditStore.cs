@@ -6,7 +6,30 @@ public interface IAuditStore
 
     Task AppendBatchAsync(IReadOnlyList<AuditEntry> entries, CancellationToken ct);
 
+    /// <summary>
+    /// Writes the audit row of a tool call and, when there is one, its input and output, in one transaction. Returns the id of the audit row,
+    /// which the details page and the live log use as the call's reference.
+    /// </summary>
+    Task<long> AppendToolCallAsync(AuditEntry entry, ToolPayload? payload, CancellationToken ct);
+
     Task<IReadOnlyList<StoredAuditEntry>> QueryAsync(AuditQuery query, CancellationToken ct);
+
+    /// <summary>One entry by its id; null when it does not exist (or has been removed by the retention period).</summary>
+    Task<StoredAuditEntry?> GetAsync(long id, CancellationToken ct);
+
+    /// <summary>The kept input of a call and the facts about its output, without the output text; null when nothing was kept.</summary>
+    Task<StoredToolPayload?> GetPayloadAsync(long id, CancellationToken ct);
+
+    /// <summary>The kept output text of a call. Read only when the owner asks for it, because it can be long.</summary>
+    Task<string?> GetPayloadOutputAsync(long id, CancellationToken ct);
+
+    /// <summary>Deletes the kept inputs and outputs older than the moment; the audit rows stay. Returns how many were removed.</summary>
+    Task<int> PrunePayloadsAsync(DateTimeOffset olderThan, CancellationToken ct);
+
+    /// <summary>Deletes every kept input and output; the audit rows stay. Returns how many were removed.</summary>
+    Task<int> ClearPayloadsAsync(CancellationToken ct);
+
+    Task<ToolPayloadStats> PayloadStatsAsync(CancellationToken ct);
 
     /// <summary>How many entries match the filters of the query; BeforeId, AfterId and Limit are ignored.</summary>
     Task<int> CountAsync(AuditQuery query, CancellationToken ct);

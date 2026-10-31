@@ -57,6 +57,22 @@ public sealed class ToolResultGuard(
         return findings;
     }
 
+    /// <summary>
+    /// The same hiding as for a result, applied to one piece of text that is about to be kept: a value the AI sent to a tool. Nothing is written to the
+    /// exposure ledger, because the text never leaves this computer; the stored copy simply holds markers where the secrets were.
+    /// </summary>
+    public async Task<string> CleanTextAsync(string text, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        if (text.Length == 0 || !options.RedactSecrets)
+        {
+            return text;
+        }
+
+        var cleaned = await ScrubKnownSecretsAsync(text, ct);
+        return SensitiveDataScanner.Redact(cleaned).Text;
+    }
+
     /// <summary>Adds the closing note as a last text block and returns its size in bytes (0 when there is nothing to add).</summary>
     public int AppendNotice(CallToolResult result, IReadOnlyList<RedactionFinding> findings)
     {

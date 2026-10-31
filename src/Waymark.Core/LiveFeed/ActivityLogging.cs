@@ -17,15 +17,33 @@ public static class ActivityLogging
     /// <summary>Separates a live line from the reason given for it. Two spaces never occur inside a cleaned purpose, so the last one is always this one.</summary>
     public const string WhyMarker = "  why: ";
 
+    /// <summary>The structured field that carries the reference of a call's details page. Present on a tool line whose audit row was written.</summary>
+    public const string CallIdField = "CallId";
+
     /// <summary>
     /// One call Claude made to a tool. <paramref name="arguments"/> is a short, already cut summary of what it was asked.
     /// <paramref name="tokens"/> is how many tokens of the AI's context what the tool sent back takes up.
     /// <paramref name="purpose"/> is the reason the AI gave (commands only); it is shown after <see cref="WhyMarker"/> at the end of the line.
+    /// <paramref name="callId"/> is the audit reference of the call; the line then starts with <c>#id</c> and carries it as the <see cref="CallIdField"/> field, so the
+    /// Live page can link to the call's details.
     /// </summary>
-    public static void LogToolCall(this ILogger logger, LogLevel level, string tool, string? workspace, string outcome, long elapsedMs, long tokens, string arguments, string? purpose = null)
+    public static void LogToolCall(this ILogger logger, LogLevel level, string tool, string? workspace, string outcome, long elapsedMs, long tokens, string arguments, string? purpose = null, long? callId = null)
     {
         ArgumentNullException.ThrowIfNull(logger);
-        if (string.IsNullOrWhiteSpace(purpose))
+        var withWhy = string.IsNullOrWhiteSpace(purpose);
+        if (callId is { } id)
+        {
+            if (withWhy)
+            {
+                logger.Log(level, ToolEvent, "#{CallId} {Tool}  {Workspace}  {Outcome}  {ElapsedMs} ms  {Tokens} tokens  {Arguments}", id, tool, workspace ?? "-", outcome, elapsedMs, tokens, arguments);
+                return;
+            }
+
+            logger.Log(level, ToolEvent, "#{CallId} {Tool}  {Workspace}  {Outcome}  {ElapsedMs} ms  {Tokens} tokens  {Arguments}" + WhyMarker + "{Purpose}", id, tool, workspace ?? "-", outcome, elapsedMs, tokens, arguments, purpose);
+            return;
+        }
+
+        if (withWhy)
         {
             logger.Log(level, ToolEvent, "{Tool}  {Workspace}  {Outcome}  {ElapsedMs} ms  {Tokens} tokens  {Arguments}", tool, workspace ?? "-", outcome, elapsedMs, tokens, arguments);
             return;

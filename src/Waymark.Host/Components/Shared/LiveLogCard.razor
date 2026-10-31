@@ -30,6 +30,10 @@
                         <span class="wm-live-why">@why</span>
                     }
                 </span>
+                @if (LiveLineFormat.CallIdOf(entry) is { } callId)
+                {
+                    <a class="wm-live-more" href="@($"calls/{callId}")" title="Open this call: its input and output">open</a>
+                }
             </div>
         }
     </div>

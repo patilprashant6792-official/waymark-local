@@ -17,4 +17,10 @@ public static class SettingKeys
 
     /// <summary>When true every tool call is rejected (the Pause all switch).</summary>
     public const string Paused = "security.paused";
+
+    /// <summary>True (the default) to keep the input and output of every tool call, after secret hiding, for the call's details page.</summary>
+    public const string AuditPayloadsEnabled = "audit.payloads_enabled";
+
+    /// <summary>How many days the kept inputs and outputs are kept (1 to 30).</summary>
+    public const string AuditPayloadDays = "audit.payload_days";
 }

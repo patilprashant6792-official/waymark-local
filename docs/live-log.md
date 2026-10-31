@@ -6,7 +6,7 @@ A console-style view of what Waymark is doing, on the admin UI at `/live`. It sh
 
 | Tab | What a line says | Where it comes from |
 |---|---|---|
-| Tools | `code_read  Waymark  ok  42 ms  relativeFilePath=docs/HANDOFF.md` | `ToolPipeline`, once per call. Long argument values are cut and say how much was left out; values with a secret-like name are hidden |
+| Tools | `#1234 code_read  Waymark  ok  42 ms  relativeFilePath=docs/HANDOFF.md` | `ToolPipeline`, once per call. Long argument values are cut and say how much was left out; values with a secret-like name are hidden. `#1234` is the call's audit reference, with an **open** link to its details page |
 | Watcher | `changed  Waymark  src/Foo.cs`, `watching`, `lost events` | `FileWatcherHost`. A burst shows its first 8 lines and then one summary line (`burst  Waymark  37 more changes`) |
 | Auth | pairing, approval, revocation, and requests to `/authorize`, `/token`, `/revoke`, `/register` | `AuditStore` (Auth and Approval entries) and `RequestLoggingMiddleware`. Only the path is logged, never the query |
 | Commands | `#12 waiting for you`, `approved`, `started`, the first 3 output lines, `succeeded  exit 0  0.4s` | `CommandCoordinator`. The full output stays in `/console` |
@@ -47,3 +47,5 @@ Categories starting with `Waymark` are allowed down to Information on this provi
 ## The audit trail is separate
 
 The `audit_entries` table is a stored record of security-relevant actions. It is not part of the live view, which only mirrors new Auth and Approval entries as they are written.
+
+A tool line carries the audit reference of its call (`#1234 code_read  Waymark ...`, structured field `CallId`) and an **open** link to the call's details page, where the input is shown and the output is loaded on request. The reference exists because the audit row is written before the line; if the row could not be written, the line has no reference and no link.

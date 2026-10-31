@@ -12,6 +12,8 @@ public static class ToolPipelineExtensions
         ArgumentNullException.ThrowIfNull(mcp);
         mcp.Services.AddSingleton<ToolPipeline>();
         mcp.Services.AddSingleton<ToolResultGuard>();
+        // Keeps the input and output of each call for its details page (after secret hiding), and lets the owner switch that off or clear it.
+        mcp.Services.AddSingleton<ToolPayloadService>();
         // The copy tools check text they move on the server (without Claude reading it) with the same vault and credential checks as the result guard.
         mcp.Services.TryAddSingleton<IContentInspector, Waymark.Host.Vault.ContentInspector>();
         mcp.Services.AddSingleton<GuideDeliveries>();

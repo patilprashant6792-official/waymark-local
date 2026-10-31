@@ -29,6 +29,7 @@ public sealed class ToolPipeline(
     LiveActivity activity,
     IContextMeter meter,
     ToolGuideDelivery guideDelivery,
+    ToolPayloadService payloads,
     ILogger<ToolPipeline> logger)
 {
     private const string UnknownClient = "unknown";
@@ -118,7 +119,7 @@ public sealed class ToolPipeline(
         }
         catch (OperationCanceledException)
         {
-            await RecordAsync(context, tool, client, started, AuditOutcome.Error, 0, 0, "Cancelled by the client.");
+            await RecordAsync(context, tool, client, started, AuditOutcome.Error, 0, 0, "Cancelled by the client.", string.Empty);
             throw;
         }
         catch (ModelContextProtocol.McpException ex)
@@ -156,6 +157,8 @@ public sealed class ToolPipeline(
             tokens = 0;
         }
 
+        var outputText = ReadOutput(result);
+
         // The guide is Waymark's own text and goes in after the secret check and the size limit, so neither can cut or alter it.
         // A refused call gets neither guide nor notice.
         if (!refused && guideModule is not null)
@@ -165,7 +168,7 @@ public sealed class ToolPipeline(
             tokens += added.Tokens;
         }
 
-        await RecordAsync(context, tool, client, started, outcome, bytes, tokens, error);
+        await RecordAsync(context, tool, client, started, outcome, bytes, tokens, error, outputText);
         return result;
     }
 
@@ -261,6 +264,10 @@ public sealed class ToolPipeline(
     private int CountTokens(CallToolResult result) =>
         result.Content.OfType<TextContentBlock>().Sum(block => meter.CountTokens(block.Text));
 
+    // The text the AI received: every text block as it is finally sent (secrets hidden, size limit applied, closing note added), without the guide text Waymark attaches afterwards.
+    private static string ReadOutput(CallToolResult result) =>
+        string.Join("\n\n", result.Content.OfType<TextContentBlock>().Select(block => block.Text ?? string.Empty).Where(text => text.Length > 0));
+
     private async Task RecordAsync(
         RequestContext<CallToolRequestParams> context,
         string tool,
@@ -269,7 +276,8 @@ public sealed class ToolPipeline(
         AuditOutcome outcome,
         int bytes,
         int tokens,
-        string? error)
+        string? error,
+        string outputText)
     {
         var elapsed = Stopwatch.GetElapsedTime(started);
         var arguments = context.Params?.Arguments;
@@ -280,6 +288,27 @@ public sealed class ToolPipeline(
         {
             var name = workspace.GetString();
             target = name is { Length: > MaxTargetChars } ? name[..MaxTargetChars] : name;
+        }
+
+        // The audit row is written first, so that the live line can carry its reference and link to the call's details.
+        var entry = new AuditEntry(time.GetUtcNow(), AuditCategory.Tool, client, tool, target, argumentNames, (int)elapsed.TotalMilliseconds, bytes, outcome, error, tokens, purpose);
+        long? callId = null;
+        try
+        {
+            callId = await audit.AppendToolCallAsync(entry, await BuildPayloadAsync(arguments, outputText), CancellationToken.None);
+        }
+        catch (Exception ex)
+        {
+            logger.LogError(ex, "Could not write the audit row for tool {Tool}", tool);
+            try
+            {
+                // The call is never lost because its input and output could not be kept.
+                callId = await audit.AppendToolCallAsync(entry, null, CancellationToken.None);
+            }
+            catch (Exception retry)
+            {
+                logger.LogError(retry, "Could not write the audit row for tool {Tool} without its details either", tool);
+            }
         }
 
         logger.LogToolCall(
@@ -295,17 +324,21 @@ public sealed class ToolPipeline(
             (long)elapsed.TotalMilliseconds,
             tokens,
             ToolArgumentSummary.Build(arguments),
-            purpose);
+            purpose,
+            callId);
+    }
 
+    // The input and output kept for the call's details page: null when keeping is off or when preparing it failed.
+    private async Task<ToolPayload?> BuildPayloadAsync(IDictionary<string, JsonElement>? arguments, string outputText)
+    {
         try
         {
-            await audit.AppendAsync(
-                new AuditEntry(time.GetUtcNow(), AuditCategory.Tool, client, tool, target, argumentNames, (int)elapsed.TotalMilliseconds, bytes, outcome, error, tokens, purpose),
-                CancellationToken.None);
+            return await payloads.BuildAsync(arguments, outputText, CancellationToken.None);
         }
         catch (Exception ex)
         {
-            logger.LogError(ex, "Could not write the audit row for tool {Tool}", tool);
+            logger.LogError(ex, "The input and output of a tool call could not be prepared for keeping");
+            return null;
         }
     }
 

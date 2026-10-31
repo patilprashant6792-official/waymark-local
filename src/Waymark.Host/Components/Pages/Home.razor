@@ -270,7 +270,7 @@
                             var outcome = DisplayFormat.Outcome(call.Entry.Outcome);
                             <tr>
                                 <td class="wm-muted">@DisplayFormat.Clock(call.Entry.TimestampUtc)</td>
-                                <td class="wm-mono">@call.Entry.Action</td>
+                                <td class="wm-mono"><a href="@($"calls/{call.Id}")" title="Open this call: input and output">@call.Entry.Action</a></td>
                                 <td>@(call.Entry.Target ?? "-")</td>
                                 <td><StateChip State="outcome.State" Text="@outcome.Text" /></td>
                                 <td class="num wm-muted">@DisplayFormat.Duration(call.Entry.DurationMs)</td>

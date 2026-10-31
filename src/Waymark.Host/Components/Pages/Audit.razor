@@ -12,7 +12,7 @@
     <div class="wm-row spread">
         <div>
             <h1 class="wm-title">Audit</h1>
-            <p class="wm-lead" style="margin-bottom:12px">Everything that was asked of Waymark, and what happened. Arguments are listed by name only; the purpose given for a command is kept in full.</p>
+            <p class="wm-lead" style="margin-bottom:12px">Everything that was asked of Waymark, and what happened. The list shows argument names only; open a tool call to see its full input and output. The purpose given for a command is kept in full.</p>
         </div>
         <div class="wm-row">
             <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download" OnClick="ExportAsync">Export JSON</MudButton>
@@ -23,6 +23,35 @@
     {
         <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
     }
+
+    <section class="wm-card" aria-labelledby="audit-keep">
+        <h2 id="audit-keep" class="wm-section">Inputs and outputs of tool calls</h2>
+        <p class="wm-muted" style="margin-top:0">
+            Every tool call has a details page that shows what the AI sent and what it received; its output is loaded only when you open it. The list below still shows argument names only.
+            The full texts are kept on this computer, with secrets hidden by shape (not a guarantee), and deleted after the period you choose. The audit rows themselves stay for @AuditRetentionService.DefaultRetentionDays days.
+        </p>
+        <div class="wm-row">
+            <label><input type="checkbox" checked="@_keep.Enabled" @onchange="OnKeepToggledAsync" /> Keep inputs and outputs</label>
+            <label>Keep for
+                <select class="wm-select" value="@_keep.Days" disabled="@(!_keep.Enabled)" @onchange="OnKeepDaysChangedAsync">
+                    @foreach (var days in ToolPayloadLimits.DayChoices)
+                    {
+                        <option value="@days">@(days == 1 ? "1 day" : $"{days} days")</option>
+                    }
+                </select>
+            </label>
+            <span class="wm-muted" aria-live="polite">@DisplayFormat.Count(_keepStats.Calls) calls kept, about @DisplayFormat.Size(_keepStats.Chars)</span>
+            <MudButton Variant="Variant.Outlined" Color="@(_confirmClear ? Color.Error : Color.Default)" Disabled="@(_keepStats.Calls == 0)" OnClick="ClearKeepAsync">@(_confirmClear ? "Click again to delete them" : "Delete kept inputs and outputs")</MudButton>
+            @if (_confirmClear)
+            {
+                <MudButton Variant="Variant.Text" OnClick="() => _confirmClear = false">Cancel</MudButton>
+            }
+        </div>
+        @if (_keepNote is not null)
+        {
+            <p class="wm-muted" role="status" style="margin:8px 0 0">@_keepNote</p>
+        }
+    </section>
 
     <section class="wm-card" aria-label="Filters">
         <div class="wm-row">
@@ -106,7 +135,7 @@
             <table class="wm-table">
                 <caption class="visually-hidden">Audit entries, newest first. Select a row for details.</caption>
                 <thead>
-                    <tr><th scope="col">When</th><th scope="col">Tool or event</th><th scope="col">Workspace or target</th><th scope="col">Outcome</th><th scope="col" class="num">Time</th><th scope="col" class="num">Size</th><th scope="col" class="num">Tokens</th></tr>
+                    <tr><th scope="col">When</th><th scope="col">Tool or event</th><th scope="col">Workspace or target</th><th scope="col">Outcome</th><th scope="col" class="num">Time</th><th scope="col" class="num">Size</th><th scope="col" class="num">Tokens</th><th scope="col"><span class="visually-hidden">Details</span></th></tr>
                 </thead>
                 <tbody>
                     @foreach (var row in _rows)
@@ -126,6 +155,12 @@
                             <td class="num">@DisplayFormat.Duration(row.Entry.DurationMs)</td>
                             <td class="num">@DisplayFormat.Bytes(row.Entry.ResultBytes)</td>
                             <td class="num">@DisplayFormat.Tokens(row.Entry.ResultTokens, row.Entry.ResultBytes)</td>
+                            <td>
+                                @if (row.Entry.Category == AuditCategory.Tool)
+                                {
+                                    <a class="wm-live-more" href="@($"calls/{row.Id}")" aria-label="@($"Open call {row.Id}: {row.Entry.Action}")" @onclick:stopPropagation="true">Open</a>
+                                }
+                            </td>
                         </tr>
                     }
                 </tbody>
@@ -147,7 +182,13 @@
             <h2 id="audit-detail-title" class="wm-section" style="margin:0">@selected.Entry.Action</h2>
             <MudIconButton Icon="@Icons.Material.Filled.Close" aria-label="Close details" OnClick="Close" />
         </div>
-        <p><StateChip State="selectedOutcome.State" Text="@selectedOutcome.Text" /></p>
+        <p>
+            <StateChip State="selectedOutcome.State" Text="@selectedOutcome.Text" />
+            @if (selected.Entry.Category == AuditCategory.Tool)
+            {
+                <a class="wm-live-more" href="@($"calls/{selected.Id}")">Open the call: input and output</a>
+            }
+        </p>
         <dl class="wm-dl">
             <dt>Reference</dt>
             <dd class="wm-mono">@selected.Id</dd>
@@ -164,8 +205,8 @@
                 <dt>Purpose</dt>
                 <dd>@purpose</dd>
             }
-            <dt>Arguments</dt>
-            <dd class="wm-mono">@(selected.Entry.ArgsRedacted ?? "-") <span class="wm-muted">(names only; values are never stored)</span></dd>
+            <dt>Argument names</dt>
+            <dd class="wm-mono">@(selected.Entry.ArgsRedacted ?? "-") <span class="wm-muted">(the audit lists names only; a tool call's full input and output are on its details page)</span></dd>
             <dt>Time</dt>
             <dd>@DisplayFormat.Duration(selected.Entry.DurationMs)</dd>
             <dt>Output size</dt>

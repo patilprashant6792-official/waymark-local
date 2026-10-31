@@ -44,6 +44,16 @@ The same rules hold for every toolchain; what differs is where code can start.
 - **Package lookups download, read and delete.** `pkg_*` contacts nuget.org, pypi.org (and files.pythonhosted.org) or registry.npmjs.org, checks the integrity hash the registry publishes, reads declaration or source text by syntax only, and never installs, imports or runs a package.
 - **Credential files are blocked for every tool:** `.npmrc`, `.yarnrc`, `.yarnrc.yml`, `.pypirc`, `pip.conf`, `pip.ini`, `.netrc`, and the folders `node_modules`, `.venv`, `venv`, `site-packages`, `__pycache__`.
 - **Project files that can run code are fingerprinted** for every toolchain: MSBuild files, `pyproject.toml`, `conftest.py`, lock files, `package.json`, `tsconfig*.json`, `*.config.js` and `*.config.ts`. When one changes after you last approved a command, the next command asks again.
+
+## Inputs and outputs of tool calls
+
+Every tool call has a details page (`/calls/{id}`, opened from Audit, Live and Home) with what the AI sent and what it received.
+
+- **Kept apart from the audit row.** The audit list still shows argument names only. The input and output go into their own table (`audit_payloads`), after the same secret hiding as a result: every text value of the input is checked, a value under a name such as `password` or `token` is replaced outright, and the output is stored exactly as the AI received it (secrets hidden, size limit applied, without the guide text Waymark attaches).
+- **Loaded on demand.** The details page shows the input at once; the output is read from the database only when you click **Show output**.
+- **On this computer only, and under your control.** Switch it off, choose how long it is kept (1 to 30 days, default 14) or delete everything kept, on the Audit page. A change and a deletion are each written to the audit trail. The audit rows stay for 90 days either way.
+- **Limits.** An input is cut at 100,000 characters and an output at 200,000; the page says when that happened. Calls made before this was added, or while it was off, have nothing kept.
+- **Treat the database like your source code.** It already holds names and signatures from your code; with this switched on it also holds the text of files and command output that tools returned. Secret hiding goes by shape and is not a guarantee.
 ## What this does not do
 
 - **No sandbox.** Code that runs (a test, the app, a script) can read your keys and use the network. The only protection is that it asks first.
