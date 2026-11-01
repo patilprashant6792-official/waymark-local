@@ -20,8 +20,19 @@ Find before you read, and read only what the task needs: a full read of a large 
 | Who calls a method or function | `code_callers(ws, file, method)` |
 | Who implements or derives from a type | `code_types(ws, typeName)` |
 | Lines or a file to move or copy (also to another workspace) | `code_outline` / `code_method` give the line numbers; pass them as `from` to `file_edit_lines` / `file_write` (files guide). No need to read the body. |
+| Start of work on a feature | `recall(ws, 'list', query?)`, then `recall(ws, 'get', ids)` (feature maps below) |
+| End of work on a feature | `memorise(ws, 'save_feature_map', name, components)` |
 
 Batch lists are comma separated with no spaces; a batch outline may mix languages.
+
+## Feature maps
+
+- A feature map is the list of components (files, types, members, line ranges) you needed for a feature, saved under its name. It stores names, never code, so it survives edits and branch switches.
+- Start of a feature: `recall(ws, action='list', query='gate')`, then `recall(ws, action='get', ids='12')` returns the current outline or source of each component in one call. Use it instead of exploring again, and explore only what it lacks.
+- A component that is not in the code on this branch is listed under "Not available here". It stays stored for the branch that has it: do not delete it for that reason.
+- End of a feature: `memorise(ws, action='save_feature_map', name, components, summary)`. One component per line: `path`, `path:Type`, `path:Type.Member`, `path:function` or `path#L10-40`, optionally followed by `| why it matters`. Save what you needed, not every file you opened (a map holds at most 30).
+- Saving to an existing name merges. Use `remove` only for components that are wrong. When a save is refused because a name is wrong, the message lists what the file has: fix the name and call again.
+- When the save reply says another map shares most components, keep one and delete the other with `memorise(ws, action='delete_feature_map', name)`.
 
 ## Reading
 

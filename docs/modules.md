@@ -5,6 +5,7 @@ Waymark is a modular monolith. A module references `Waymark.Core` only; `Waymark
 | Module | Tools | Gate |
 |---|---|---|
 | Code | code_skeleton, code_folder_files, code_changes_since, code_outline, code_method, code_read, code_search, code_grep, code_callers, code_types (C# through Roslyn; Python and TypeScript/JavaScript through tree-sitter in `Waymark.Languages.Python` and `Waymark.Languages.TypeScript`; a language is an `ILanguageIndexer`) | Read |
+| Code (feature maps) | recall, memorise | Read |
 | Packages (project `Waymark.Modules.NuGet`, module `packages`) | pkg_search, pkg_outline, pkg_find, pkg_expand (`ecosystem`: nuget, pypi or npm) | Read |
 | Files | file_write, file_edit_lines (both can copy with `from` / `fromFolder`), folder_create, file_move, file_delete, folder_move, folder_delete | Confirm (off until switched on) |
 | Commands | cmd_project (.NET and Python actions), cmd_git, cmd_proc, cmd_shell, cmd_wait, cmd_output, cmd_list, cmd_stop | Confirm for the four that start something (off until switched on); the read tools are Read. Each operation also has an Off / Ask / Auto gate chosen by the owner, see `commands-policy.md` |
@@ -30,6 +31,14 @@ The overview is a breadth-first tree under a size budget: `FolderScanner` reads 
 - `FolderCopyPlanner` expands `fromFolder` (glob below the folder, `pathRename`, collision check, access rules per item) and `confirmCount` guards against a changed tree. `PathGlob` lives in `Waymark.Core/Text` and is shared with `code_grep`.
 - C# renames go through `ICSharpRewriter` (`Waymark.Core/Code`); `CSharpRewriter` in the Code module uses Roslyn to find names and edits the text by position, so formatting and comments outside the renamed names are untouched. It works on syntax only, without symbol resolution.
 - Settings under `Waymark:Files:*` (`FilesOptions`): `MaxWriteBytes` 2000000, `MaxBatchEntries` 50, `MaxPatchesPerCall` 200, `MaxFolderEntries` 20000, `MaxCopySourceBytes` 10000000, `MaxTransformsPerCopy` 50, `MaxCopyFilesPerCall` 500.
+
+## Feature maps (`recall`, `memorise`)
+
+Two tools of the Code module save and return the components Claude needed for a feature. A map is a name, a summary and up to 30 components (`path`, `path:Type`, `path:Type.Member`, `path#L10-40`, each with an optional note). It holds names only, never code, in the tables `feature_maps` and `feature_components` of `waymark.db` (migration 017), one set per workspace, so a map is the same on every branch.
+
+- `recall`: `list` (query words, page) and `get` (ids, token budget). Each component is read from the disk at that moment, through the path guard, with the parsers and renderers of `code_outline`, `code_method` and `code_read`. One that is not in the checked-out code is listed as not available and stays stored.
+- `memorise`: `save_feature_map` creates or merges a map (every added component must exist now; `remove` drops listed ones) and `delete_feature_map` deletes one. Text that looks like a secret is refused.
+- Code: `FeatureComponentReader` and `FeatureMemoryService` in `Waymark.Modules.Code/Memory`, `FeatureMapStore` in `Waymark.Data`. No settings; the limits are constants in `FeatureMemoryService`. Every call is in the audit log, which is also how to see whether agents use the tools.
 ## Adding a tool
 
 1. Put the logic behind an interface in the module; register it in the module's `AddServices`.
@@ -40,7 +49,7 @@ The overview is a breadth-first tree under a size budget: `FolderScanner` reads 
 
 ## Data
 
-Migrations are numbered files in `Waymark.Data/Migrations` (next: 015; 013 rebuilt the code index with a language column, 014 renamed the package and project tools). Writes go through `IWriteQueue`, reads through `ISqliteConnectionFactory`.
+Migrations are numbered files in `Waymark.Data/Migrations` (next: 018; 013 rebuilt the code index with a language column, 014 renamed the package and project tools, 017 added the feature maps). Writes go through `IWriteQueue`, reads through `ISqliteConnectionFactory`.
 
 ## Vault
 

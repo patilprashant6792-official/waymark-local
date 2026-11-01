@@ -19,6 +19,8 @@ Orient with code, change with files, verify with commands. Let each group's guid
 
 Orient the way a developer explores a new repository: start from the `code_skeleton(ws)` overview, open only the folders the task needs (`code_skeleton(ws, path=...)`), and read files last. Do not ask for the whole tree of a large workspace up front.
 
+Before you explore a feature, call `recall(ws, action='list')`: it lists the feature maps earlier sessions saved (files, types, members and line ranges), and `recall(ws, action='get', ids='12')` returns their current code in one call. After you explore or change a feature, save what you needed with `memorise(ws, action='save_feature_map', name, components)`. Details are in the code guide.
+
 Moving or duplicating code is copying, not retyping: `file_edit_lines` and `file_write` take `from` (lines, a file or a folder tree, also from another workspace) so you write none of it. To move code between codebases: orient in both workspaces with `code_skeleton`, take line ranges from `code_outline`, preview with `dryRun`, copy, then build the target. Details are in the files guide.
 
 ## Rules
