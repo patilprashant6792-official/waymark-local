@@ -1,0 +1,12 @@
+@page "/workspaces/{WorkspaceId:long}/features"
+
+<PageTitle>Feature maps - Waymark</PageTitle>
+
+<WorkspaceShell WorkspaceId="WorkspaceId" Context="workspace">
+    <FeatureMapList Workspace="workspace" />
+</WorkspaceShell>
+
+@code {
+    [Parameter]
+    public long WorkspaceId { get; set; }
+}

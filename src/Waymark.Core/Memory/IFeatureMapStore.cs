@@ -16,6 +16,13 @@ public sealed record FeatureMapSaveResult(long Id, string Name, bool Created, in
 /// <summary>Another map of the same workspace that holds some of the same components.</summary>
 public sealed record FeatureMapOverlap(long Id, string Name, int Shared);
 
+/// <summary>The id and name of a map, as the live setup lists them for agents.</summary>
+public sealed record FeatureMapName(long Id, string Name);
+
+/// <param name="Total">All maps of the workspace.</param>
+/// <param name="Newest">The most recently changed ones, newest first.</param>
+public sealed record FeatureMapIndex(int Total, IReadOnlyList<FeatureMapName> Newest);
+
 /// <summary>
 /// The feature maps of the workspaces: the code components Claude needed for a feature, saved under the feature's name.
 /// Components are names and paths only. A component that is not on the branch that is checked out stays stored; the reader reports it as missing.
@@ -32,14 +39,14 @@ public interface IFeatureMapStore
     /// Creates the map or merges into it, in one transaction: removes the listed components, adds new ones, updates the note of an existing one when a note is given,
     /// and keeps every other component. The summary changes only when one is given.
     /// </summary>
-    /// <exception cref="InvalidOperationException">The map would hold more than <paramref name="maxComponents"/> components; nothing is changed.</exception>
+    /// <exception cref="InvalidOperationException">The map would hold more than <paramref name="maxComponents"/> components, or a new map has no component; nothing is changed.</exception>
     Task<FeatureMapSaveResult> SaveAsync(long workspaceId, string name, string? summary, IReadOnlyList<FeatureMapComponent> add, IReadOnlyList<string> remove, int maxComponents, DateTimeOffset now, CancellationToken ct);
 
     /// <summary>The other maps of the workspace that share components with this one, most shared first (at most 3).</summary>
     Task<IReadOnlyList<FeatureMapOverlap>> FindOverlapsAsync(long workspaceId, long mapId, CancellationToken ct);
 
-    /// <summary>The number of maps per workspace id; a workspace with none is absent.</summary>
-    Task<IReadOnlyDictionary<long, int>> CountByWorkspaceAsync(CancellationToken ct);
+    /// <summary>Per workspace id: how many maps it has and the names of the newest <paramref name="perWorkspace"/>; a workspace with none is absent.</summary>
+    Task<IReadOnlyDictionary<long, FeatureMapIndex>> ListNamesAsync(int perWorkspace, CancellationToken ct);
 
     /// <summary>Deletes the map of this name with its components. False when there is none.</summary>
     Task<bool> DeleteAsync(long workspaceId, string name, CancellationToken ct);

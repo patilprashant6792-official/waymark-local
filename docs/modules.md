@@ -38,7 +38,9 @@ Two tools of the Code module save and return the components Claude needed for a 
 
 - `recall`: `list` (query words, page) and `get` (ids, token budget). Each component is read from the disk at that moment, through the path guard, with the parsers and renderers of `code_outline`, `code_method` and `code_read`. One that is not in the checked-out code is listed as not available and stays stored.
 - `memorise`: `save_feature_map` creates or merges a map (every added component must exist now; `remove` drops listed ones) and `delete_feature_map` deletes one. Text that looks like a secret is refused.
-- Code: `FeatureComponentReader` and `FeatureMemoryService` in `Waymark.Modules.Code/Memory`, `FeatureMapStore` in `Waymark.Data`. No settings; the limits are constants in `FeatureMemoryService`. Every call is in the audit log, which is also how to see whether agents use the tools.
+- The live setup of the overview lists the newest 25 maps of each workspace with their ids, so an agent can read one with `recall` without listing first.
+- Owner page: a workspace's **Feature maps** section (`/workspaces/{id}/features`) shows each map, checks every component against the code that is checked out, deletes a map and removes a component. It reloads when Claude saves or deletes a map (`FeatureMapsChanged`), and every change is audited.
+- Code: `FeatureComponentReader`, `FeatureComponentChecker` and `FeatureMemoryService` in `Waymark.Modules.Code/Memory`, `FeatureMapStore` in `Waymark.Data`, `FeatureMapAdminService` in `Waymark.Host/FeatureMaps`. No settings; the limits are constants in `FeatureMemoryService`. Every call is in the audit log, which is also how to see whether agents use the tools.
 ## Adding a tool
 
 1. Put the logic behind an interface in the module; register it in the module's `AddServices`.

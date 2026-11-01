@@ -29,6 +29,9 @@ public sealed record FolderChanged(long WorkspaceId, string RelativePath, FileCh
 /// <summary>The access rules of a workspace were added, changed or removed in the admin UI.</summary>
 public sealed record AccessRulesChanged(long WorkspaceId);
 
+/// <summary>A feature map of a workspace was saved, changed or deleted, by Claude through memorise or by the owner in the admin UI.</summary>
+public sealed record FeatureMapsChanged(long WorkspaceId);
+
 /// <summary>The NuGet index or its stored results were reloaded, cleared or changed from the admin UI.</summary>
 public sealed record NuGetCacheChanged;
 

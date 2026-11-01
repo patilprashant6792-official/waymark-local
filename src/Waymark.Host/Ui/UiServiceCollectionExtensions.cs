@@ -19,6 +19,7 @@ public static class UiServiceCollectionExtensions
         services.AddSingleton<Waymark.Host.NuGetAdmin.NuGetCacheService>();
         services.AddSingleton<Waymark.Host.NuGetAdmin.NuGetExplorerService>();
         services.AddSingleton<Waymark.Host.Commands.CommandAdminService>();
+        services.AddSingleton<Waymark.Host.FeatureMaps.FeatureMapAdminService>();
         return services;
     }
 }

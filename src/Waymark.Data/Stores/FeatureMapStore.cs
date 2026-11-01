@@ -178,12 +178,17 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
         return rows.Select(row => new FeatureMapOverlap(row.Id, row.Name, (int)row.Shared)).ToList();
     }
 
-    public async Task<IReadOnlyDictionary<long, int>> CountByWorkspaceAsync(CancellationToken ct)
+    public async Task<IReadOnlyDictionary<long, FeatureMapIndex>> ListNamesAsync(int perWorkspace, CancellationToken ct)
     {
         await using var connection = await connections.OpenAsync(ct);
-        var rows = await connection.QueryAsync<CountRow>(new CommandDefinition(
-            "SELECT workspace_id, COUNT(*) AS maps FROM feature_maps GROUP BY workspace_id", cancellationToken: ct));
-        return rows.ToDictionary(row => row.WorkspaceId, row => (int)row.Maps);
+        var rows = await connection.QueryAsync<NameRow>(new CommandDefinition(
+            "SELECT id, workspace_id, name FROM feature_maps ORDER BY updated_utc DESC, id DESC", cancellationToken: ct));
+        var keep = Math.Max(1, perWorkspace);
+        return rows
+            .GroupBy(row => row.WorkspaceId)
+            .ToDictionary(
+                group => group.Key,
+                group => new FeatureMapIndex(group.Count(), group.Take(keep).Select(row => new FeatureMapName(row.Id, row.Name)).ToList()));
     }
 
     public Task<bool> DeleteAsync(long workspaceId, string name, CancellationToken ct)
@@ -265,10 +270,12 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
         public long Shared { get; set; }
     }
 
-    private sealed class CountRow
+    private sealed class NameRow
     {
+        public long Id { get; set; }
+
         public long WorkspaceId { get; set; }
 
-        public long Maps { get; set; }
+        public string Name { get; set; } = string.Empty;
     }
 }

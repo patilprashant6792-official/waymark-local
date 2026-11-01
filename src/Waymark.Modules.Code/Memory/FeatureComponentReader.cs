@@ -20,6 +20,7 @@ internal sealed record ComponentView(FeatureComponent Component, string? Body, s
 internal sealed class FeatureComponentReader(IPathGuard guard, LanguageIndexers languages, CodeReadOptions options, ToolPipelineOptions pipeline)
 {
     private const int MaxAvailableNames = 20;
+    private const int MaxWholeTextLines = 200;
     private const string NotAnalyzable = "is not a source file the code tools can analyze";
 
     /// <param name="files">The files read so far in this call, so a file shared by several components is read and parsed once.</param>
@@ -57,6 +58,12 @@ internal sealed class FeatureComponentReader(IPathGuard guard, LanguageIndexers 
         {
             if (file.Index is null)
             {
+                if (text.LineCount > MaxWholeTextLines)
+                {
+                    // A long file that is not source code is not shown whole: a line range of it is the way to save part of it.
+                    return new ComponentView(component, null, null, true);
+                }
+
                 LineReader.AppendAll(output, text, file.Path);
             }
             else

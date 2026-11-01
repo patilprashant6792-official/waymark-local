@@ -1,6 +1,7 @@
 using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
+using Waymark.Core.Events;
 using Waymark.Core.Memory;
 using Waymark.Core.Security;
 using Waymark.Core.Tools;
@@ -14,6 +15,7 @@ internal sealed class FeatureMemoryService(
     FeatureComponentReader reader,
     IContentInspector inspector,
     IContextMeter meter,
+    IEventBus events,
     ToolPipelineOptions pipeline,
     TimeProvider time) : IFeatureMemoryService
 {
@@ -144,6 +146,7 @@ internal sealed class FeatureMemoryService(
 
         var items = add.Select(line => new FeatureMapComponent(FeatureComponentSpec.Format(line.Component), line.Note)).ToList();
         var result = await store.SaveAsync(found.Id, cleanName, cleanSummary, items, removeSpecs, MaxComponentsPerMap, time.GetUtcNow(), ct).ConfigureAwait(false);
+        await events.PublishAsync(new FeatureMapsChanged(found.Id)).ConfigureAwait(false);
         var overlaps = (await store.FindOverlapsAsync(found.Id, result.Id, ct).ConfigureAwait(false)).Where(o => o.Shared * 2 >= result.Total).ToList();
 
         var message = new StringBuilder();
@@ -162,9 +165,13 @@ internal sealed class FeatureMemoryService(
     {
         var found = await guard.GetWorkspaceAsync(workspace, ct).ConfigureAwait(false);
         var cleanName = CleanName(name);
-        return await store.DeleteAsync(found.Id, cleanName, ct).ConfigureAwait(false)
-            ? $"Deleted feature map '{cleanName}' from workspace '{found.Name}'."
-            : throw new KeyNotFoundException($"No feature map named '{cleanName}' in workspace '{found.Name}'. recall(action='list') shows the names.");
+        if (!await store.DeleteAsync(found.Id, cleanName, ct).ConfigureAwait(false))
+        {
+            throw new KeyNotFoundException($"No feature map named '{cleanName}' in workspace '{found.Name}'. recall(action='list') shows the names.");
+        }
+
+        await events.PublishAsync(new FeatureMapsChanged(found.Id)).ConfigureAwait(false);
+        return $"Deleted feature map '{cleanName}' from workspace '{found.Name}'.";
     }
 
     // Reads every component of a map from the code now; returns the tokens used by what was included.
@@ -199,8 +206,8 @@ internal sealed class FeatureMemoryService(
         }
 
         var here = views.Count - away.Count;
-        var tail = away.Count == 0 ? "." : $"; {away.Count} are kept in memory but not available here (listed at the end).";
-        text.AppendLine($"{here} of {views.Count} components are in the code on this branch{tail}").AppendLine();
+        var tail = away.Count == 0 ? "." : $"; {away.Count} {(away.Count == 1 ? "is" : "are")} kept in memory but not available here (listed at the end).";
+        text.AppendLine($"{here} of {views.Count} components {(here == 1 ? "is" : "are")} in the code on this branch{tail}").AppendLine();
 
         var used = 0;
         var notIncluded = views.Where(v => v.View.TooLong).Select(v => v.View.Component).ToList();
@@ -267,9 +274,14 @@ internal sealed class FeatureMemoryService(
             return $"code_read('{workspace}', '{component.Path}', startLine={component.StartLine}, endLine={component.EndLine})";
         }
 
-        return component.IsFile
-            ? $"code_outline('{workspace}', '{component.Path}')"
-            : $"code_method('{workspace}', '{component.Path}', '{component.Member}'), or code_outline for a type";
+        if (component.IsFile)
+        {
+            return $"code_outline('{workspace}', '{component.Path}') for a code file, or code_read('{workspace}', '{component.Path}', startLine, endLine) for another file";
+        }
+
+        return component.Type is null
+            ? $"code_outline('{workspace}', '{component.Path}') for a type, or code_method('{workspace}', '{component.Path}', '{component.Member}') for a member"
+            : $"code_method('{workspace}', '{component.Path}', '{component.Member}', className='{component.Type}')";
     }
 
     private static string Cell(string text)
