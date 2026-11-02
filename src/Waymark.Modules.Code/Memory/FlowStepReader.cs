@@ -1,7 +1,6 @@
 using Waymark.Core.Code;
 using Waymark.Core.Memory;
 using Waymark.Core.Security;
-using Waymark.Core.Tools;
 using Waymark.Core.Workspaces;
 using Waymark.Modules.Code.Reading;
 
@@ -10,25 +9,53 @@ namespace Waymark.Modules.Code.Memory;
 /// <summary>A file read once for a call: its text, its parsed index (code files only), or why it is not available.</summary>
 internal sealed record FileView(string Path, LoadedText? Text, CodeFileIndex? Index, string? Problem);
 
-/// <summary>One component as the code on disk shows it. Body is its text; Problem says why it is not available; TooLong marks one that exists but does not fit one answer.</summary>
-internal sealed record ComponentView(FeatureComponent Component, string? Body, string? Problem, bool TooLong);
+/// <summary>What a step is in the code: a method (or any other member), a type, a whole file or a range of lines.</summary>
+internal enum StepKind
+{
+    Method,
+    Type,
+    File,
+    Lines,
+}
 
 /// <summary>
-/// Looks up saved components in the code that is on disk now, through the path guard and with the parsers and renderers of code_outline, code_method and code_read.
-/// A component that cannot be found is reported with the reason; nothing is guessed or repaired.
+/// One step as the code on disk shows it: whether it is there, where, and its signature. Never its body: the agent reads the bodies it needs with code_method.
+/// <paramref name="Owner"/> and <paramref name="Member"/> are the declaring type and the member of a method step; <paramref name="File"/> is the parsed file, kept for the link check.
 /// </summary>
-internal sealed class FeatureComponentReader(IPathGuard guard, LanguageIndexers languages, CodeReadOptions options, ToolPipelineOptions pipeline)
+internal sealed record StepView(
+    FeatureComponent Component,
+    bool Found,
+    string? Problem,
+    StepKind Kind,
+    string? Signature,
+    int StartLine,
+    int EndLine,
+    int Overloads,
+    CodeTypeEntry? Owner,
+    CodeMemberEntry? Member,
+    FileView? File);
+
+/// <summary>
+/// Looks up the steps of a flow in the code that is on disk now, through the path guard and with the parsers of code_outline and code_method.
+/// A step that cannot be found is reported with the reason; nothing is guessed or repaired. It describes a step and never returns its code.
+/// </summary>
+internal sealed class FlowStepReader(IPathGuard guard, LanguageIndexers languages, CodeReadOptions options)
 {
     private const int MaxAvailableNames = 20;
-    private const int MaxWholeTextLines = 200;
     private const string NotAnalyzable = "is not a source file the code tools can analyze";
 
-    /// <param name="files">The files read so far in this call, so a file shared by several components is read and parsed once.</param>
-    public async Task<ComponentView> ReadAsync(Workspace workspace, FeatureComponent component, Dictionary<string, FileView> files, CancellationToken ct)
+    /// <param name="files">The files read so far in this call, so a file shared by several steps is read and parsed once.</param>
+    public async Task<StepView> DescribeAsync(Workspace workspace, FlowStep step, Dictionary<string, FileView> files, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(workspace);
-        ArgumentNullException.ThrowIfNull(component);
+        ArgumentNullException.ThrowIfNull(step);
         ArgumentNullException.ThrowIfNull(files);
+        var component = step.Component;
+        if (!step.Valid)
+        {
+            return Missing(component, "the saved text is not a valid component", null);
+        }
+
         if (!files.TryGetValue(component.Path, out var file))
         {
             file = await LoadAsync(workspace, component.Path, ct).ConfigureAwait(false);
@@ -38,49 +65,33 @@ internal sealed class FeatureComponentReader(IPathGuard guard, LanguageIndexers 
         var text = file.Text;
         if (text is null)
         {
-            return Missing(component, file.Problem ?? "cannot be read");
+            return Missing(component, file.Problem ?? "cannot be read", file);
         }
 
-        var output = new OutputBudget(pipeline.MaxOutputChars);
         if (component.IsRange)
         {
             var start = component.StartLine ?? 1;
             if (start > text.LineCount)
             {
-                return Missing(component, $"the file has only {text.LineCount} lines");
+                return Missing(component, $"the file has only {text.LineCount} lines", file);
             }
 
-            LineReader.AppendRange(output, text, file.Path, start, component.EndLine ?? start);
-            return Present(component, output);
+            var end = Math.Min(component.EndLine ?? start, text.LineCount);
+            return new StepView(component, true, null, StepKind.Lines, null, start, end, 0, null, null, file);
         }
 
         if (component.IsFile)
         {
-            if (file.Index is null)
-            {
-                if (text.LineCount > MaxWholeTextLines)
-                {
-                    // A long file that is not source code is not shown whole: a line range of it is the way to save part of it.
-                    return new ComponentView(component, null, null, true);
-                }
-
-                LineReader.AppendAll(output, text, file.Path);
-            }
-            else
-            {
-                OutlineRenderer.Render(output, workspace.Name, file.Index, false, false);
-            }
-
-            return Present(component, output);
+            var signature = file.Index is null ? null : $"{file.Index.Types.Count} types, {file.Index.Members.Count} members";
+            return new StepView(component, true, null, StepKind.File, signature, 1, text.LineCount, 0, null, null, file);
         }
 
         return file.Index is null
-            ? Missing(component, file.Problem ?? $"{NotAnalyzable}; save a line range of it instead")
-            : Symbol(component, file.Index, text, output);
+            ? Missing(component, file.Problem ?? $"{NotAnalyzable}; save a line range of it instead", file)
+            : Symbol(component, file.Index, file);
     }
 
-    // 'path:A.B' is member B of type A (or, failing that, the type 'A.B'). 'path:Name' is a type called Name, otherwise a member called Name.
-    private static ComponentView Symbol(FeatureComponent component, CodeFileIndex index, LoadedText text, OutputBudget output)
+    private static StepView Symbol(FeatureComponent component, CodeFileIndex index, FileView file)
     {
         var name = component.Member!;
         List<CodeMemberEntry> members;
@@ -89,7 +100,7 @@ internal sealed class FeatureComponentReader(IPathGuard guard, LanguageIndexers 
             var named = TypesNamed(index, name);
             if (named.Count > 0)
             {
-                return Types(component, index, named, output);
+                return TypeView(component, index, named[0], file);
             }
 
             members = MembersNamed(index, null, name);
@@ -102,7 +113,7 @@ internal sealed class FeatureComponentReader(IPathGuard guard, LanguageIndexers 
                 var qualified = TypesNamed(index, component.Type + "." + name);
                 if (qualified.Count > 0)
                 {
-                    return Types(component, index, qualified, output);
+                    return TypeView(component, index, qualified[0], file);
                 }
             }
         }
@@ -111,58 +122,20 @@ internal sealed class FeatureComponentReader(IPathGuard guard, LanguageIndexers 
         {
             var names = index.Types.Select(t => t.Name).Concat(index.Members.Select(m => m.Name)).Distinct(StringComparer.Ordinal).Take(MaxAvailableNames).ToList();
             var have = names.Count == 0 ? "nothing it can name" : string.Join(", ", names);
-            return Missing(component, $"no such type or member in the file (it has: {have})");
+            return Missing(component, $"no such type or member in the file (it has: {have})", file);
         }
 
-        foreach (var member in members)
-        {
-            AppendMember(output, index, text, member);
-        }
-
-        return Present(component, output);
+        var first = members.OrderBy(m => m.StartLine).First();
+        var owner = first.TypeIndex is { } typeIndex ? index.Types[typeIndex] : null;
+        return new StepView(component, true, null, StepKind.Method, first.Signature, first.StartLine, first.EndLine, members.Count, owner, first, file);
     }
 
-    private static ComponentView Types(FeatureComponent component, CodeFileIndex index, List<int> typeIndexes, OutputBudget output)
-    {
-        foreach (var typeIndex in typeIndexes)
-        {
-            AppendType(output, index, typeIndex);
-        }
-
-        return Present(component, output);
-    }
-
-    private static void AppendType(OutputBudget output, CodeFileIndex index, int typeIndex)
+    private static StepView TypeView(FeatureComponent component, CodeFileIndex index, int typeIndex, FileView file)
     {
         var type = index.Types[typeIndex];
-        var comment = index.Language == CodeLanguage.Python ? "#" : "//";
-        output.TryAppendLine($"#### {type.Name} (lines {type.StartLine}-{type.EndLine})");
-        if (!string.IsNullOrEmpty(type.DocSummary))
-        {
-            output.TryAppendLine($"_{type.DocSummary}_");
-        }
-
-        output.TryAppendLine($"```{CodeLanguages.Fence(index.Language)}");
-        foreach (var member in index.Members.Where(m => m.TypeIndex == typeIndex).OrderBy(m => m.StartLine))
-        {
-            output.TryAppendLine($"{member.Signature}  {comment} {member.StartLine}-{member.EndLine}");
-        }
-
-        output.TryAppendLine("```");
-    }
-
-    private static void AppendMember(OutputBudget output, CodeFileIndex index, LoadedText text, CodeMemberEntry member)
-    {
-        var owner = member.TypeIndex is { } typeIndex ? index.Types[typeIndex].Name + "." : string.Empty;
-        var last = Math.Min(member.EndLine, text.LineCount);
-        output.TryAppendLine($"#### {owner}{member.Name} (lines {member.StartLine}-{last})");
-        output.TryAppendLine($"```{CodeLanguages.Fence(index.Language)}");
-        for (var number = member.StartLine; number <= last; number++)
-        {
-            output.TryAppendLine($"{number,4} | {text.Line(number)}");
-        }
-
-        output.TryAppendLine("```");
+        var bases = string.IsNullOrWhiteSpace(type.BaseList) ? string.Empty : " : " + type.BaseList.TrimStart(':', ' ');
+        var signature = $"{type.Kind.ToString().ToLowerInvariant()} {type.Name}{bases}";
+        return new StepView(component, true, null, StepKind.Type, signature, type.StartLine, type.EndLine, 0, type, null, file);
     }
 
     private static List<int> TypesNamed(CodeFileIndex index, string wanted) =>
@@ -184,12 +157,11 @@ internal sealed class FeatureComponentReader(IPathGuard guard, LanguageIndexers 
     private static bool IsConstructorAlias(CodeMemberEntry member, string name) =>
         member.Kind == CodeMemberKind.Constructor && string.Equals(name, "__init__", StringComparison.Ordinal);
 
-    private static ComponentView Present(FeatureComponent component, OutputBudget output) =>
-        output.IsTruncated
-            ? new ComponentView(component, null, null, true)
-            : new ComponentView(component, output.Build().TrimEnd(), null, false);
+    private static StepView Missing(FeatureComponent component, string problem, FileView? file) =>
+        new(component, false, problem, KindOf(component), null, 0, 0, 0, null, null, file);
 
-    private static ComponentView Missing(FeatureComponent component, string problem) => new(component, null, problem, false);
+    private static StepKind KindOf(FeatureComponent component) =>
+        component.IsRange ? StepKind.Lines : component.IsFile ? StepKind.File : StepKind.Method;
 
     private async Task<FileView> LoadAsync(Workspace workspace, string path, CancellationToken ct)
     {

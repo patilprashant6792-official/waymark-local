@@ -4,14 +4,14 @@ namespace Waymark.Core.Transfer;
 public sealed record WorkspaceApply(long WorkspaceId, WorkspaceMergePlan Plan);
 
 /// <summary>What was written for one workspace.</summary>
-public sealed record WorkspaceApplied(long WorkspaceId, int RulesAdded, int MapsAdded, int MapsExtended, int ComponentsAdded);
+public sealed record WorkspaceApplied(long WorkspaceId, int RulesAdded, int MapsAdded, int StepsAdded);
 
 /// <summary>Writes the merge plans of an import.</summary>
 public interface IWorkspaceBundleStore
 {
     /// <summary>
-    /// Writes every plan in one transaction: either all of it is stored or none. It only adds. A rule that exists is not touched; a map that exists gets the components it lacks, up to the
-    /// limit of a map; the limit of rules per workspace is checked again here. A map that is new gets the time of the file as its last change, a map that grew gets <paramref name="now"/>.
+    /// Writes every plan in one transaction: either all of it is stored or none. It only adds. A rule that exists is not touched; a map is created only when its name is free (a name that was taken
+    /// since the plan was made is skipped, never merged); the limit of rules per workspace is checked again here. A map gets the time of the file as its last change.
     /// </summary>
     Task<IReadOnlyList<WorkspaceApplied>> ApplyAsync(IReadOnlyList<WorkspaceApply> items, DateTimeOffset now, CancellationToken ct);
 }

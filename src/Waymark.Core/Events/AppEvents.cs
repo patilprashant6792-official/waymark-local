@@ -32,6 +32,21 @@ public sealed record AccessRulesChanged(long WorkspaceId);
 /// <summary>A feature map of a workspace was saved, changed or deleted, by Claude through memorise or by the owner in the admin UI.</summary>
 public sealed record FeatureMapsChanged(long WorkspaceId);
 
+public enum FlowChange
+{
+    /// <summary>A flow was created or its steps were replaced.</summary>
+    Saved,
+
+    /// <summary>A flow was deleted.</summary>
+    Deleted,
+
+    /// <summary>An import added flows; the flow id is 0 because it is more than one.</summary>
+    Imported,
+}
+
+/// <summary>One flow of a workspace changed (see <see cref="FlowChange"/>). The pages listen to <see cref="FeatureMapsChanged"/>; this one carries the id for what indexes flows.</summary>
+public sealed record FlowChanged(long WorkspaceId, long FlowId, FlowChange Change);
+
 /// <summary>The NuGet index or its stored results were reloaded, cleared or changed from the admin UI.</summary>
 public sealed record NuGetCacheChanged;
 

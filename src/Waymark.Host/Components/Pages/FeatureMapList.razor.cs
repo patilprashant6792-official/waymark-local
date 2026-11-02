@@ -11,15 +11,15 @@ using Waymark.Host.Ui;
 namespace Waymark.Host.Components.Pages;
 
 /// <summary>
-/// The Feature maps section of a workspace: the maps Claude saved, whether each component is in the code that is checked out, and removing what is wrong.
+/// The Feature maps section of a workspace: the maps (flows) Claude saved as steps, whether each step is in the code that is checked out, whether each link still holds, and removing what is wrong.
 /// It reloads when Claude saves or deletes a map.
 /// </summary>
 public partial class FeatureMapList : LiveComponentBase
 {
-    private static readonly IReadOnlyDictionary<string, FeatureComponentStatus> NoStatus = new Dictionary<string, FeatureComponentStatus>();
+    private static readonly IReadOnlyDictionary<long, IReadOnlyList<FeatureComponentStatus>> NoStatus = new Dictionary<long, IReadOnlyList<FeatureComponentStatus>>();
 
     private IReadOnlyList<FeatureMap> _maps = [];
-    private IReadOnlyDictionary<string, FeatureComponentStatus> _status = NoStatus;
+    private IReadOnlyDictionary<long, IReadOnlyList<FeatureComponentStatus>> _status = NoStatus;
     private DateTimeOffset? _checkedUtc;
     private string _query = string.Empty;
     private string _searchedFor = string.Empty;
@@ -122,14 +122,14 @@ public partial class FeatureMapList : LiveComponentBase
             _checkedUtc = Time.GetUtcNow();
             _error = null;
         },
-        "The components could not be checked against the code.");
+        "The steps could not be checked against the code.");
 
     private async Task DeleteMapAsync(FeatureMap map)
     {
         var confirmed = await ConfirmDialogs.AskAsync(
             Dialogs,
             "Delete this feature map?",
-            $"'{map.Name}' and its {map.Components.Count} components are removed. Claude can save it again after exploring the feature.",
+            $"'{map.Name}' and its {map.Steps.Count} steps are removed. Claude can save it again after exploring the feature.",
             "Delete",
             destructive: true);
         if (!confirmed)
@@ -148,12 +148,13 @@ public partial class FeatureMapList : LiveComponentBase
             "The feature map could not be deleted.");
     }
 
-    private async Task RemoveComponentAsync(FeatureMap map, FeatureMapComponent component)
+    private async Task RemoveStepAsync(FeatureMap map, int index)
     {
+        var step = map.Steps[index];
         var confirmed = await ConfirmDialogs.AskAsync(
             Dialogs,
-            "Remove this component?",
-            $"'{component.Spec}' is removed from '{map.Name}'. Claude can add it again.",
+            "Remove this step?",
+            $"'{step.Spec}' is removed from '{map.Name}'. Claude can add it again.",
             "Remove",
             destructive: true);
         if (!confirmed)
@@ -164,10 +165,19 @@ public partial class FeatureMapList : LiveComponentBase
         await RunBusyAsync(
             async () =>
             {
-                await Service.RemoveComponentAsync(Workspace, map.Name, component.Spec, Cancel);
-                Snackbar.Add("Removed.", Severity.Success);
+                try
+                {
+                    await Service.RemoveStepAsync(Workspace, map, index, Cancel);
+                    Snackbar.Add("Removed.", Severity.Success);
+                }
+                catch (InvalidOperationException ex)
+                {
+                    // A refusal the owner can act on (the map changed, or the step has steps under it), not a failure.
+                    Snackbar.Add(ex.Message, Severity.Warning);
+                    await LoadAsync();
+                }
             },
-            "The component could not be removed.");
+            "The step could not be removed.");
     }
 
     private async Task RunBusyAsync(Func<Task> work, string failure)
@@ -192,13 +202,39 @@ public partial class FeatureMapList : LiveComponentBase
         }
     }
 
-    private FeatureComponentStatus? StatusOf(string spec) => _status.TryGetValue(spec, out var status) ? status : null;
+    private FeatureComponentStatus? StatusOf(FeatureMap map, int index) =>
+        _status.TryGetValue(map.Id, out var statuses) && index < statuses.Count ? statuses[index] : null;
 
-    private int MissingCount(FeatureMap map) => map.Components.Count(component => _status.TryGetValue(component.Spec, out var status) && !status.Available);
+    private int MissingCount(FeatureMap map) =>
+        _status.TryGetValue(map.Id, out var statuses) ? statuses.Count(status => !status.Available) : 0;
 
-    // The same text memorise takes, so a map can be pasted into a note or saved again.
-    private static string ComponentsText(FeatureMap map) =>
-        string.Join("\n", map.Components.Select(component => component.Note.Length == 0 ? component.Spec : $"{component.Spec} | {component.Note}"));
+    private int BrokenCount(FeatureMap map) =>
+        _status.TryGetValue(map.Id, out var statuses) ? statuses.Count(status => status.Link == FlowLinkState.DoesNotCall) : 0;
+
+    private static string? WhyNotRemovable(FeatureMap map, int index) => FeatureMapAdminService.WhyNotRemovable(map, index);
+
+    // The same text memorise takes (indented under the step that calls it), so a flow can be pasted into a note or saved again.
+    private static string StepsText(FeatureMap map) => FlowStepText.Format(FlowStepText.FromStored(map.Steps));
+
+    private static string Indent(FeatureMapStep step) => $"padding-left:{step.Depth * 16}px";
+
+    // What the code says about the link from the step above, in the words of the other states on this page. Never colour alone: each has a word.
+    private static (StatusState State, string Text, string? Title)? LinkChip(FeatureComponentStatus? status)
+    {
+        if (status?.Link is not { } link)
+        {
+            return null;
+        }
+
+        return link switch
+        {
+            FlowLinkState.Calls => (StatusState.Healthy, "Calls it", "The step above calls this one."),
+            FlowLinkState.NameOnly => (StatusState.Working, "By name only", status.LinkDetail),
+            FlowLinkState.Declared => (StatusState.Off, "Declared", status.LinkDetail),
+            FlowLinkState.DoesNotCall => (StatusState.Failed, "Does not call", status.LinkDetail),
+            _ => (StatusState.Attention, "Not judged", status.LinkDetail),
+        };
+    }
 
     private string Caption()
     {

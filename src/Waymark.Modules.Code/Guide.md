@@ -20,21 +20,40 @@ Find before you read, and read only what the task needs: a full read of a large 
 | Who calls a method or function | `code_callers(ws, file, method)` |
 | Who implements or derives from a type | `code_types(ws, typeName)` |
 | Lines or a file to move or copy (also to another workspace) | `code_outline` / `code_method` give the line numbers; pass them as `from` to `file_edit_lines` / `file_write` (files guide). No need to read the body. |
-| Start of work on a feature | `recall(ws, 'get', ids)` with an id from the live setup, or `recall(ws, 'list', query?)` to search (feature maps below) |
-| End of work on a feature | `memorise(ws, 'save_feature_map', name, components)` |
+| Start of work on a feature | `recall(ws, 'get', ids)` with an id from the live setup, or `recall(ws, 'list', query?)` to search (flows below) |
+| The path of a feature changed | `memorise(ws, 'save_feature_map', name, steps, expectedVersion)`; a new trigger: `name`, `summary`, `steps` |
 
 Batch lists are comma separated with no spaces; a batch outline may mix languages.
 
-## Feature maps
+## Feature maps (flows)
 
-- A feature map is the list of components (files, types, members, line ranges) you needed for a feature, saved under its name. It stores names, never code, so it survives edits and branch switches.
-- **Saving is part of the task, not an extra, and you do it without being asked.** Save or update a map when: you found the components of a feature that took searching to find (save at once, not at the end); you changed a feature (add the new components, `remove` the ones you deleted or renamed); you read docs or code to learn how part of the project works; and always before your final answer on a task that explored or changed a feature. A reply that is about to say "done" with the feature's map missing or out of date is not done. In that reply, say in one line which map you saved or updated.
-- Keep one map per feature. Before you create one, check the live setup list or `recall(ws, 'list', query)`: when a map of the feature exists, save into it (saving merges) and refresh its summary instead of adding a near-duplicate.
-- Start of a feature: find it under "Feature maps saved" in the live setup of the overview (the newest 25 per workspace; a map saved after you loaded the overview is not there), then `recall(ws, action='get', ids='12')` returns the current outline or source of each component in one call. When the feature is not listed, search with `recall(ws, action='list', query='gate')`. Use what comes back instead of exploring again, and explore only what it lacks.
-- A component that is not in the code on this branch is listed under "Not available here". It stays stored for the branch that has it: do not delete it for that reason.
-- Saving and updating: `memorise(ws, action='save_feature_map', name, components, summary)`. One component per line: `path`, `path:Type`, `path:Type.Member`, `path:function` or `path#L10-40`, optionally followed by `| why it matters`. Save what you needed, not every file you opened (a map holds at most 30).
-- Saving to an existing name merges. Use `remove` only for components that are wrong. When a save is refused because a name is wrong, the message lists what the file has: fix the name and call again.
-- When the save reply says another map shares most components, keep one and delete the other with `memorise(ws, action='delete_feature_map', name)`.
+A feature map is a **flow**: one trigger to one outcome as the ordered methods the request passes through, saved under a name after its trigger (`memorise-save`). It stores names, never code, so it survives edits and branch switches. `recall` describes the path without any code; you read only the steps your task needs with `code_method`.
+
+- **Find.** The live setup of the overview lists the newest 25 flows per workspace (id, name, steps, one-line summary). Otherwise `recall(ws, action='list', query='words')`; a method name as the query finds the flows it is a step of. Do this before you explore a feature.
+- **Read.** `recall(ws, action='get', ids='12')` returns one line per step: where it is, its signature, and a mark for the link from the step above. Use it instead of exploring again, and explore only what it lacks.
+- **Marks.** `[calls it]` the step above calls this one. `[by name only]` a call of that name is there but its receiver type is unknown. `[declared: event]` a link the index cannot see (you wrote ~event, ~http, ~ui, ~di or ~job), a constructor, a file or a range. `[DOES NOT CALL]` both steps are in the code and the step above makes no such call: the flow is wrong, fix it. `NOT ON THIS BRANCH (kept)` the step is not in the code here (another branch, a rename, a deleted file); it stays stored for the branch that has it, so do not remove it for that reason. `moved? ->` a method of that name is in another file.
+- **Change the code, then decide.** Most edits are inside a step and need no save. Save only when the path changed (steps added, removed, renamed or moved) or for a new trigger. A `🧭` line in the result of `file_edit_lines`, `file_write`, `file_move` or `file_delete` means the change touched a step of a flow and something no longer matches: update the flow in this task. Folder moves and deletes do not give this line.
+- **Update, create, delete.** Same trigger and outcome: update that flow. A new trigger or a different outcome: create a flow. Two flows with the same trigger and outcome: keep the better one and delete the other with `memorise(ws, action='delete_feature_map', name)`.
+- Say in one line in your final answer which flow you saved or updated (name and id), or why you saved none.
+
+### Writing the steps
+
+`memorise(ws, action='save_feature_map', name, summary, steps)` to create; `memorise(ws, action='save_feature_map', name, steps, expectedVersion)` to change a flow you read (the whole new steps, and the `v` that `recall get` showed; `newName` renames it). One step per line:
+
+```
+src/Orders/OrderEndpoint.cs:OrderEndpoint.Post                  | the trigger
+  src/Orders/OrderService.cs:OrderService.Place                 | totals are computed here
+    src/Orders/OrderRepository.cs:OrderRepository.Insert
+  src/Orders/Mailer.cs:Mailer.Send ~event                       | sent after the order is stored
+```
+
+- A step is `path:Type.Member` (or `path:function` in Python and JavaScript). Where there is no method to point to (a Razor page, SQL, config) a step may be a file `path` or a range `path#L10-40`; those links are always declared.
+- Two spaces of indent mean "called by the step above". The first line is the only trigger; a step is one level deeper than its parent at most; at most 8 levels and 30 steps. Over 15 steps, split the flow by outcome.
+- Add `~event`, `~http`, `~ui`, `~di` or `~job` after a step when the code reaches it in a way a call cannot show. Add `| note` (at most 120 characters) for why a step matters.
+- Each **new or changed** step must exist now, and each new link must be a call the code makes; steps that were saved before stay as they are, whatever branch they are on. A save that breaks this is refused with the list of what to fix.
+- Creating a flow whose trigger another flow starts at is refused: update that flow, or delete one if they say the same thing, or save again with `distinct='how this one differs'` when the outcome differs.
+- A save with a `v` that is no longer current is refused, and the reply contains the flow as it is now: merge your change into it and save again.
+- A map saved before flows existed shows as unordered. When you use it, put its steps in call order under one trigger (or split it by trigger) and save it with `expectedVersion`.
 
 ## Reading
 

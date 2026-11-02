@@ -2,12 +2,13 @@
 using System.Text.Json;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using Waymark.Core.Memory;
 using Waymark.Core.Tools;
 
 namespace Waymark.Modules.Files.Tools;
 
 [McpServerToolType]
-public sealed class FileOperationTools(IFileManager manager, ToolPipelineOptions pipeline)
+public sealed class FileOperationTools(IFileManager manager, ToolPipelineOptions pipeline, IFlowEditAdvisor advisor)
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { PropertyNameCaseInsensitive = true };
 
@@ -48,7 +49,7 @@ public sealed class FileOperationTools(IFileManager manager, ToolPipelineOptions
     {
         var moves = Parse<MoveEntry>(movesJson, "movesJson");
         var results = await RunAsync(() => manager.MoveFilesAsync(workspace, moves, cancellationToken)).ConfigureAwait(false);
-        return Format("file_move", results);
+        return await WithAdviceAsync(workspace, Format("file_move", results), results, FlowEditKind.Moved, cancellationToken).ConfigureAwait(false);
     }
 
     [McpServerTool(Name = "file_delete", ReadOnly = false, Destructive = true, Idempotent = false)]
@@ -67,7 +68,7 @@ public sealed class FileOperationTools(IFileManager manager, ToolPipelineOptions
     {
         var paths = Parse<string?>(pathsJson, "pathsJson");
         var results = await RunAsync(() => manager.DeleteFilesAsync(workspace, paths, cancellationToken)).ConfigureAwait(false);
-        return Format("file_delete", results);
+        return await WithAdviceAsync(workspace, Format("file_delete", results), results, FlowEditKind.Deleted, cancellationToken).ConfigureAwait(false);
     }
 
     [McpServerTool(Name = "folder_move", ReadOnly = false, Destructive = false, Idempotent = false)]
@@ -110,6 +111,14 @@ public sealed class FileOperationTools(IFileManager manager, ToolPipelineOptions
         var paths = Parse<string?>(pathsJson, "pathsJson");
         var results = await RunAsync(() => manager.DeleteFoldersAsync(workspace, paths, cancellationToken)).ConfigureAwait(false);
         return Format("folder_delete", results);
+    }
+
+    // A moved or deleted file takes its steps out of the flows that name it: tell the agent which flows, once, after the result. The paths are the ones the operation took (the old place of a move).
+    private async Task<string> WithAdviceAsync(string workspace, string text, IReadOnlyList<FileOperationResult> results, FlowEditKind kind, CancellationToken ct)
+    {
+        var paths = results.Where(r => r.Success).Select(r => r.Path).ToList();
+        var advice = await advisor.AdviseAsync(workspace, paths, kind, ct).ConfigureAwait(false);
+        return advice is null ? text : $"{text}\n{advice}";
     }
 
     private static async Task<IReadOnlyList<FileOperationResult>> RunAsync(Func<Task<IReadOnlyList<FileOperationResult>>> action)

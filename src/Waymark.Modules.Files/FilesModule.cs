@@ -2,6 +2,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.DependencyInjection.Extensions;
 using ModelContextProtocol.Server;
+using Waymark.Core.Memory;
 using Waymark.Core.Modules;
 using Waymark.Modules.Files.Tools;
 
@@ -23,6 +24,9 @@ public sealed class FilesModule : IMcpModule
         services.TryAddSingleton<FolderCopyPlanner>();
         services.TryAddSingleton<IFileEditor, FileEditor>();
         services.TryAddSingleton<IFileManager, FileManager>();
+
+        // Says nothing. The code module registers the advisor that tells the agent when a change touches a step of a saved flow, and replaces this one.
+        services.TryAddSingleton<IFlowEditAdvisor, NoFlowEditAdvisor>();
     }
 
     public void AddTools(IMcpServerBuilder mcp)

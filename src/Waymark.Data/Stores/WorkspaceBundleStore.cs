@@ -20,7 +20,7 @@ public sealed class WorkspaceBundleStore(IWriteQueue writes) : IWorkspaceBundleS
             {
                 var rules = await AddRulesAsync(connection, tx, item, stamp, k);
                 var maps = await AddMapsAsync(connection, tx, item, stamp, k);
-                applied.Add(new WorkspaceApplied(item.WorkspaceId, rules, maps.Created, maps.Extended, maps.Components));
+                applied.Add(new WorkspaceApplied(item.WorkspaceId, rules, maps.Created, maps.Steps));
             }
 
             return applied;
@@ -64,80 +64,64 @@ public sealed class WorkspaceBundleStore(IWriteQueue writes) : IWorkspaceBundleS
         return added;
     }
 
-    private static async Task<(int Created, int Extended, int Components)> AddMapsAsync(SqliteConnection connection, SqliteTransaction tx, WorkspaceApply item, string stamp, CancellationToken ct)
+    // Only creates: a map whose name is taken (it was not when the plan was made) is skipped, never merged.
+    private static async Task<(int Created, int Steps)> AddMapsAsync(SqliteConnection connection, SqliteTransaction tx, WorkspaceApply item, string stamp, CancellationToken ct)
     {
-        int created = 0, extended = 0, components = 0;
+        int created = 0, steps = 0;
         var workspaceId = item.WorkspaceId;
         foreach (var map in item.Plan.Maps)
         {
-            var id = await connection.ExecuteScalarAsync<long?>(new CommandDefinition(
+            var taken = await connection.ExecuteScalarAsync<long?>(new CommandDefinition(
                 "SELECT id FROM feature_maps WHERE workspace_id = @workspaceId AND name = @name", new { workspaceId, name = map.Name }, tx, cancellationToken: ct));
-            var isNew = id is null;
-            if (isNew)
+            if (taken is not null || map.Steps.Count == 0)
             {
-                var changed = map.UpdatedUtc is { } updated ? Timestamp.Format(updated) : stamp;
-                await connection.ExecuteAsync(new CommandDefinition(
-                    "INSERT INTO feature_maps (workspace_id, name, summary, created_utc, updated_utc) VALUES (@workspaceId, @name, @summary, @changed, @changed)",
-                    new { workspaceId, name = map.Name, summary = map.Summary, changed },
-                    tx,
-                    cancellationToken: ct));
-                id = await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT last_insert_rowid()", transaction: tx, cancellationToken: ct));
+                continue;
             }
 
-            var mapId = id!.Value;
-            var total = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
-                "SELECT COUNT(*) FROM feature_components WHERE map_id = @mapId", new { mapId }, tx, cancellationToken: ct));
-            var next = (await connection.ExecuteScalarAsync<long?>(new CommandDefinition(
-                "SELECT MAX(ordinal) FROM feature_components WHERE map_id = @mapId", new { mapId }, tx, cancellationToken: ct)) ?? -1) + 1;
-            var added = 0;
-            foreach (var component in map.Components)
+            var changed = map.UpdatedUtc is { } updated ? Timestamp.Format(updated) : stamp;
+            await connection.ExecuteAsync(new CommandDefinition(
+                "INSERT INTO feature_maps (workspace_id, name, summary, created_utc, updated_utc, version, ordered, distinct_reason) VALUES (@workspaceId, @name, @summary, @changed, @changed, 1, @ordered, '')",
+                new { workspaceId, name = map.Name, summary = map.Summary, changed, ordered = map.Ordered ? 1 : 0 },
+                tx,
+                cancellationToken: ct));
+            var mapId = await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT last_insert_rowid()", transaction: tx, cancellationToken: ct));
+            var ordinal = 0;
+            foreach (var step in map.Steps.Take(FeatureMapRules.MaxComponentsPerMap))
             {
-                if (total + added >= FeatureMapRules.MaxComponentsPerMap)
-                {
-                    break;
-                }
-
                 var inserted = await connection.ExecuteAsync(new CommandDefinition(
-                    "INSERT OR IGNORE INTO feature_components (map_id, ordinal, spec, note) VALUES (@mapId, @ordinal, @spec, @note)",
-                    new { mapId, ordinal = next, spec = component.Spec, note = component.Note },
+                    "INSERT OR IGNORE INTO feature_components (map_id, ordinal, spec, note, depth, link_kind, path) VALUES (@mapId, @ordinal, @spec, @note, @depth, @link, @path)",
+                    new
+                    {
+                        mapId,
+                        ordinal,
+                        spec = step.Spec,
+                        note = step.Note,
+                        depth = map.Ordered ? step.Depth : 0,
+                        link = map.Ordered ? step.Link : "call",
+                        path = PathOf(step.Spec),
+                    },
                     tx,
                     cancellationToken: ct));
                 if (inserted > 0)
                 {
-                    next++;
-                    added++;
+                    ordinal++;
+                    steps++;
                 }
             }
 
-            if (isNew && added == 0)
+            if (ordinal == 0)
             {
                 // Never leave an empty map behind.
                 await connection.ExecuteAsync(new CommandDefinition("DELETE FROM feature_maps WHERE id = @mapId", new { mapId }, tx, cancellationToken: ct));
                 continue;
             }
 
-            if (added == 0)
-            {
-                continue;
-            }
-
-            if (!isNew)
-            {
-                await connection.ExecuteAsync(new CommandDefinition(
-                    "UPDATE feature_maps SET updated_utc = @stamp WHERE id = @mapId", new { stamp, mapId }, tx, cancellationToken: ct));
-            }
-
-            components += added;
-            if (isNew)
-            {
-                created++;
-            }
-            else
-            {
-                extended++;
-            }
+            created++;
         }
 
-        return (created, extended, components);
+        return (created, steps);
     }
+
+    private static string PathOf(string spec) =>
+        FeatureComponentSpec.TryParse(spec, out var component, out _) ? component.Path : spec;
 }

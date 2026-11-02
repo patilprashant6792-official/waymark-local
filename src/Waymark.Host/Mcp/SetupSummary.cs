@@ -26,6 +26,7 @@ public sealed class SetupSummary(
 {
     private const string None = "none";
     private const int MaxMapNamesPerWorkspace = 25;
+    private const int MaxSummaryChars = 70;
 
     public async Task<string> DescribeAsync(CancellationToken ct)
     {
@@ -53,7 +54,7 @@ public sealed class SetupSummary(
         text.Append("- Workspaces on: ").AppendLine(Names(folders.Where(w => w.Enabled).Select(w => w.Name)));
         text.Append("- Workspaces off: ").AppendLine(Names(folders.Where(w => !w.Enabled).Select(w => w.Name)));
         var index = await featureMaps.ListNamesAsync(MaxMapNamesPerWorkspace, ct);
-        text.AppendLine("- Feature maps saved (recall with action 'get' and an id reads one in a single call; action 'list' searches; memorise saves one):");
+        text.AppendLine("- Feature maps (flows) saved (a flow is one trigger to one outcome as ordered method steps; recall with action 'get' and an id describes one in a single call, with no code; action 'list' searches by words or by a method name; memorise saves or changes one):");
         var withMaps = folders.Where(w => w.Enabled && index.ContainsKey(w.Id)).ToList();
         if (withMaps.Count == 0)
         {
@@ -63,9 +64,16 @@ public sealed class SetupSummary(
         foreach (var mapped in withMaps)
         {
             var entry = index[mapped.Id];
-            var names = string.Join(", ", entry.Newest.Select(map => $"{map.Name} (id {map.Id})"));
-            var more = entry.Total > entry.Newest.Count ? $", and {entry.Total - entry.Newest.Count} more (action 'list')" : string.Empty;
-            text.AppendLine($"  - {mapped.Name}: {names}{more}");
+            text.AppendLine($"  - {mapped.Name}:");
+            foreach (var map in entry.Newest)
+            {
+                text.Append("    - ").AppendLine(FlowLine(map));
+            }
+
+            if (entry.Total > entry.Newest.Count)
+            {
+                text.AppendLine($"    - and {entry.Total - entry.Newest.Count} more (action 'list')");
+            }
         }
         text.Append("- Tools switched off (not in your list; ask the owner to turn one on): ").AppendLine(Names(off));
 
@@ -83,6 +91,19 @@ public sealed class SetupSummary(
     {
         var list = names.ToList();
         return list.Count == 0 ? None : string.Join(", ", list);
+    }
+
+    // One line on one flow: enough for an agent to pick it without listing first. The summary is cut short; recall get has the rest.
+    private static string FlowLine(FeatureMapName map)
+    {
+        var steps = $"{map.StepCount} {(map.StepCount == 1 ? "step" : "steps")}{(map.Ordered ? string.Empty : ", unordered")}";
+        var summary = map.Summary.Replace('\n', ' ').Replace('\r', ' ').Trim();
+        if (summary.Length > MaxSummaryChars)
+        {
+            summary = summary[..(MaxSummaryChars - 3)] + "...";
+        }
+
+        return summary.Length == 0 ? $"{map.Id} {map.Name} ({steps})" : $"{map.Id} {map.Name} ({steps}): {summary}";
     }
 
     // A value that cannot be read counts as paused, the same way the call pipeline treats it.

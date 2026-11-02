@@ -1,5 +1,6 @@
 using System.Text;
 using Dapper;
+using Microsoft.Data.Sqlite;
 using Waymark.Core.Memory;
 using Waymark.Data.Sqlite;
 
@@ -9,6 +10,7 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
 {
     private const int MaxQueryWords = 6;
     private const int MaxPageSize = 200;
+    private const int MaxPathHits = 200;
 
     public async Task<FeatureMapPage> ListAsync(long workspaceId, string? query, int skip, int take, CancellationToken ct)
     {
@@ -19,12 +21,12 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
         var total = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
             $"SELECT COUNT(*) FROM feature_maps m WHERE {where}", parameters, cancellationToken: ct));
         var rows = await connection.QueryAsync<SummaryRow>(new CommandDefinition(
-            "SELECT m.id, m.name, m.summary, m.updated_utc, (SELECT COUNT(*) FROM feature_components c WHERE c.map_id = m.id) AS component_count " +
+            "SELECT m.id, m.name, m.summary, m.version, m.ordered, m.updated_utc, (SELECT COUNT(*) FROM feature_components c WHERE c.map_id = m.id) AS step_count " +
             $"FROM feature_maps m WHERE {where} ORDER BY m.updated_utc DESC, m.id DESC LIMIT @take OFFSET @skip",
             parameters,
             cancellationToken: ct));
         var items = rows
-            .Select(row => new FeatureMapSummary(row.Id, row.Name, row.Summary, (int)row.ComponentCount, Timestamp.Parse(row.UpdatedUtc)))
+            .Select(row => new FeatureMapSummary(row.Id, row.Name, row.Summary, (int)row.StepCount, (int)row.Version, row.Ordered != 0, Timestamp.Parse(row.UpdatedUtc)))
             .ToList();
         return new FeatureMapPage(items, (int)total);
     }
@@ -39,7 +41,7 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
 
         await using var connection = await connections.OpenAsync(ct);
         var maps = (await connection.QueryAsync<MapRow>(new CommandDefinition(
-            "SELECT id, name, summary, updated_utc FROM feature_maps WHERE workspace_id = @workspaceId AND id IN @ids",
+            "SELECT id, name, summary, version, ordered, distinct_reason, updated_utc FROM feature_maps WHERE workspace_id = @workspaceId AND id IN @ids",
             new { workspaceId, ids = ids.ToArray() },
             cancellationToken: ct))).ToDictionary(row => row.Id);
         if (maps.Count == 0)
@@ -47,8 +49,8 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
             return [];
         }
 
-        var components = (await connection.QueryAsync<ComponentRow>(new CommandDefinition(
-            "SELECT map_id, spec, note FROM feature_components WHERE map_id IN @mapIds ORDER BY map_id, ordinal",
+        var steps = (await connection.QueryAsync<StepRow>(new CommandDefinition(
+            "SELECT map_id, spec, depth, link_kind, note FROM feature_components WHERE map_id IN @mapIds ORDER BY map_id, ordinal",
             new { mapIds = maps.Keys.ToArray() },
             cancellationToken: ct))).ToLookup(row => row.MapId);
 
@@ -57,110 +59,223 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
         {
             if (maps.TryGetValue(id, out var map))
             {
-                var own = components[id].Select(row => new FeatureMapComponent(row.Spec, row.Note)).ToList();
-                result.Add(new FeatureMap(map.Id, map.Name, map.Summary, Timestamp.Parse(map.UpdatedUtc), own));
+                var own = steps[id].Select(row => new FeatureMapStep(row.Spec, (int)row.Depth, row.LinkKind, row.Note)).ToList();
+                result.Add(new FeatureMap(map.Id, map.Name, map.Summary, (int)map.Version, map.Ordered != 0, map.DistinctReason, Timestamp.Parse(map.UpdatedUtc), own));
             }
         }
 
         return result;
     }
 
-    public Task<FeatureMapSaveResult> SaveAsync(
+    public async Task<FeatureMap?> GetByNameAsync(long workspaceId, string name, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        long? id;
+        await using (var connection = await connections.OpenAsync(ct))
+        {
+            id = await connection.ExecuteScalarAsync<long?>(new CommandDefinition(
+                "SELECT id FROM feature_maps WHERE workspace_id = @workspaceId AND name = @name",
+                new { workspaceId, name },
+                cancellationToken: ct));
+        }
+
+        if (id is null)
+        {
+            return null;
+        }
+
+        var found = await GetAsync(workspaceId, [id.Value], ct);
+        return found.Count == 0 ? null : found[0];
+    }
+
+    public Task<FlowWriteResult> CreateAsync(
         long workspaceId,
         string name,
-        string? summary,
-        IReadOnlyList<FeatureMapComponent> add,
-        IReadOnlyList<string> remove,
-        int maxComponents,
+        string summary,
+        string distinctReason,
+        IReadOnlyList<FeatureMapStep> steps,
         DateTimeOffset now,
         CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        ArgumentNullException.ThrowIfNull(add);
-        ArgumentNullException.ThrowIfNull(remove);
-        var stamp = Timestamp.Format(now);
-        return writes.ExecuteAsync<FeatureMapSaveResult>(async (connection, tx, k) =>
+        ArgumentNullException.ThrowIfNull(steps);
+        if (steps.Count == 0)
         {
-            var existing = await connection.QuerySingleOrDefaultAsync<MapRow>(new CommandDefinition(
-                "SELECT id, name, summary, updated_utc FROM feature_maps WHERE workspace_id = @workspaceId AND name = @name",
+            throw new ArgumentException("A flow needs at least one step.", nameof(steps));
+        }
+
+        var stamp = Timestamp.Format(now);
+        return writes.ExecuteAsync<FlowWriteResult>(async (connection, tx, k) =>
+        {
+            var taken = await connection.ExecuteScalarAsync<long?>(new CommandDefinition(
+                "SELECT id FROM feature_maps WHERE workspace_id = @workspaceId AND name = @name",
                 new { workspaceId, name },
                 tx,
                 cancellationToken: k));
-            if (existing is null && add.Count == 0)
+            if (taken is not null)
             {
-                throw new InvalidOperationException("A new feature map needs at least one component.");
+                return new FlowWriteResult(FlowWrite.NameTaken, taken.Value, name, 0);
             }
-            long id;
+
+            await connection.ExecuteAsync(new CommandDefinition(
+                "INSERT INTO feature_maps (workspace_id, name, summary, created_utc, updated_utc, version, ordered, distinct_reason) " +
+                "VALUES (@workspaceId, @name, @summary, @stamp, @stamp, 1, 1, @distinctReason)",
+                new { workspaceId, name, summary, stamp, distinctReason },
+                tx,
+                cancellationToken: k));
+            var id = await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT last_insert_rowid()", transaction: tx, cancellationToken: k));
+            await InsertStepsAsync(connection, tx, id, steps, k);
+            return new FlowWriteResult(FlowWrite.Saved, id, name, 1);
+        }, ct);
+    }
+
+    public Task<FlowWriteResult> ReplaceAsync(
+        long workspaceId,
+        string name,
+        int expectedVersion,
+        string? newName,
+        string? summary,
+        IReadOnlyList<FeatureMapStep> steps,
+        DateTimeOffset now,
+        CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentNullException.ThrowIfNull(steps);
+        if (steps.Count == 0)
+        {
+            throw new ArgumentException("A flow needs at least one step.", nameof(steps));
+        }
+
+        var stamp = Timestamp.Format(now);
+        return writes.ExecuteAsync<FlowWriteResult>(async (connection, tx, k) =>
+        {
+            var existing = await connection.QuerySingleOrDefaultAsync<VersionRow>(new CommandDefinition(
+                "SELECT id, name, version FROM feature_maps WHERE workspace_id = @workspaceId AND name = @name",
+                new { workspaceId, name },
+                tx,
+                cancellationToken: k));
             if (existing is null)
             {
-                await connection.ExecuteAsync(new CommandDefinition(
-                    "INSERT INTO feature_maps (workspace_id, name, summary, created_utc, updated_utc) VALUES (@workspaceId, @name, @summary, @stamp, @stamp)",
-                    new { workspaceId, name, summary = summary ?? string.Empty, stamp },
-                    tx,
-                    cancellationToken: k));
-                id = await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT last_insert_rowid()", transaction: tx, cancellationToken: k));
-            }
-            else
-            {
-                id = existing.Id;
-                await connection.ExecuteAsync(new CommandDefinition(
-                    "UPDATE feature_maps SET summary = @summary, updated_utc = @stamp WHERE id = @id",
-                    new { id, summary = summary ?? existing.Summary, stamp },
-                    tx,
-                    cancellationToken: k));
+                return new FlowWriteResult(FlowWrite.NotFound, 0, name, 0);
             }
 
-            var removed = 0;
-            foreach (var spec in remove)
+            if (existing.Version != expectedVersion)
             {
-                removed += await connection.ExecuteAsync(new CommandDefinition(
-                    "DELETE FROM feature_components WHERE map_id = @id AND spec = @spec",
-                    new { id, spec },
-                    tx,
-                    cancellationToken: k));
+                return new FlowWriteResult(FlowWrite.VersionConflict, existing.Id, existing.Name, (int)existing.Version);
             }
 
-            var nextOrdinal = (await connection.ExecuteScalarAsync<long?>(new CommandDefinition(
-                "SELECT MAX(ordinal) FROM feature_components WHERE map_id = @id", new { id }, tx, cancellationToken: k)) ?? -1) + 1;
-            var added = 0;
-            var updated = 0;
-            foreach (var item in add)
+            var finalName = newName ?? existing.Name;
+            if (!string.Equals(finalName, existing.Name, StringComparison.OrdinalIgnoreCase))
             {
-                var found = await connection.ExecuteScalarAsync<long?>(new CommandDefinition(
-                    "SELECT id FROM feature_components WHERE map_id = @id AND spec = @spec",
-                    new { id, spec = item.Spec },
+                var taken = await connection.ExecuteScalarAsync<long?>(new CommandDefinition(
+                    "SELECT id FROM feature_maps WHERE workspace_id = @workspaceId AND name = @finalName",
+                    new { workspaceId, finalName },
                     tx,
                     cancellationToken: k));
-                if (found is null)
+                if (taken is not null)
                 {
-                    await connection.ExecuteAsync(new CommandDefinition(
-                        "INSERT INTO feature_components (map_id, ordinal, spec, note) VALUES (@id, @ordinal, @spec, @note)",
-                        new { id, ordinal = nextOrdinal++, spec = item.Spec, note = item.Note },
-                        tx,
-                        cancellationToken: k));
-                    added++;
-                }
-                else if (item.Note.Length > 0)
-                {
-                    updated += await connection.ExecuteAsync(new CommandDefinition(
-                        "UPDATE feature_components SET note = @note WHERE id = @found AND note <> @note",
-                        new { found, note = item.Note },
-                        tx,
-                        cancellationToken: k));
+                    return new FlowWriteResult(FlowWrite.NameTaken, taken.Value, finalName, (int)existing.Version);
                 }
             }
 
-            var total = await connection.ExecuteScalarAsync<int>(new CommandDefinition(
-                "SELECT COUNT(*) FROM feature_components WHERE map_id = @id", new { id }, tx, cancellationToken: k));
-            if (total > maxComponents)
-            {
-                // Thrown inside the job, so the whole save is rolled back.
-                throw new InvalidOperationException(
-                    $"A feature map holds at most {maxComponents} components and this one would have {total}. Remove some with the remove parameter, or split the feature in two.");
-            }
-
-            return new FeatureMapSaveResult(id, existing?.Name ?? name, existing is null, added, updated, removed, total);
+            await connection.ExecuteAsync(new CommandDefinition(
+                "DELETE FROM feature_components WHERE map_id = @id",
+                new { id = existing.Id },
+                tx,
+                cancellationToken: k));
+            await InsertStepsAsync(connection, tx, existing.Id, steps, k);
+            await connection.ExecuteAsync(new CommandDefinition(
+                "UPDATE feature_maps SET name = @finalName, summary = COALESCE(@summary, summary), version = version + 1, ordered = 1, updated_utc = @stamp WHERE id = @id",
+                new { id = existing.Id, finalName, summary, stamp },
+                tx,
+                cancellationToken: k));
+            return new FlowWriteResult(FlowWrite.Saved, existing.Id, finalName, expectedVersion + 1);
         }, ct);
+    }
+
+    public Task<FlowWriteResult> RemoveStepAsync(long workspaceId, string name, int expectedVersion, string spec, DateTimeOffset now, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(name);
+        ArgumentException.ThrowIfNullOrWhiteSpace(spec);
+        var stamp = Timestamp.Format(now);
+        return writes.ExecuteAsync<FlowWriteResult>(async (connection, tx, k) =>
+        {
+            var existing = await connection.QuerySingleOrDefaultAsync<VersionRow>(new CommandDefinition(
+                "SELECT id, name, version FROM feature_maps WHERE workspace_id = @workspaceId AND name = @name",
+                new { workspaceId, name },
+                tx,
+                cancellationToken: k));
+            if (existing is null)
+            {
+                return new FlowWriteResult(FlowWrite.NotFound, 0, name, 0);
+            }
+
+            if (existing.Version != expectedVersion)
+            {
+                return new FlowWriteResult(FlowWrite.VersionConflict, existing.Id, existing.Name, (int)existing.Version);
+            }
+
+            var ordinal = await connection.ExecuteScalarAsync<long?>(new CommandDefinition(
+                "SELECT ordinal FROM feature_components WHERE map_id = @id AND spec = @spec",
+                new { id = existing.Id, spec },
+                tx,
+                cancellationToken: k));
+            if (ordinal is null)
+            {
+                return new FlowWriteResult(FlowWrite.NotFound, existing.Id, existing.Name, (int)existing.Version);
+            }
+
+            await connection.ExecuteAsync(new CommandDefinition(
+                "DELETE FROM feature_components WHERE map_id = @id AND ordinal = @ordinal",
+                new { id = existing.Id, ordinal = ordinal.Value },
+                tx,
+                cancellationToken: k));
+
+            // Two statements, because the unique (map_id, ordinal) is checked row by row: first out of the way, then down by one.
+            await connection.ExecuteAsync(new CommandDefinition(
+                "UPDATE feature_components SET ordinal = ordinal + 1000000 WHERE map_id = @id AND ordinal > @ordinal",
+                new { id = existing.Id, ordinal = ordinal.Value },
+                tx,
+                cancellationToken: k));
+            await connection.ExecuteAsync(new CommandDefinition(
+                "UPDATE feature_components SET ordinal = ordinal - 1000001 WHERE map_id = @id AND ordinal >= 1000000",
+                new { id = existing.Id },
+                tx,
+                cancellationToken: k));
+            await connection.ExecuteAsync(new CommandDefinition(
+                "UPDATE feature_maps SET version = version + 1, updated_utc = @stamp WHERE id = @id",
+                new { id = existing.Id, stamp },
+                tx,
+                cancellationToken: k));
+            return new FlowWriteResult(FlowWrite.Saved, existing.Id, existing.Name, expectedVersion + 1);
+        }, ct);
+    }
+    public async Task<IReadOnlyList<FlowRef>> FindByRootAsync(long workspaceId, string rootSpec, long? exceptId, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(rootSpec);
+        await using var connection = await connections.OpenAsync(ct);
+        var rows = await connection.QueryAsync<FlowRow>(new CommandDefinition(
+            "SELECT m.id, m.name, m.summary " +
+            "FROM feature_maps m JOIN feature_components c ON c.map_id = m.id AND c.ordinal = 0 " +
+            "WHERE m.workspace_id = @workspaceId AND m.ordered = 1 AND c.spec = @rootSpec AND (@exceptId IS NULL OR m.id <> @exceptId) " +
+            "ORDER BY m.updated_utc DESC, m.id DESC LIMIT 5",
+            new { workspaceId, rootSpec, exceptId },
+            cancellationToken: ct));
+        return rows.Select(row => new FlowRef(row.Id, row.Name, row.Summary)).ToList();
+    }
+
+    public async Task<IReadOnlyList<FlowStepRef>> FindByPathAsync(long workspaceId, string path, int limit, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        await using var connection = await connections.OpenAsync(ct);
+        var rows = await connection.QueryAsync<PathRow>(new CommandDefinition(
+            "SELECT m.id AS flow_id, m.name AS flow_name, c.ordinal AS ordinal, c.spec AS spec " +
+            "FROM feature_components c JOIN feature_maps m ON m.id = c.map_id " +
+            "WHERE m.workspace_id = @workspaceId AND m.ordered = 1 AND c.path = @path " +
+            "ORDER BY m.updated_utc DESC, m.id DESC, c.ordinal LIMIT @limit",
+            new { workspaceId, path, limit = Math.Clamp(limit, 1, MaxPathHits) },
+            cancellationToken: ct));
+        return rows.Select(row => new FlowStepRef(row.FlowId, row.FlowName, (int)row.Ordinal, row.Spec)).ToList();
     }
 
     public async Task<IReadOnlyList<FeatureMapOverlap>> FindOverlapsAsync(long workspaceId, long mapId, CancellationToken ct)
@@ -182,28 +297,61 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
     {
         await using var connection = await connections.OpenAsync(ct);
         var rows = await connection.QueryAsync<NameRow>(new CommandDefinition(
-            "SELECT id, workspace_id, name FROM feature_maps ORDER BY updated_utc DESC, id DESC", cancellationToken: ct));
+            "SELECT m.id, m.workspace_id, m.name, m.summary, m.ordered, (SELECT COUNT(*) FROM feature_components c WHERE c.map_id = m.id) AS step_count " +
+            "FROM feature_maps m ORDER BY m.updated_utc DESC, m.id DESC",
+            cancellationToken: ct));
         var keep = Math.Max(1, perWorkspace);
         return rows
             .GroupBy(row => row.WorkspaceId)
             .ToDictionary(
                 group => group.Key,
-                group => new FeatureMapIndex(group.Count(), group.Take(keep).Select(row => new FeatureMapName(row.Id, row.Name)).ToList()));
+                group => new FeatureMapIndex(
+                    group.Count(),
+                    group.Take(keep).Select(row => new FeatureMapName(row.Id, row.Name, row.Summary, (int)row.StepCount, row.Ordered != 0)).ToList()));
     }
 
-    public Task<bool> DeleteAsync(long workspaceId, string name, CancellationToken ct)
+    public Task<long?> DeleteAsync(long workspaceId, string name, CancellationToken ct)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(name);
-        return writes.ExecuteAsync<bool>(async (connection, tx, k) =>
-            await connection.ExecuteAsync(new CommandDefinition(
-                "DELETE FROM feature_maps WHERE workspace_id = @workspaceId AND name = @name",
+        return writes.ExecuteAsync<long?>(async (connection, tx, k) =>
+        {
+            var id = await connection.ExecuteScalarAsync<long?>(new CommandDefinition(
+                "SELECT id FROM feature_maps WHERE workspace_id = @workspaceId AND name = @name",
                 new { workspaceId, name },
                 tx,
-                cancellationToken: k)) > 0,
-            ct);
+                cancellationToken: k));
+            if (id is null)
+            {
+                return null;
+            }
+
+            await connection.ExecuteAsync(new CommandDefinition(
+                "DELETE FROM feature_maps WHERE id = @id",
+                new { id = id.Value },
+                tx,
+                cancellationToken: k));
+            return id;
+        }, ct);
     }
 
-    // Every word must be found in the name, the summary, or a component or note. The SQL holds fixed text only; the words travel as parameters.
+    private static async Task InsertStepsAsync(SqliteConnection connection, SqliteTransaction tx, long mapId, IReadOnlyList<FeatureMapStep> steps, CancellationToken ct)
+    {
+        for (var ordinal = 0; ordinal < steps.Count; ordinal++)
+        {
+            var step = steps[ordinal];
+            await connection.ExecuteAsync(new CommandDefinition(
+                "INSERT INTO feature_components (map_id, ordinal, spec, note, depth, link_kind, path) VALUES (@mapId, @ordinal, @spec, @note, @depth, @link, @path)",
+                new { mapId, ordinal, spec = step.Spec, note = step.Note, depth = step.Depth, link = step.Link, path = PathOf(step.Spec) },
+                tx,
+                cancellationToken: ct));
+        }
+    }
+
+    /// <summary>The file part of a step's text, which is what a lookup by file compares.</summary>
+    private static string PathOf(string spec) =>
+        FeatureComponentSpec.TryParse(spec, out var component, out _) ? component.Path : spec;
+
+    // Every word must be found in the name, the summary, or a step, its path or its note. The SQL holds fixed text only; the words travel as parameters.
     private static (string Where, DynamicParameters Parameters) Filter(long workspaceId, string? query)
     {
         var parameters = new DynamicParameters();
@@ -236,7 +384,22 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
 
         public string Summary { get; set; } = string.Empty;
 
+        public long Version { get; set; }
+
+        public long Ordered { get; set; }
+
+        public string DistinctReason { get; set; } = string.Empty;
+
         public string UpdatedUtc { get; set; } = string.Empty;
+    }
+
+    private sealed class VersionRow
+    {
+        public long Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public long Version { get; set; }
     }
 
     private sealed class SummaryRow
@@ -247,18 +410,46 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
 
         public string Summary { get; set; } = string.Empty;
 
+        public long Version { get; set; }
+
+        public long Ordered { get; set; }
+
         public string UpdatedUtc { get; set; } = string.Empty;
 
-        public long ComponentCount { get; set; }
+        public long StepCount { get; set; }
     }
 
-    private sealed class ComponentRow
+    private sealed class StepRow
     {
         public long MapId { get; set; }
 
         public string Spec { get; set; } = string.Empty;
 
+        public long Depth { get; set; }
+
+        public string LinkKind { get; set; } = "call";
+
         public string Note { get; set; } = string.Empty;
+    }
+
+    private sealed class FlowRow
+    {
+        public long Id { get; set; }
+
+        public string Name { get; set; } = string.Empty;
+
+        public string Summary { get; set; } = string.Empty;
+    }
+
+    private sealed class PathRow
+    {
+        public long FlowId { get; set; }
+
+        public string FlowName { get; set; } = string.Empty;
+
+        public long Ordinal { get; set; }
+
+        public string Spec { get; set; } = string.Empty;
     }
 
     private sealed class OverlapRow
@@ -277,5 +468,11 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
         public long WorkspaceId { get; set; }
 
         public string Name { get; set; } = string.Empty;
+
+        public string Summary { get; set; } = string.Empty;
+
+        public long Ordered { get; set; }
+
+        public long StepCount { get; set; }
     }
 }

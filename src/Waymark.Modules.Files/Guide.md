@@ -125,3 +125,7 @@ After a delete, build at once: a clean build is the only proof that nothing depe
 ## Redaction markers
 
 Waymark hides secrets in results with `[redacted:...]` markers. Never write a marker into a file or command; the call is refused. Refer to a vault secret by name, or ask the user for the real value.
+
+## Flows (feature maps)
+
+`file_edit_lines`, `file_write`, `file_move` and `file_delete` add a `🧭` line to their result when the change touched a step of a saved flow and something no longer matches: a link no longer holds, a step is gone from its file, or the file that held steps was moved or deleted. Update the flow in the same task (`recall`, then `memorise` with `expectedVersion`; see the code guide). Most edits touch no step and give no such line. Folder moves and folder deletes give none; check `recall(ws, 'list', query=<a method name>)` after one. The owner can switch the hint off (`Waymark:FeatureMaps:EditHints`).

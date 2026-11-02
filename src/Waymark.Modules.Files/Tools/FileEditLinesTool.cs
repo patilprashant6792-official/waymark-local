@@ -4,12 +4,13 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using Waymark.Core.Memory;
 using Waymark.Core.Tools;
 
 namespace Waymark.Modules.Files.Tools;
 
 [McpServerToolType]
-public sealed class FileEditLinesTool(IFileEditor editor, ToolPipelineOptions pipeline)
+public sealed class FileEditLinesTool(IFileEditor editor, ToolPipelineOptions pipeline, IFlowEditAdvisor advisor)
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -77,7 +78,15 @@ public sealed class FileEditLinesTool(IFileEditor editor, ToolPipelineOptions pi
             throw new McpException(ex.Message);
         }
 
-        return Format(result, dryRun);
+        var text = Format(result, dryRun);
+        if (!result.Success || dryRun)
+        {
+            return text;
+        }
+
+        // Tells the agent when the edit touched a step of a saved flow and a link no longer holds. Silent for almost every edit.
+        var advice = await advisor.AdviseAsync(workspace, [result.RelativeFilePath], FlowEditKind.Edited, cancellationToken).ConfigureAwait(false);
+        return advice is null ? text : $"{text}\n{advice}";
     }
 
     private static List<PatchOperation> ParsePatches(string? patchesJson)
