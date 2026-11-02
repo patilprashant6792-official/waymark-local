@@ -1043,6 +1043,30 @@ a.wm-live-more { display: inline-block; text-decoration: none; }
     .wm-ping::after { display: none; }
 }
 
+/* ---------- home: a card whose content just changed flashes a highlight that fades back to normal ----------
+   Home flips data-flash between "a" and "b" on every change. Two identical keyframes with different names make the
+   browser restart the animation each time, without recreating the card. The end state is left out on purpose, so it
+   fades to whatever the card normally looks like in the light, dark or custom theme. */
+.wm-cell { --wm-flash-bg: color-mix(in srgb, var(--mud-palette-primary) 22%, var(--mud-palette-surface)); --wm-flash-ring: color-mix(in srgb, var(--mud-palette-primary) 70%, transparent); }
+.wm-cell[data-flash="a"] > .wm-cell-body > :is(.wm-tile, .wm-panel),
+.wm-cell[data-flash="a"] > .wm-cell-body > .wm-panel > .wm-panel-head { animation: wm-flash-a 1.8s ease-out; }
+.wm-cell[data-flash="b"] > .wm-cell-body > :is(.wm-tile, .wm-panel),
+.wm-cell[data-flash="b"] > .wm-cell-body > .wm-panel > .wm-panel-head { animation: wm-flash-b 1.8s ease-out; }
+@keyframes wm-flash-a { 0%, 12% { background-color: var(--wm-flash-bg); box-shadow: inset 0 0 0 2px var(--wm-flash-ring); } 100% { } }
+@keyframes wm-flash-b { 0%, 12% { background-color: var(--wm-flash-bg); box-shadow: inset 0 0 0 2px var(--wm-flash-ring); } 100% { } }
+
+@media (prefers-reduced-motion: reduce) {
+    .wm-cell[data-flash] > .wm-cell-body > :is(.wm-tile, .wm-panel),
+    .wm-cell[data-flash] > .wm-cell-body > .wm-panel > .wm-panel-head { animation-duration: 0.9s; }
+}
+
+@media (forced-colors: active) {
+    .wm-cell[data-flash="a"] > .wm-cell-body > :is(.wm-tile, .wm-panel) { animation-name: wm-flash-fc-a; }
+    .wm-cell[data-flash="b"] > .wm-cell-body > :is(.wm-tile, .wm-panel) { animation-name: wm-flash-fc-b; }
+    @keyframes wm-flash-fc-a { 0%, 12% { outline: 2px solid Highlight; outline-offset: -2px; } 100% { outline: 2px solid transparent; } }
+    @keyframes wm-flash-fc-b { 0%, 12% { outline: 2px solid Highlight; outline-offset: -2px; } 100% { outline: 2px solid transparent; } }
+}
+
 /* ---------- home: the tokens card ---------- */
 .wm-mkpis.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .wm-tok-num { font-variant-numeric: tabular-nums; font-weight: 650; }
@@ -1105,4 +1129,24 @@ a.wm-live-more { display: inline-block; text-decoration: none; }
 @media (forced-colors: active) {
     .wm-subnav-item.active { border-bottom-color: Highlight; }
     .wm-ws-link:focus-visible::after { outline-color: Highlight; }
+}
+
+/* ---------- home: lists and counters flash the one row, line or figure that changed, not the whole card ----------
+   Home and the live log card set data-flash on each row (see ChangeFlash). Rows on the card background fade a translucent
+   tint out; figures on their own opaque cell use the same opaque highlight as the tiles. */
+.wm-cell { --wm-flash-tint: color-mix(in srgb, var(--mud-palette-primary) 26%, transparent); }
+.wm-rows > li[data-flash="a"], .wm-table tbody tr[data-flash="a"] > td, .wm-live-line[data-flash="a"] { animation: wm-flash-row-a 1.8s ease-out; }
+.wm-rows > li[data-flash="b"], .wm-table tbody tr[data-flash="b"] > td, .wm-live-line[data-flash="b"] { animation: wm-flash-row-b 1.8s ease-out; }
+.wm-mkpis > div[data-flash="a"] { animation: wm-flash-a 1.8s ease-out; }
+.wm-mkpis > div[data-flash="b"] { animation: wm-flash-b 1.8s ease-out; }
+@keyframes wm-flash-row-a { 0%, 12% { background-color: var(--wm-flash-tint); } 100% { } }
+@keyframes wm-flash-row-b { 0%, 12% { background-color: var(--wm-flash-tint); } 100% { } }
+
+@media (prefers-reduced-motion: reduce) {
+    .wm-rows > li[data-flash], .wm-table tbody tr[data-flash] > td, .wm-live-line[data-flash], .wm-mkpis > div[data-flash] { animation-duration: 0.9s; }
+}
+
+@media (forced-colors: active) {
+    .wm-rows > li[data-flash="a"], .wm-table tbody tr[data-flash="a"] > td, .wm-live-line[data-flash="a"], .wm-mkpis > div[data-flash="a"] { animation-name: wm-flash-fc-a; }
+    .wm-rows > li[data-flash="b"], .wm-table tbody tr[data-flash="b"] > td, .wm-live-line[data-flash="b"], .wm-mkpis > div[data-flash="b"] { animation-name: wm-flash-fc-b; }
 }

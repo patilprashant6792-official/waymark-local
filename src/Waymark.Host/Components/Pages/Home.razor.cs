@@ -51,6 +51,7 @@ public partial class Home : LiveComponentBase
     private ContextUsageSnapshot? _tokens;
     private int _callStatsRunning;
     private int _callStatsAgain;
+    private ChangeFlash? _changes;
 
     /// <summary>What the script must do for the grid after the next render, once the new markup is in place.</summary>
     private enum GridCommand
@@ -204,6 +205,7 @@ public partial class Home : LiveComponentBase
     {
         await LoadLayoutAsync();
         await LoadAsync();
+        Changes.Arm();
         RefreshOn<ApprovalRequested>(LoadAsync);
         RefreshOn<ApprovalDecided>(LoadAsync);
         RefreshOn<WorkspaceChanged>(LoadAsync);
@@ -364,6 +366,7 @@ public partial class Home : LiveComponentBase
 
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        Changes.EndPass();
         var command = _gridCommand;
         if (command == GridCommand.None)
         {
@@ -446,6 +449,21 @@ public partial class Home : LiveComponentBase
         DashboardCards.Workspaces => string.Join(';', _workspaces.Select(workspace => $"{workspace.Id}|{workspace.Name}|{workspace.Enabled}|{workspace.LastIndexedUtc}")),
         _ => string.Empty
     };
+
+    private ChangeFlash Changes => _changes ??= new ChangeFlash(Time);
+
+    /// <summary>
+    /// Cards that flash as a whole when anything in them changes. The cards that are lists or counters flash the single
+    /// row, line or figure that changed instead (see <see cref="RowFlash"/>), so a new call lights up one row, not the card.
+    /// </summary>
+    private static bool FlashesPerItem(string cardId) =>
+        cardId is DashboardCards.Tokens or DashboardCards.LiveLog or DashboardCards.Commands or DashboardCards.RecentCalls or DashboardCards.NuGet;
+
+    /// <summary>"a", "b" or null for the whole card; see <see cref="ChangeFlash.Phase"/>.</summary>
+    private string? FlashPhase(string cardId) => FlashesPerItem(cardId) ? null : Changes.Phase("card:" + cardId, CardToken(cardId));
+
+    /// <summary>"a", "b" or null for one row or figure. <paramref name="key"/> names it; <paramref name="token"/> changes when its content does.</summary>
+    private string? RowFlash(string key, string token = "") => Changes.Phase(key, token);
 
     private string NuGetToken() => _nuget is not { } stats
         ? "-"

@@ -119,6 +119,7 @@
             var info = DashboardLayout.Info(card.Id);
             <div class="wm-cell" @key="card.Id"
                  data-id="@card.Id" data-title="@info.Title" data-w="@card.Width" data-h="@card.Height" data-min-w="@info.MinWidth" data-min-h="@info.MinHeight"
+                 data-flash="@FlashPhase(card.Id)"
                  style="@CellStyle(card, index)"
                  tabindex="@(_editing ? "0" : null)" role="@(_editing ? "group" : null)" aria-label="@(_editing ? EditLabel(info) : null)">
                 <div class="wm-cell-body">@RenderCard(card.Id)</div>
@@ -162,9 +163,9 @@
         else
         {
             <div class="wm-mkpis three">
-                <div><div class="wm-kpi-label">Since Waymark started</div><div class="wm-mk-value">@DisplayFormat.Count(tokens.Session.Tokens)</div><div class="wm-kpi-sub">@CallsText(tokens.Session.Calls)</div></div>
-                <div><div class="wm-kpi-label">Today</div><div class="wm-mk-value">@DisplayFormat.Count(tokens.Today.Tokens)</div><div class="wm-kpi-sub">@CallsText(tokens.Today.Calls)</div></div>
-                <div><div class="wm-kpi-label">All recorded</div><div class="wm-mk-value">@DisplayFormat.Count(tokens.Recorded.Tokens)</div><div class="wm-kpi-sub">@CallsText(tokens.Recorded.Calls)</div></div>
+                <div data-flash="@(RowFlash("tok:session", $"{tokens.Session.Tokens}|{tokens.Session.Calls}"))"><div class="wm-kpi-label">Since Waymark started</div><div class="wm-mk-value">@DisplayFormat.Count(tokens.Session.Tokens)</div><div class="wm-kpi-sub">@CallsText(tokens.Session.Calls)</div></div>
+                <div data-flash="@(RowFlash("tok:today", $"{tokens.Today.Tokens}|{tokens.Today.Calls}"))"><div class="wm-kpi-label">Today</div><div class="wm-mk-value">@DisplayFormat.Count(tokens.Today.Tokens)</div><div class="wm-kpi-sub">@CallsText(tokens.Today.Calls)</div></div>
+                <div data-flash="@(RowFlash("tok:recorded", $"{tokens.Recorded.Tokens}|{tokens.Recorded.Calls}"))"><div class="wm-kpi-label">All recorded</div><div class="wm-mk-value">@DisplayFormat.Count(tokens.Recorded.Tokens)</div><div class="wm-kpi-sub">@CallsText(tokens.Recorded.Calls)</div></div>
             </div>
             @if (tokens.TopToolsToday.Count == 0)
             {
@@ -175,7 +176,7 @@
                 <ul class="wm-rows" aria-label="Tools that sent the most tokens today">
                     @foreach (var top in tokens.TopToolsToday)
                     {
-                        <li>
+                        <li @key="top.Tool" data-flash="@(RowFlash($"tok:{top.Tool}", $"{top.Usage.Calls}|{top.Usage.Tokens}"))">
                             <div class="wm-row-main"><strong class="wm-mono">@top.Tool</strong> <span class="wm-muted">@CallsText(top.Usage.Calls) today</span></div>
                             <span class="wm-tok-num">@DisplayFormat.Count(top.Usage.Tokens)</span>
                         </li>
@@ -271,7 +272,7 @@
                         @foreach (var call in _recent)
                         {
                             var outcome = DisplayFormat.Outcome(call.Entry.Outcome);
-                            <tr>
+                            <tr @key="call.Id" data-flash="@(RowFlash($"call:{call.Id}"))">
                                 <td class="wm-muted">@DisplayFormat.Clock(call.Entry.TimestampUtc)</td>
                                 <td class="wm-mono"><a href="@($"calls/{call.Id}")" title="Open this call: input and output">@call.Entry.Action</a></td>
                                 <td>@(call.Entry.Target ?? "-")</td>
@@ -332,7 +333,7 @@
                 @foreach (var command in _commandsRecent)
                 {
                     var commandState = CommandState(command);
-                    <li>
+                    <li @key="command.Id" data-flash="@(RowFlash($"cmd:{command.Id}", commandState.Text))">
                         <div class="wm-row-main">
                             <a href="console/@command.Id"><strong>@CommandLabel(command)</strong></a>
                             <span class="wm-muted"> in @command.WorkspaceName</span>
@@ -361,10 +362,10 @@
         else
         {
             <div class="wm-mkpis">
-                <div><div class="wm-kpi-label">Ready</div><div class="wm-mk-value">@DisplayFormat.Count(nuget.Ready)</div><div class="wm-kpi-sub">@(nuget.Building > 0 ? $"{nuget.Building} building" : "packages searchable")</div></div>
-                <div class="@(nuget.Failed > 0 ? "bad" : string.Empty)"><div class="wm-kpi-label">Failed</div><div class="wm-mk-value">@DisplayFormat.Count(nuget.Failed)</div><div class="wm-kpi-sub">@(nuget.Failed > 0 ? "reload or clear them" : "all good")</div></div>
-                <div><div class="wm-kpi-label">Types</div><div class="wm-mk-value">@DisplayFormat.Count(nuget.Types)</div><div class="wm-kpi-sub">@DisplayFormat.Count(nuget.Symbols) symbols</div></div>
-                <div><div class="wm-kpi-label">Index size</div><div class="wm-mk-value">@DisplayFormat.Size(nuget.IndexBytes)</div><div class="wm-kpi-sub">@DisplayFormat.Count(nuget.CachedResults) stored results</div></div>
+                <div data-flash="@(RowFlash("pkg-kpi:ready", $"{nuget.Ready}|{nuget.Building}"))"><div class="wm-kpi-label">Ready</div><div class="wm-mk-value">@DisplayFormat.Count(nuget.Ready)</div><div class="wm-kpi-sub">@(nuget.Building > 0 ? $"{nuget.Building} building" : "packages searchable")</div></div>
+                <div class="@(nuget.Failed > 0 ? "bad" : string.Empty)" data-flash="@(RowFlash("pkg-kpi:failed", $"{nuget.Failed}"))"><div class="wm-kpi-label">Failed</div><div class="wm-mk-value">@DisplayFormat.Count(nuget.Failed)</div><div class="wm-kpi-sub">@(nuget.Failed > 0 ? "reload or clear them" : "all good")</div></div>
+                <div data-flash="@(RowFlash("pkg-kpi:types", $"{nuget.Types}|{nuget.Symbols}"))"><div class="wm-kpi-label">Types</div><div class="wm-mk-value">@DisplayFormat.Count(nuget.Types)</div><div class="wm-kpi-sub">@DisplayFormat.Count(nuget.Symbols) symbols</div></div>
+                <div data-flash="@(RowFlash("pkg-kpi:size", $"{nuget.IndexBytes}|{nuget.CachedResults}"))"><div class="wm-kpi-label">Index size</div><div class="wm-mk-value">@DisplayFormat.Size(nuget.IndexBytes)</div><div class="wm-kpi-sub">@DisplayFormat.Count(nuget.CachedResults) stored results</div></div>
             </div>
             @if (_nugetRecent.Count == 0)
             {
@@ -377,7 +378,8 @@
                     {
                         var package = entry.Package;
                         var state = PackageState(package.State);
-                        <li>
+                        var rowKey = $"{package.Key.PackageId}|{package.Key.Version}";
+                        <li @key="rowKey" data-flash="@(RowFlash($"pkg:{rowKey}", $"{state.Text}|{package.IndexedUtc ?? package.StartedUtc}"))">
                             <div class="wm-row-main">
                                 @if (package.State == NuGetIndexState.Ready)
                                 {

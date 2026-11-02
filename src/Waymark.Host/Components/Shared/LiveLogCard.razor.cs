@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using Waymark.Logging;
+using Waymark.Host.Ui;
 
 namespace Waymark.Host.Components.Shared;
 
@@ -29,11 +30,20 @@ public partial class LiveLogCard : LiveComponentBase
     [Inject]
     private ILogger<LiveLogCard> Logger { get; set; } = default!;
 
+    [Inject]
+    private TimeProvider Time { get; set; } = default!;
+
+    // Tells which lines just arrived, so only those flash. The lines it opened with are the baseline.
+    private ChangeFlash? _changes;
+
+    private ChangeFlash Changes => _changes ??= new ChangeFlash(Time);
+
     protected override void OnInitialized()
     {
         _subscription = Hub.Subscribe(KeptLines, out var snapshot);
         _entries.AddRange(snapshot);
         CopyRows();
+        Changes.Arm();
         _ = PumpAsync(_subscription);
         _ = RenderLoopAsync();
     }
@@ -41,6 +51,7 @@ public partial class LiveLogCard : LiveComponentBase
     // Follows new lines while the reader is at the bottom, and stays put once they scroll up to read.
     protected override async Task OnAfterRenderAsync(bool firstRender)
     {
+        Changes.EndPass();
         try
         {
             await Js.InvokeVoidAsync("wmConsole.follow", Cancel, TerminalId, firstRender);
