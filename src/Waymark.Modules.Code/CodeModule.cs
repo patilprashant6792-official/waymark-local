@@ -4,11 +4,13 @@ using Microsoft.Extensions.DependencyInjection.Extensions;
 using ModelContextProtocol.Server;
 using Waymark.Core.Modules;
 using Waymark.Core.Code;
+using Waymark.Core.Memory;
 using Waymark.Modules.Code.Content;
 using Waymark.Modules.Code.Reading;
 using Waymark.Modules.Code.Scheduling;
 using Waymark.Modules.Code.Rewriting;
 using Waymark.Modules.Code.Search;
+using Waymark.Modules.Code.Memory;
 using Waymark.Modules.Code.Skeleton;
 using Waymark.Languages.Python;
 using Waymark.Languages.TypeScript;
@@ -47,6 +49,9 @@ public sealed class CodeModule : IMcpModule
         services.TryAddSingleton(ContentOptions.FromConfiguration(configuration));
         services.TryAddSingleton<ITextSearchService, TextSearchService>();
         services.TryAddSingleton<ICSharpRewriter, CSharpRewriter>();
+        services.TryAddSingleton<FeatureComponentReader>();
+        services.TryAddSingleton<IFeatureMemoryService, FeatureMemoryService>();
+        services.TryAddSingleton<IFeatureComponentChecker, FeatureComponentChecker>();
     }
 
     public void AddTools(IMcpServerBuilder mcp)
@@ -56,5 +61,6 @@ public sealed class CodeModule : IMcpModule
         mcp.WithTools<CodeReadTools>();
         mcp.WithTools<CodeSearchTools>();
         mcp.WithTools<CodeGrepTools>();
+        mcp.WithTools<MemoryTools>();
     }
 }

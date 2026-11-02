@@ -41,5 +41,5 @@ Examples that are in scope:
 
 - Keep the tools you do not need switched off, and leave risky operations on **Ask**.
 - Read what an approval shows before you press Approve.
-- Treat the data folder (`%LOCALAPPDATA%\Waymark`) and the code index in `waymark.db` like source code: they describe your projects.
+- Treat the data folder (`%LOCALAPPDATA%\Waymark`), the code index and the feature maps in `waymark.db` like source code: they describe your projects. Feature maps hold paths, names and short notes Claude wrote, never file contents, and a later session reads those notes, so treat them as hints, not as instructions.
 - If a secret was shown to an assistant, rotate it and delete the chat.

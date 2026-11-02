@@ -2,6 +2,7 @@
 @inherits LiveComponentBase
 @using MudBlazor
 @using Waymark.Core.Security
+@using Waymark.Core.Transfer
 @using Waymark.Host.Components.Shared
 @using Waymark.Host.Security
 @using Waymark.Host.Ui
@@ -22,6 +23,7 @@
     {
         <h2 class="wm-section" style="margin-top:0">Access rules</h2>
         <p class="wm-lead">Decide which files and folders Claude cannot open in this workspace. Your rules are added to the built-in protection and take effect at once. They never lift a built-in block, so secrets, keys, databases and version control stay protected.</p>
+        <BundleToolbar WorkspaceId="WorkspaceId" Content="BundleContent.AccessRules" ExportLabel="Export access rules" Hint="Keep your rules when you move to another computer." />
 
         @if (_error is not null)
         {

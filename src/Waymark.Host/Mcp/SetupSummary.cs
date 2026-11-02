@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using Waymark.Core.Commands;
 using Waymark.Core.Guides;
+using Waymark.Core.Memory;
 using Waymark.Core.Settings;
 using Waymark.Core.Tools;
 using Waymark.Core.Workspaces;
@@ -20,9 +21,11 @@ public sealed class SetupSummary(
     IConfigStore config,
     IWorkspaceService workspaces,
     ICommandPolicyStore policy,
+    IFeatureMapStore featureMaps,
     TimeProvider time) : ISetupSummary
 {
     private const string None = "none";
+    private const int MaxMapNamesPerWorkspace = 25;
 
     public async Task<string> DescribeAsync(CancellationToken ct)
     {
@@ -49,6 +52,21 @@ public sealed class SetupSummary(
         text.Append("- Computer: ").AppendLine(RuntimeInformation.OSDescription);
         text.Append("- Workspaces on: ").AppendLine(Names(folders.Where(w => w.Enabled).Select(w => w.Name)));
         text.Append("- Workspaces off: ").AppendLine(Names(folders.Where(w => !w.Enabled).Select(w => w.Name)));
+        var index = await featureMaps.ListNamesAsync(MaxMapNamesPerWorkspace, ct);
+        text.AppendLine("- Feature maps saved (recall with action 'get' and an id reads one in a single call; action 'list' searches; memorise saves one):");
+        var withMaps = folders.Where(w => w.Enabled && index.ContainsKey(w.Id)).ToList();
+        if (withMaps.Count == 0)
+        {
+            text.AppendLine("  - none yet");
+        }
+
+        foreach (var mapped in withMaps)
+        {
+            var entry = index[mapped.Id];
+            var names = string.Join(", ", entry.Newest.Select(map => $"{map.Name} (id {map.Id})"));
+            var more = entry.Total > entry.Newest.Count ? $", and {entry.Total - entry.Newest.Count} more (action 'list')" : string.Empty;
+            text.AppendLine($"  - {mapped.Name}: {names}{more}");
+        }
         text.Append("- Tools switched off (not in your list; ask the owner to turn one on): ").AppendLine(Names(off));
 
         // Auto is what most operations do, so only the ones that ask or are refused are listed.

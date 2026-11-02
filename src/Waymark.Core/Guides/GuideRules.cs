@@ -33,7 +33,8 @@ public static class GuideRules
     public const string ServerInstructions =
         "Waymark gives you the owner's computer through four tool groups: code (read and search C#, Python, TypeScript and JavaScript), packages (NuGet, PyPI and npm APIs), files (edit files) and commands (build, test, git, shell for .NET, Python and Node). " +
         "Before your first Waymark call in a conversation, call waymark_guide: it explains the groups, the owner's own instructions and what is switched on now. " +
-        "Each group also has its own guide: add guide: true to your first call to that group. Ask once; a result tells you when a guide changed.";
+        "Each group also has its own guide: add guide: true to your first call to that group. Ask once; a result tells you when a guide changed. " +
+        "Feature maps are your memory of this codebase, so keep them yourself without being asked: before you explore a feature call recall (action 'list'); whenever you finish learning or changing a feature, and before your final answer, save or update its map with memorise.";
 
     /// <summary>Line endings made uniform and outer blank space removed, so equal text always has equal bytes and one hash.</summary>
     public static string Normalize(string text)

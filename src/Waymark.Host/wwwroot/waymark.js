@@ -19,6 +19,15 @@ window.waymark = {
     },
     copy: async function (text) {
         await navigator.clipboard.writeText(text);
+    },
+    toggleShortcuts: function () {
+        const panel = document.getElementById('wm-shortcuts');
+        if (panel) {
+            panel.hidden = !panel.hidden;
+            if (!panel.hidden) {
+                panel.focus();
+            }
+        }
     }
 };
 
@@ -568,4 +577,94 @@ window.wmGrid = (function () {
     }
 
     return { begin: begin, end: end, read: read, apply: apply };
+})();
+
+// The tab title says when something waits for the owner, so a pairing or a command that needs a decision is noticed from another tab.
+// The page's own title is kept and put back when nothing waits. A dot is drawn on the tab icon too. Nothing here talks to the network.
+window.wmAlert = (function () {
+    let count = 0;
+    let baseTitle = null;
+    let lastTitle = null;
+    let watching = false;
+    let originalIcon = null;
+    let originalType = null;
+
+    function drawIcon() {
+        try {
+            const link = document.querySelector('link[rel~="icon"]');
+            if (!link) {
+                return;
+            }
+            if (originalIcon === null) {
+                originalIcon = link.href;
+                originalType = link.type;
+            }
+            if (count === 0) {
+                if (link.href !== originalIcon) {
+                    link.href = originalIcon;
+                    link.type = originalType;
+                }
+                return;
+            }
+            const image = new Image();
+            image.onload = function () {
+                if (count === 0) {
+                    return;
+                }
+                const canvas = document.createElement('canvas');
+                canvas.width = 32;
+                canvas.height = 32;
+                const context = canvas.getContext('2d');
+                context.drawImage(image, 0, 0, 32, 32);
+                context.beginPath();
+                context.arc(23, 9, 8, 0, Math.PI * 2);
+                context.fillStyle = '#f5a524';
+                context.fill();
+                context.lineWidth = 2;
+                context.strokeStyle = '#14171C';
+                context.stroke();
+                link.type = 'image/png';
+                link.href = canvas.toDataURL('image/png');
+            };
+            image.src = originalIcon;
+        } catch (error) {
+            // The icon is a nicety; the title still says it.
+        }
+    }
+
+    function render() {
+        const wanted = count > 0 ? '(' + count + ') Approval needed - ' + baseTitle : baseTitle;
+        lastTitle = wanted;
+        if (document.title !== wanted) {
+            document.title = wanted;
+        }
+        drawIcon();
+    }
+
+    // The page sets its own title when it starts and when the owner moves to another page. That title is the one to restore.
+    // The whole head is watched, because the title element may not exist yet when the first count arrives.
+    function watch() {
+        if (watching || !document.head) {
+            return;
+        }
+        watching = true;
+        new MutationObserver(function () {
+            if (document.title === lastTitle) {
+                return;
+            }
+            baseTitle = document.title;
+            render();
+        }).observe(document.head, { childList: true, characterData: true, subtree: true });
+    }
+
+    return {
+        set: function (next) {
+            count = Math.max(0, Math.floor(Number(next)) || 0);
+            if (baseTitle === null || document.title !== lastTitle) {
+                baseTitle = document.title;
+            }
+            watch();
+            render();
+        }
+    };
 })();

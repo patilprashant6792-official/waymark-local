@@ -10,7 +10,7 @@
 
 <div class="wm-page">
     <h1 class="wm-title">Approvals</h1>
-    <p class="wm-lead">Apps ask to connect here. Nothing connects until you say yes.</p>
+    <p class="wm-lead">Apps ask to connect here, and so do commands that are set to Ask. Nothing connects or runs until you say yes.</p>
 
     @if (_error is not null)
     {
@@ -18,7 +18,11 @@
     }
 
     <h2 class="wm-section" style="margin-top:0">Waiting</h2>
-    @if (_pending.Count == 0)
+    @foreach (var waitingCommand in _commandsWaiting)
+    {
+        <CommandApprovalCard @key="waitingCommand.Id" Run="waitingCommand" OnDecided="LoadAsync" />
+    }
+    @if (_pending.Count == 0 && _commandsWaiting.Count == 0)
     {
         <div class="wm-calm">
             <MudIcon Icon="@Icons.Material.Outlined.CheckCircle" Size="Size.Large" />

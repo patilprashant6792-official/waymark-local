@@ -3,6 +3,7 @@
 @using MudBlazor
 @using Waymark.Host.Components.Shared
 @using Waymark.Host.Ui
+@using Waymark.Core.Transfer
 
 <PageTitle>Workspaces - Waymark</PageTitle>
 
@@ -12,7 +13,10 @@
             <h1 class="wm-title">Workspaces</h1>
             <p class="wm-lead">Folders Claude may read and, when you allow it, change. Nothing outside these folders is reachable. Open a workspace to set its access rules and other options.</p>
         </div>
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddAsync">Add workspace</MudButton>
+        <div class="wm-row">
+            <BundleToolbar Content="BundleContent.All" ExportLabel="Export all" />
+            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddAsync">Add workspace</MudButton>
+        </div>
     </div>
 
     @if (_error is not null)

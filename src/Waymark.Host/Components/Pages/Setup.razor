@@ -8,7 +8,7 @@
 
 <div class="wm-page">
     <h1 class="wm-title">Setup</h1>
-    <p class="wm-lead">Four steps to let Claude reach this computer. You can come back and repeat any step.</p>
+    <p class="wm-lead">Four steps to let Claude reach this computer from the internet. An agent that runs on this computer can skip them: see <a href="#setup-local">Local agents on this computer</a>.</p>
 
     @if (_error is not null)
     {
@@ -82,8 +82,36 @@
         else
         {
             <StateChip State="StatusState.Off" Text="Locked" />
-            <span class="wm-muted"> The address appears here once step 2 passes.</span>
+            <span class="wm-muted"> The address appears here once the tunnel is online and step 2 passes. Waymark runs that check for you.</span>
         }
+    </section>
+
+    <section class="wm-card" aria-labelledby="setup-local" style="margin-top:16px">
+        <div class="wm-row spread">
+            <h2 id="setup-local" class="wm-section" style="margin:0">Local agents on this computer</h2>
+            <StateChip State="StatusState.Working" Text="No tunnel needed" Icon="@Icons.Material.Filled.Computer" />
+        </div>
+        <p class="wm-muted">Claude Code, Cursor, Codex and other agents that run on this computer and speak MCP over HTTP can connect straight to Waymark. This address works while the tunnel is off, and only this computer can reach it.</p>
+
+        <p class="wm-muted" style="margin:12px 0 4px">MCP address</p>
+        <div class="wm-row">
+            <code class="wm-code">@LocalMcpUrl</code>
+            <CopyButton Text="@LocalMcpUrl" Label="Copy address" />
+        </div>
+
+        <p class="wm-muted" style="margin:12px 0 4px">Claude Code: run this in a terminal</p>
+        <div class="wm-row">
+            <code class="wm-code">@ClaudeCodeCommand</code>
+            <CopyButton Text="@ClaudeCodeCommand" Label="Copy command" />
+        </div>
+
+        <p class="wm-muted" style="margin:12px 0 4px">Other agents: an entry for a config file with an mcpServers list. Some agents name the type differently, for example streamable-http. The address stays the same.</p>
+        <div class="wm-row" style="align-items:flex-start">
+            <div class="wm-code">@McpConfigJson</div>
+            <CopyButton Text="@McpConfigJson" Label="Copy entry" />
+        </div>
+
+        <p class="wm-muted" style="margin-top:12px">Signing in: an agent that opens a browser sign-in and returns to localhost, as Claude Code does, pairs as usual, and you approve it on the <a href="approvals">Approvals</a> page. Any other agent needs an <a href="access-keys">access key</a>, sent as an Authorization: Bearer header.</p>
     </section>
 
     <section class="wm-card" aria-labelledby="setup-4" style="margin-top:16px">

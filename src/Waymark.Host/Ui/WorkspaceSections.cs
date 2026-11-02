@@ -18,6 +18,7 @@ public static class WorkspaceSections
     public static readonly WorkspaceSection Overview = new("overview", "Overview", Icons.Material.Filled.Dashboard, string.Empty);
     public static readonly WorkspaceSection Access = new("access", "Access rules", Icons.Material.Filled.Lock, "access");
     public static readonly WorkspaceSection Commands = new("commands", "Commands", Icons.Material.Filled.Tune, "commands");
+    public static readonly WorkspaceSection Features = new("features", "Feature maps", Icons.Material.Filled.Bookmarks, "features");
 
-    public static IReadOnlyList<WorkspaceSection> All { get; } = [Overview, Access, Commands];
+    public static IReadOnlyList<WorkspaceSection> All { get; } = [Overview, Access, Commands, Features];
 }

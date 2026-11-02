@@ -22,6 +22,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private bool _navCollapsed = true;
     private bool _navAnimate;
     private PageErrorBoundary? _boundary;
+    private int _lastAlert = -1;
 
     [Inject]
     private ShellStatus Status { get; set; } = default!;
@@ -88,6 +89,8 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         {
             Logger.LogDebug(ex, "The saved theme and menu width could not be read; the defaults are used");
         }
+
+        await SyncAlertAsync();
     }
 
     private async Task ToggleThemeAsync()
@@ -131,6 +134,38 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         }
     }
 
+    // The tab title and icon say when something waits for a decision, so it is noticed while this tab is in the background.
+    private async Task SyncAlertAsync()
+    {
+        var waiting = Status.PendingApprovals + Status.PendingCommands;
+        if (waiting == _lastAlert)
+        {
+            return;
+        }
+
+        try
+        {
+            await Js.InvokeVoidAsync("wmAlert.set", waiting);
+            _lastAlert = waiting;
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException or ObjectDisposedException)
+        {
+            Logger.LogDebug(ex, "The tab title could not be updated");
+        }
+    }
+
+    private async Task ToggleShortcutsAsync()
+    {
+        try
+        {
+            await Js.InvokeVoidAsync("waymark.toggleShortcuts");
+        }
+        catch (Exception ex) when (ex is JSException or JSDisconnectedException)
+        {
+            Logger.LogDebug(ex, "The shortcuts list could not be shown");
+        }
+    }
+
     private async Task PollAsync()
     {
         using var timer = new PeriodicTimer(RefreshEvery);
@@ -151,7 +186,11 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     {
         try
         {
-            _ = InvokeAsync(StateHasChanged);
+            _ = InvokeAsync(async () =>
+            {
+                StateHasChanged();
+                await SyncAlertAsync();
+            });
         }
         catch (ObjectDisposedException)
         {

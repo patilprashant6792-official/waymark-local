@@ -1,0 +1,102 @@
+@inherits LiveComponentBase
+@using MudBlazor
+@using Waymark.Core.Memory
+@using Waymark.Core.Transfer
+@using Waymark.Host.Ui
+
+<h2 class="wm-section" style="margin-top:0">Feature maps</h2>
+<p class="wm-lead">When Claude explores a feature of this workspace it can save the files, types, members and line ranges it needed under the feature's name, so the next session reads them in one call. A map holds names only, never code, and it follows you across branches: a component that is not in the code that is checked out is marked and kept, not deleted. Claude creates and extends the maps; here you read them, check them against the code, and remove what is wrong.</p>
+<BundleToolbar WorkspaceId="Workspace.Id" Content="BundleContent.FeatureMaps" ExportLabel="Export feature maps" Hint="Keep your maps when you move to another computer." />
+
+@if (_error is not null)
+{
+    <InlineAlert Severity="Severity.Warning">@_error</InlineAlert>
+}
+
+@if (!_loaded)
+{
+    <p class="wm-lead" aria-live="polite">Loading...</p>
+}
+else
+{
+    <section class="wm-card" aria-labelledby="fm-find">
+        <h2 id="fm-find" class="wm-section" style="margin-top:0">Find</h2>
+        <div class="wm-row">
+            <MudTextField T="string" Label="Search" @bind-Value="_query" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Words in a name, summary, path or note" MaxLength="200" Style="min-width:320px" OnKeyUp="OnSearchKey" />
+            <MudButton Variant="Variant.Outlined" OnClick="SearchAsync" Disabled="@(_busy || string.IsNullOrWhiteSpace(_query))">Search</MudButton>
+            @if (_searchedFor.Length > 0)
+            {
+                <MudButton Variant="Variant.Text" OnClick="ShowAllAsync" Disabled="_busy">Show all</MudButton>
+            }
+            <MudButton Variant="Variant.Outlined" OnClick="CheckAsync" Disabled="@(_busy || _maps.Count == 0)">Check against the code</MudButton>
+        </div>
+        <p class="wm-muted" aria-live="polite" style="margin:12px 0 0">@Caption()</p>
+    </section>
+
+    @if (_maps.Count == 0)
+    {
+        <EmptyState Icon="@Icons.Material.Outlined.Bookmarks" Title="@(_searchedFor.Length > 0 ? "No map matches" : "No feature maps yet")" Text="@(_searchedFor.Length > 0 ? "Try other words, or show all." : "After Claude explores a feature it saves one with memorise, and it appears here at once.")" />
+    }
+    else
+    {
+        foreach (var map in _maps)
+        {
+            var missing = MissingCount(map);
+            <div style="margin-top:16px">
+                <CollapsibleSection Id="@($"fm-{map.Id}")" Title="@map.Name" InitiallyExpanded="@(_maps.Count == 1)">
+                    <Summary>
+                        <span class="wm-chip info">@map.Components.Count @(map.Components.Count == 1 ? "component" : "components")</span>
+                        @if (missing > 0)
+                        {
+                            <span class="wm-chip warn" title="Kept in memory, but not in the code that is checked out">@missing not on this branch</span>
+                        }
+                        <span class="wm-muted">Updated @DisplayFormat.Ago(map.UpdatedUtc, Time.GetUtcNow())</span>
+                    </Summary>
+                    <ChildContent>
+                        @if (map.Summary.Length > 0)
+                        {
+                            <p>@map.Summary</p>
+                        }
+                        <div class="wm-table-wrap">
+                            <table class="wm-table">
+                                <caption class="visually-hidden">Components of the feature map @map.Name</caption>
+                                <thead>
+                                    <tr><th scope="col">Component</th><th scope="col">Note</th><th scope="col">In the code now</th><th scope="col">Actions</th></tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var component in map.Components)
+                                    {
+                                        var status = StatusOf(component.Spec);
+                                        <tr>
+                                            <th scope="row" class="wm-mono">@component.Spec</th>
+                                            <td>@component.Note</td>
+                                            <td>
+                                                @if (status is null)
+                                                {
+                                                    <span class="wm-muted">Not checked</span>
+                                                }
+                                                else if (status.Available)
+                                                {
+                                                    <StateChip State="StatusState.Healthy" Text="Here" />
+                                                }
+                                                else
+                                                {
+                                                    <StateChip State="StatusState.Attention" Text="Not on this branch" Title="@status.Problem" />
+                                                }
+                                            </td>
+                                            <td><MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" Disabled="_busy" OnClick="() => RemoveComponentAsync(map, component)">Remove</MudButton></td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+                        <div class="wm-row" style="margin-top:12px">
+                            <CopyButton Text="@ComponentsText(map)" Label="Copy components" />
+                            <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy" OnClick="() => DeleteMapAsync(map)">Delete map</MudButton>
+                        </div>
+                    </ChildContent>
+                </CollapsibleSection>
+            </div>
+        }
+    }
+}

@@ -40,4 +40,25 @@ public static class LiveLineFormat
                 ? id
                 : null;
     }
+
+    /// <summary>The run a command line is about, from the number after #; null for any other line. The lines of one run share one reason, so the lists show it once.</summary>
+    public static long? RunIdOf(LogEntry entry)
+    {
+        ArgumentNullException.ThrowIfNull(entry);
+        var message = entry.Message;
+        if (entry.Kind != LogKind.Command || message.Length < 2 || message[0] != '#')
+        {
+            return null;
+        }
+
+        var end = 1;
+        while (end < message.Length && char.IsAsciiDigit(message[end]))
+        {
+            end++;
+        }
+
+        return end > 1 && long.TryParse(message.AsSpan(1, end - 1), System.Globalization.NumberStyles.None, System.Globalization.CultureInfo.InvariantCulture, out var id)
+            ? id
+            : null;
+    }
 }

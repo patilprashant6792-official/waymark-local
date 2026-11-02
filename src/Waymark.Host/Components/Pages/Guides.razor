@@ -13,11 +13,12 @@
 
     <section class="wm-card" aria-labelledby="about-heading">
         <h2 id="about-heading" class="wm-section" style="margin-top:0">What this is</h2>
-        <p>When an agent connects, Waymark asks it to load a short <strong>overview</strong> before its first tool call. Waymark writes that overview itself. It has three parts:</p>
+        <p>When an agent connects, Waymark asks it to load a short <strong>overview</strong> before its first tool call. Waymark writes that overview itself. It has four parts:</p>
         <ul>
             <li>what each group of tools is for (code, packages, files, commands), and how an agent asks for the group's own guide;</li>
             <li>a few rules: a refusal is a decision, not a glitch; never write a hidden-secret marker into a file; what to do if a secret shows up;</li>
-            <li>what is different right now: tools switched off, workspaces, and the commands that ask you first.</li>
+            <li>what is different right now: tools switched off, workspaces, the commands that ask you first, and the feature maps Claude has saved (their names and ids);</li>
+            <li>how to reuse earlier work: before it explores a feature an agent reads the feature map saved for it (<code>recall</code>), and after it explores one it saves a map (<code>memorise</code>). You read and prune the maps on the <strong>Feature maps</strong> page of each workspace.</li>
         </ul>
         <p>The details of the tools, shells, approvals and long-running commands live in the group guides, which are built into Waymark and update with it. <strong>You do not edit any of that.</strong></p>
         <p><strong>Your text below is placed inside the overview</strong>, under &ldquo;Instructions from the owner&rdquo;, and wins wherever it disagrees with Waymark's defaults. Waymark's gates and approvals still apply, whatever the text says.</p>

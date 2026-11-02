@@ -24,8 +24,12 @@
         <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
     }
 
-    <section class="wm-card" aria-labelledby="audit-keep">
-        <h2 id="audit-keep" class="wm-section">Inputs and outputs of tool calls</h2>
+    <CollapsibleSection Id="audit-keep" Title="Inputs and outputs of tool calls" InitiallyExpanded="false">
+        <Summary>
+            <span class="wm-chip info">@(_keep.Enabled ? "Kept for " + (_keep.Days == 1 ? "1 day" : _keep.Days + " days") : "Not kept")</span>
+            <span class="wm-muted" aria-live="polite">@DisplayFormat.Count(_keepStats.Calls) calls kept, about @DisplayFormat.Size(_keepStats.Chars)</span>
+        </Summary>
+        <ChildContent>
         <p class="wm-muted" style="margin-top:0">
             Every tool call has a details page that shows what the AI sent and what it received; its output is loaded only when you open it. The list below still shows argument names only.
             The full texts are kept on this computer, with secrets hidden by shape (not a guarantee), and deleted after the period you choose. The audit rows themselves stay for @AuditRetentionService.DefaultRetentionDays days.
@@ -40,7 +44,6 @@
                     }
                 </select>
             </label>
-            <span class="wm-muted" aria-live="polite">@DisplayFormat.Count(_keepStats.Calls) calls kept, about @DisplayFormat.Size(_keepStats.Chars)</span>
             <MudButton Variant="Variant.Outlined" Color="@(_confirmClear ? Color.Error : Color.Default)" Disabled="@(_keepStats.Calls == 0)" OnClick="ClearKeepAsync">@(_confirmClear ? "Click again to delete them" : "Delete kept inputs and outputs")</MudButton>
             @if (_confirmClear)
             {
@@ -51,7 +54,8 @@
         {
             <p class="wm-muted" role="status" style="margin:8px 0 0">@_keepNote</p>
         }
-    </section>
+        </ChildContent>
+    </CollapsibleSection>
 
     <section class="wm-card" aria-label="Filters">
         <div class="wm-row">

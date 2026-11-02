@@ -6,9 +6,11 @@ using Waymark.Core.Auth;
 using Waymark.Core.Commands;
 using Waymark.Core.Code;
 using Waymark.Core.Guides;
+using Waymark.Core.Memory;
 using Waymark.Core.NuGetIndex;
 using Waymark.Core.Settings;
 using Waymark.Core.Tools;
+using Waymark.Core.Transfer;
 using Waymark.Core.Workspaces;
 using Waymark.Core.Vault;
 using Waymark.Core.Security;
@@ -63,6 +65,8 @@ public static class DataServiceCollectionExtensions
         services.AddSingleton<ICommandRunStore, CommandRunStore>();
         services.AddSingleton<ICommandPolicyStore, CommandPolicyStore>();
         services.AddSingleton<IGuideStore, GuideStore>();
+        services.AddSingleton<IFeatureMapStore, FeatureMapStore>();
+        services.AddSingleton<IWorkspaceBundleStore, WorkspaceBundleStore>();
         return services;
     }
 }

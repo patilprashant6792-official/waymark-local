@@ -48,8 +48,8 @@ public sealed class DashboardLayout
         new(DashboardCards.Tools, "What the AI sees", 3, 4, 2, 3),
         new(DashboardCards.Tokens, "Tokens sent to the AI", 12, 6, 3, 3),
         new(DashboardCards.LiveLog, "Live log", 7, 8, 3, 3),
-        new(DashboardCards.Commands, "Commands", 5, 7, 3, 3),
-        new(DashboardCards.RecentCalls, "Recent calls", 7, 7, 4, 3),
+        new(DashboardCards.Commands, "Commands", 5, 8, 3, 3),
+        new(DashboardCards.RecentCalls, "Recent calls", 7, 8, 4, 3),
         new(DashboardCards.NuGet, "NuGet packages", 5, 8, 3, 3),
         new(DashboardCards.Workspaces, "Workspaces", 12, 4, 3, 3)
     ];

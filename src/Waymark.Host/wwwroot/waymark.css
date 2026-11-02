@@ -654,9 +654,8 @@ h1:focus, main:focus {
 
 
 /* Keyboard shortcuts */
-.wm-shortcuts { position: fixed; right: 16px; bottom: 48px; z-index: 1300; width: min(360px, calc(100vw - 32px)); padding: 16px; background: var(--mud-palette-surface); color: var(--mud-palette-text-primary); border: 1px solid var(--mud-palette-lines-default); border-radius: 8px; box-shadow: var(--mud-elevation-8); }
+.wm-shortcuts { position: fixed; right: 16px; bottom: 16px; z-index: 1300; width: min(360px, calc(100vw - 32px)); padding: 16px; background: var(--mud-palette-surface); color: var(--mud-palette-text-primary); border: 1px solid var(--mud-palette-lines-default); border-radius: 8px; box-shadow: var(--mud-elevation-8); }
 .wm-shortcuts[hidden] { display: none; }
-.wm-shortcut-hint { position: fixed; right: 16px; bottom: 12px; margin: 0; font-size: 12px; color: var(--mud-palette-text-secondary); }
 kbd { padding: 1px 6px; font: 12px ui-monospace, Consolas, monospace; border: 1px solid var(--mud-palette-lines-inputs); border-radius: 4px; background: var(--mud-palette-background-gray); }
 #blazor-error-ui { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2000; display: none; padding: 10px 16px; background: var(--mud-palette-error); color: var(--mud-palette-error-text); }
 #blazor-error-ui .dismiss { position: absolute; top: 8px; right: 12px; cursor: pointer; }

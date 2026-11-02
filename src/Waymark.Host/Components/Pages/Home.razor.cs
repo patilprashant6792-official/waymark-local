@@ -21,9 +21,9 @@ namespace Waymark.Host.Components.Pages;
 public partial class Home : LiveComponentBase
 {
     private const int RecentPackages = 4;
-    private const int RecentCommands = 10;
+    private const int RecentCommands = 5;
     private const int ReloadEveryTicks = 5;
-    private const int RecentCallRows = 10;
+    private const int RecentCallRows = 8;
 
     private readonly Dictionary<long, CodeIndexProgress> _progress = [];
     private IDisposable? _progressSubscription;
@@ -198,11 +198,7 @@ public partial class Home : LiveComponentBase
         _ => (StatusState.Off, "Stopped")
     };
 
-    private static string FirstLine(string text)
-    {
-        var line = text.ReplaceLineEndings(" ").Trim();
-        return line.Length <= 80 ? line : line[..80] + "...";
-    }
+    private static string FirstLine(string text) => CommandLineDisplay.Compact(text, 80);
 
     protected override async Task OnInitializedAsync()
     {

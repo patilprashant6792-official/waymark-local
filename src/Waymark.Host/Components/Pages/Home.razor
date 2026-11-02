@@ -83,11 +83,11 @@
             </div>
         </section>
     }
-    else
+    else if (_commandsWaiting.Count == 0)
     {
         <div class="wm-calm slim">
             <MudIcon Icon="@Icons.Material.Outlined.CheckCircle" />
-            <span><strong>Nothing is waiting for you.</strong> New pairing requests show up here and in the header.</span>
+            <span><strong>Nothing is waiting for you.</strong> New pairing requests and commands show up here and in the header.</span>
         </div>
     }
 
@@ -206,7 +206,10 @@
         @if (Status.Tunnel.Domain is { Length: > 0 } domain)
         {
             <div class="wm-tile-value">Public address</div>
-            <p class="wm-tile-sub wm-mono wm-ellipsis" title="@domain">@domain</p>
+            <div class="wm-row" style="flex-wrap:nowrap;gap:4px;margin:0">
+                <p class="wm-tile-sub wm-mono wm-ellipsis" title="@domain" style="margin:0;min-width:0;flex:1 1 auto">@domain</p>
+                <CopyButton Compact="true" Text="@(Status.PublicUrl ?? domain)" Label="Copy public address" />
+            </div>
         }
         else if (Status.PublicUrl is null)
         {
@@ -260,7 +263,7 @@
         {
             <div class="wm-table-wrap">
                 <table class="wm-table">
-                    <caption class="visually-hidden">The ten most recent tool calls</caption>
+                    <caption class="visually-hidden">The most recent tool calls</caption>
                     <thead>
                         <tr><th scope="col">When</th><th scope="col">Tool</th><th scope="col">Workspace</th><th scope="col">Outcome</th><th scope="col" class="num">Time</th><th scope="col" class="num">Tokens</th></tr>
                     </thead>
