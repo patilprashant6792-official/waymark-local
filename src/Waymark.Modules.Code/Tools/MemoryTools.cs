@@ -15,7 +15,7 @@ public sealed class MemoryTools(IFeatureMemoryService memory, ILogger<MemoryTool
         "Returns feature maps saved by earlier sessions: the files, types, members and line ranges that were needed for a feature.\n" +
         "CALL IT FIRST when you start work on a feature. action='list' (optional query, page, pageSize) finds maps; action='get' (ids='12,15', optional maxTokens, default 6000) returns the current outline or source of every component in ONE call.\n" +
         "A component that is not in the code on this branch is listed as not available, never hidden or guessed.\n" +
-        "A map is a hint: keep exploring where it falls short, then update it with memorise.")]
+        "A map is a hint: keep exploring where it falls short, then update it with memorise before you finish.")]
     public Task<string> Recall(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
         string workspace,
@@ -41,8 +41,8 @@ public sealed class MemoryTools(IFeatureMemoryService memory, ILogger<MemoryTool
 
     [McpServerTool(Name = "memorise", ReadOnly = false, Destructive = false, Idempotent = true)]
     [Description(
-        "Saves what you found while exploring a feature, so the next session can recall it in one call. Call it when you finished understanding or changing a feature.\n" +
-        "action='save_feature_map': name (kebab-case, e.g. 'command-gates'), components (one per line) and optional summary, remove. Saving to an existing name merges; only what you list in remove is dropped.\n" +
+        "Saves what you learned about a feature so the next session can recall it in one call. Call it without being asked: as soon as you have found the components of a feature, after you change one (add the new components and remove the ones you deleted or renamed), and before your final answer on any task that explored or changed a feature.\n" +
+        "action='save_feature_map': name (kebab-case, e.g. 'command-gates'), components (one per line) and optional summary, remove. Saving to an existing name merges, so update the map of the feature instead of creating a near-duplicate; only what you list in remove is dropped.\n" +
         "Component forms: 'path' (file outline), 'path:Type' (type outline), 'path:Type.Member' or 'path:function' (source), 'path#L10-40' (lines); add ' | why it matters' for a note. Each must exist now.\n" +
         "action='delete_feature_map' with name removes a map.")]
     public Task<string> Memorise(

@@ -1,6 +1,5 @@
 using System.Globalization;
 using System.Text;
-using System.Text.RegularExpressions;
 using Waymark.Core.Events;
 using Waymark.Core.Memory;
 using Waymark.Core.Security;
@@ -25,15 +24,12 @@ internal sealed class FeatureMemoryService(
     private const int MinTokens = 500;
     private const int MaxTokens = 20000;
     private const int MaxIdsPerGet = 5;
-    private const int MaxComponentsPerMap = 30;
+    private const int MaxComponentsPerMap = FeatureMapRules.MaxComponentsPerMap;
     private const int MaxComponentsPerCall = 40;
-    private const int MaxSummaryChars = 300;
+    private const int MaxSummaryChars = FeatureMapRules.MaxSummaryChars;
     private const int SummaryPreviewChars = 140;
     private const int ReservedChars = 600;
     private const int MaxProblemsListed = 6;
-
-    // 1 to 60 characters, matching the name rule told to the agent.
-    private static readonly Regex NameText = new("^[a-z0-9][a-z0-9-]{0,59}$", RegexOptions.CultureInvariant, TimeSpan.FromMilliseconds(100));
 
     public async Task<string> ListAsync(string? workspace, string? query, int? page, int? pageSize, CancellationToken ct)
     {
@@ -290,13 +286,10 @@ internal sealed class FeatureMemoryService(
         return flat.Length <= SummaryPreviewChars ? flat : flat[..SummaryPreviewChars] + "...";
     }
 
-    private static string CleanName(string? name)
-    {
-        var text = (name ?? string.Empty).Trim().ToLowerInvariant().Replace(' ', '-').Replace('_', '-');
-        return NameText.IsMatch(text)
-            ? text
+    private static string CleanName(string? name) =>
+        FeatureMapRules.TryNormalizeName(name, out var clean)
+            ? clean
             : throw new ArgumentException("name must be 1 to 60 characters: lowercase letters, digits and '-', starting with a letter or digit (for example 'command-gates').");
-    }
 
     private static string? CleanSummary(string? summary)
     {

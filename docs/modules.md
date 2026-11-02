@@ -40,7 +40,17 @@ Two tools of the Code module save and return the components Claude needed for a 
 - `memorise`: `save_feature_map` creates or merges a map (every added component must exist now; `remove` drops listed ones) and `delete_feature_map` deletes one. Text that looks like a secret is refused.
 - The live setup of the overview lists the newest 25 maps of each workspace with their ids, so an agent can read one with `recall` without listing first.
 - Owner page: a workspace's **Feature maps** section (`/workspaces/{id}/features`) shows each map, checks every component against the code that is checked out, deletes a map and removes a component. It reloads when Claude saves or deletes a map (`FeatureMapsChanged`), and every change is audited.
-- Code: `FeatureComponentReader`, `FeatureComponentChecker` and `FeatureMemoryService` in `Waymark.Modules.Code/Memory`, `FeatureMapStore` in `Waymark.Data`, `FeatureMapAdminService` in `Waymark.Host/FeatureMaps`. No settings; the limits are constants in `FeatureMemoryService`. Every call is in the audit log, which is also how to see whether agents use the tools.
+- Code: `FeatureComponentReader`, `FeatureComponentChecker` and `FeatureMemoryService` in `Waymark.Modules.Code/Memory`, `FeatureMapStore` in `Waymark.Data`, `FeatureMapAdminService` in `Waymark.Host/FeatureMaps`. No settings; the limits and the name rule are in `FeatureMapRules` (Core). Every call is in the audit log, which is also how to see whether agents use the tools.
+- Keeping maps is part of the agent's task, not an option: the server instructions, the overview (`Waymark.Host/Guide.md`), the code guide and the `memorise` description all say when to save (found the components, changed the feature, learned from docs, before the final answer) and to update the map of a feature instead of adding a near-duplicate.
+
+## Workspace bundle (export and import)
+
+Moves the workspaces, their access rules and their feature maps to another computer. Owner-only: the buttons are in the admin UI (`BundleToolbar` on the Workspaces page and on a workspace's Access rules and Feature maps sections); no MCP tool exports or imports, so Claude can neither read the rules out nor widen them.
+
+- File: one JSON document, `waymark-workspace-bundle` version 1 (`Waymark.Core/Transfer`). Names, patterns and component paths only. No ids of this computer, no secrets, no vault, tokens, command gates or index. The folder a workspace had is written as a hint only.
+- Import (`WorkspaceBundleService`): the text is untrusted. It is checked for secrets, then cleaned by `WorkspaceBundleSanitizer` with the same rules the UI and `memorise` apply; whatever fails is left out with a note. The owner picks per workspace: merge into one that exists, create it in a folder of this computer, or skip. `BundleMergePlanner` (pure) works out the preview and the import alike. It only adds: a rule or map that exists stays as it is, a map that exists gets only the components it lacks (30 at most). Rules that allow more file types are flagged in the preview.
+- Write: `WorkspaceBundleStore` stores every plan in one transaction, so a failed import writes no rules or maps. A workspace created just before stays; running the same file again adds nothing twice.
+- Audit: `config.bundle_exported`, `config.bundle_imported`. Events: `AccessRulesChanged`, `FeatureMapsChanged`, `WorkspaceChanged`.
 ## Adding a tool
 
 1. Put the logic behind an interface in the module; register it in the module's `AddServices`.

@@ -19,7 +19,17 @@ Orient with code, change with files, verify with commands. Let each group's guid
 
 Orient the way a developer explores a new repository: start from the `code_skeleton(ws)` overview, open only the folders the task needs (`code_skeleton(ws, path=...)`), and read files last. Do not ask for the whole tree of a large workspace up front.
 
-Before you explore a feature, look under "Feature maps saved" in the live setup below: `recall(ws, action='get', ids='12')` returns the current code of a saved map's components in one call, and `recall(ws, action='list', query='gate')` searches the maps. After you explore or change a feature, save what you needed with `memorise(ws, action='save_feature_map', name, components)`. Details are in the code guide.
+## Feature maps are your memory (keep them without being asked)
+
+Waymark keeps what you learn about a codebase so the next session does not repeat the work. Saving is part of every task, not an extra:
+
+1. **Before** you explore a feature, look under "Feature maps saved" in the live setup below. `recall(ws, action='get', ids='12')` returns the current code of a saved map's components in one call; `recall(ws, action='list', query='gate')` searches when none is listed. Explore only what the map lacks.
+2. **While you work**, as soon as you have found the components of a feature that took searching to find, save them with `memorise(ws, action='save_feature_map', name, components, summary)`. Do not wait for the end: a session can stop at any time.
+3. **After you change** a feature (new files, types or members; renamed or deleted ones), update its map in the same task: add what is new and `remove` what you deleted or renamed. A map that names code that no longer exists misleads the next session.
+4. **When you read** the README, docs or code to learn how part of the project works, that is learning too. The first time a workspace has no maps, save an overview map (for example `architecture-overview`) and one per feature you had to understand.
+5. **Before your final answer** on any task that explored or changed a feature, check that its map is saved and current. If it is not, save it now, then answer.
+
+One map per feature: saving to an existing name merges, so update the map of the feature instead of creating a near-duplicate, and keep its summary true. Name features in kebab-case (`command-gates`). Skip saving only for a lookup that needed a single file. The component forms and limits are in the code guide.
 
 Moving or duplicating code is copying, not retyping: `file_edit_lines` and `file_write` take `from` (lines, a file or a folder tree, also from another workspace) so you write none of it. To move code between codebases: orient in both workspaces with `code_skeleton`, take line ranges from `code_outline`, preview with `dryRun`, copy, then build the target. Details are in the files guide.
 

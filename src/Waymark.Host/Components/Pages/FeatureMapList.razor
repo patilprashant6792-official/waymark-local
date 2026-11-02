@@ -1,10 +1,12 @@
 @inherits LiveComponentBase
 @using MudBlazor
 @using Waymark.Core.Memory
+@using Waymark.Core.Transfer
 @using Waymark.Host.Ui
 
 <h2 class="wm-section" style="margin-top:0">Feature maps</h2>
 <p class="wm-lead">When Claude explores a feature of this workspace it can save the files, types, members and line ranges it needed under the feature's name, so the next session reads them in one call. A map holds names only, never code, and it follows you across branches: a component that is not in the code that is checked out is marked and kept, not deleted. Claude creates and extends the maps; here you read them, check them against the code, and remove what is wrong.</p>
+<BundleToolbar WorkspaceId="Workspace.Id" Content="BundleContent.FeatureMaps" ExportLabel="Export feature maps" Hint="Keep your maps when you move to another computer." />
 
 @if (_error is not null)
 {

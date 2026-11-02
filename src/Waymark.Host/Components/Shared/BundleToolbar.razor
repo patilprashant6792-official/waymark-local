@@ -1,0 +1,15 @@
+@inherits LiveComponentBase
+@using MudBlazor
+
+<div class="wm-row">
+    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download" OnClick="ExportAsync" Disabled="_busy">@ExportLabel</MudButton>
+    <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Upload" OnClick="ImportAsync" Disabled="_busy">Import</MudButton>
+    @if (!string.IsNullOrEmpty(Hint))
+    {
+        <span class="wm-muted">@Hint</span>
+    }
+</div>
+@if (_error is not null)
+{
+    <div style="margin-top:8px"><InlineAlert Severity="Severity.Warning">@_error</InlineAlert></div>
+}
