@@ -42,6 +42,7 @@ Migration `002_grants.sql` recreates the code, token and API-key tables with the
 
 1. Run `Waymark.Host`. The console prints the admin address and the MCP address.
 2. Open `http://localhost:47100`, then Setup. Enter your ngrok address and authtoken and choose Save and start tunnel: Waymark installs and starts ngrok itself, then reports each check as passed or failed. If ngrok cannot start, run the `ngrok http 47101` command shown on the page and choose Check again. The connector address unlocks once the check passes.
+   Below the steps, Setup also shows the local MCP address (`http://localhost:47101/mcp`), a ready `claude mcp add` command and a config-file entry for agents that run on this computer. They need no tunnel; an agent that cannot do the browser sign-in uses an access key.
 3. Check the documents: open `<your address>/.well-known/oauth-authorization-server` in a browser. It should show your address as the issuer.
 4. With a client registered by Claude, the Approvals page shows the card and, afterwards, the client and the decision history.
 

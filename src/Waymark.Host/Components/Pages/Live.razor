@@ -80,9 +80,14 @@
             <div class="wm-live-empty">Waiting for activity. Tool calls, file changes, sign-ins and commands show up here.</div>
         }
 
+        @{ var shownWhy = new HashSet<long>(); }
         @foreach (var entry in _rows)
         {
             var (text, why) = ActivityLogging.SplitWhy(entry.Message);
+            if (LiveLineFormat.RunIdOf(entry) is { } runId && !shownWhy.Add(runId))
+            {
+                why = string.Empty;
+            }
             <div class="wm-live-row" @key="entry.Id">
                 <div class="wm-term-line wm-live-line @LevelClass(entry.Level)">
                     <span class="wm-live-time">@DisplayFormat.Clock(entry.TimestampUtc)</span>

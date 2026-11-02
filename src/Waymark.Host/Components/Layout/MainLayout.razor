@@ -45,6 +45,7 @@
 
         <div class="wm-header-actions">
             <CommandPalette />
+            <MudIconButton Icon="@Icons.Material.Outlined.Keyboard" aria-label="Keyboard shortcuts" title="Keyboard shortcuts ( ? )" OnClick="ToggleShortcutsAsync" />
             <MudIconButton Icon="@(_dark ? Icons.Material.Filled.LightMode : Icons.Material.Filled.DarkMode)"
                            aria-label="@(_dark ? "Switch to the light theme" : "Switch to the dark theme")"
                            OnClick="ToggleThemeAsync" />
@@ -120,7 +121,7 @@
         <NavLink class="wm-nav-item" ActiveClass="active" href="setup" title="@Tip("Setup")">
             <MudIcon Icon="@Icons.Material.Filled.Settings" Size="Size.Small" /><span>Setup</span>
         </NavLink>
-        <div class="wm-nav-foot">v0.2 &middot; local only</div>
+        <div class="wm-nav-foot">v0.2 &middot; admin: local only</div>
     </nav>
 
     <main id="main" class="wm-main" tabindex="-1">

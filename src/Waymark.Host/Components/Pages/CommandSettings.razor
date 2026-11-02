@@ -30,7 +30,7 @@
     @if (!Embedded)
     {
     <section class="wm-card" aria-labelledby="cmd-scope">
-        <h2 id="cmd-scope" class="wm-section">Where the choices apply</h2>
+        <h2 id="cmd-scope" class="wm-section visually-hidden">Where the choices apply</h2>
         <div class="wm-row">
             <label class="wm-muted" for="cmd-scope-select">Settings for</label>
             <select id="cmd-scope-select" class="wm-input" value="@_scope" @onchange="OnScopeChanged">
@@ -54,7 +54,7 @@
     else
     {
         <section class="wm-card" aria-labelledby="cmd-scope">
-            <h2 id="cmd-scope" class="wm-section" style="margin-top:0">Where the choices apply</h2>
+            <h2 id="cmd-scope" class="wm-section visually-hidden">Where the choices apply</h2>
             <div class="wm-row">
                 <MudButton Variant="Variant.Outlined" Disabled="@(_busy || OwnCount == 0)" OnClick="ResetScopeAsync">Reset @OwnCount @(OwnCount == 1 ? "choice" : "choices")</MudButton>
             </div>
@@ -63,7 +63,7 @@
     }
 
     <section class="wm-card" aria-labelledby="cmd-toolchain">
-        <h2 id="cmd-toolchain" class="wm-section">What to show</h2>
+        <h2 id="cmd-toolchain" class="wm-section visually-hidden">What to show</h2>
         <div class="wm-row">
             <label class="wm-muted" for="cmd-toolchain-select">Toolchain</label>
             <select id="cmd-toolchain-select" class="wm-input" value="@ToolchainKey" @onchange="OnToolchainChanged">
@@ -92,7 +92,7 @@
         var counts = CountsOf(family.Key);
         <CollapsibleSection @key="@($"{family.Key}|{ExpandFamilies}")" Id="@($"cmd-family-{family.Key}")" Title="@family.Title" InitiallyExpanded="ExpandFamilies" CssClass="@(shellOn ? "wm-risky" : null)">
             <Summary>
-                <span class="wm-chip info">@counts.Total operations</span>
+                <span class="wm-chip info">@counts.Total @(counts.Total == 1 ? "operation" : "operations")</span>
                 <span class="wm-chip info">@counts.Ask Ask</span>
                 @if (counts.Off > 0)
                 {

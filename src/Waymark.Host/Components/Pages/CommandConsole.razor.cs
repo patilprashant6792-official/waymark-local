@@ -370,11 +370,7 @@ public partial class CommandConsole : LiveComponentBase
     private static string Label(CommandRun run) =>
         CommandCatalog.TryGet(run.Operation, out var info) && info is not null ? info.Label : run.Operation;
 
-    private static string Short(string commandLine)
-    {
-        var line = commandLine.ReplaceLineEndings(" ").Trim();
-        return line.Length <= ShortChars ? line : line[..ShortChars] + "...";
-    }
+    private static string Short(string commandLine) => CommandLineDisplay.Compact(commandLine, ShortChars);
 
     private static string DotClass(CommandRun run) => run.Status switch
     {

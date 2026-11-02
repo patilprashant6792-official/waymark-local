@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components;
 using MudBlazor;
 using Waymark.Core.Approvals;
+using Waymark.Core.Commands;
 using Waymark.Core.Auth;
 using Waymark.Core.Events;
 using Waymark.Host.Auth;
@@ -15,6 +16,7 @@ public partial class Approvals : LiveComponentBase
 
     private IReadOnlyList<Approval> _pending = [];
     private IReadOnlyList<Approval> _history = [];
+    private IReadOnlyList<CommandRun> _commandsWaiting = [];
     private IReadOnlyList<OAuthClient> _clients = [];
     private string? _error;
     private bool _busy;
@@ -41,6 +43,9 @@ public partial class Approvals : LiveComponentBase
     private TimeProvider Time { get; set; } = default!;
 
     [Inject]
+    private ICommandRuns CommandRuns { get; set; } = default!;
+
+    [Inject]
     private ILogger<Approvals> Logger { get; set; } = default!;
 
     protected override async Task OnInitializedAsync()
@@ -49,6 +54,7 @@ public partial class Approvals : LiveComponentBase
         RefreshOn<ApprovalRequested>(LoadAsync);
         RefreshOn<ApprovalDecided>(LoadAsync);
         RefreshOn<CredentialsRevoked>(LoadAsync);
+        RefreshOn<CommandRunChanged>(LoadAsync);
         _ = TickAsync();
     }
 
@@ -63,6 +69,7 @@ public partial class Approvals : LiveComponentBase
                 .Take(HistoryLimit)
                 .ToList();
             _clients = await ClientStore.ListAsync(Cancel);
+            _commandsWaiting = await CommandRuns.ListPendingAsync(Cancel);
             _error = null;
         }
         catch (OperationCanceledException)
@@ -202,7 +209,7 @@ public partial class Approvals : LiveComponentBase
         {
             while (await timer.WaitForNextTickAsync(Cancel))
             {
-                if (_pending.Count > 0)
+                if (_pending.Count > 0 || _commandsWaiting.Count > 0)
                 {
                     var expired = _pending.Any(a => a.ExpiresUtc <= Time.GetUtcNow());
                     await InvokeAsync(async () =>

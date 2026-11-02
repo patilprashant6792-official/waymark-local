@@ -92,8 +92,8 @@ public partial class Guides : LiveComponentBase
         }
 
         return older == 0
-            ? $"{Clients(current)} hold the current overview."
-            : $"{Clients(current)} hold the current overview; {older} hold an older one and are told on their next call.";
+            ? $"{Clients(current)} {(current == 1 ? "holds" : "hold")} the current overview."
+            : $"{Clients(current)} {(current == 1 ? "holds" : "hold")} the current overview; {older} {(older == 1 ? "holds" : "hold")} an older one and {(older == 1 ? "is" : "are")} told on their next call.";
     }
 
     private string GroupHolders(ToolGuide guide)

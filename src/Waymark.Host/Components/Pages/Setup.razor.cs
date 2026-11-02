@@ -19,6 +19,7 @@ public partial class Setup : LiveComponentBase
     private int _workspaceCount;
     private bool _verified;
     private bool _busy;
+    private bool _autoRunning;
     private string? _error;
 
     [Inject]
@@ -57,6 +58,21 @@ public partial class Setup : LiveComponentBase
 
     private string TunnelCommand => $"ngrok http {Edge.McpPort}";
 
+    private string LocalMcpUrl => $"http://localhost:{Edge.McpPort}/mcp";
+
+    private string ClaudeCodeCommand => $"claude mcp add --transport http waymark {LocalMcpUrl}";
+
+    private string McpConfigJson => $$"""
+        {
+          "mcpServers": {
+            "waymark": {
+              "type": "http",
+              "url": "{{LocalMcpUrl}}"
+            }
+          }
+        }
+        """;
+
     private TunnelStatus TunnelNow => Tunnel.Status;
 
     private bool ConnectorUnlocked => _verified && ConnectorUrl is not null;
@@ -67,9 +83,14 @@ public partial class Setup : LiveComponentBase
     {
         _address = SavedUrl ?? string.Empty;
         await LoadAsync();
-        RefreshOn<TunnelStatusChanged>(() => Task.CompletedTask);
+        RefreshOn<TunnelStatusChanged>(() =>
+        {
+            _ = AutoVerifyAsync();
+            return Task.CompletedTask;
+        });
         RefreshOn<PublicUrlChanged>(LoadAsync);
         RefreshOn<WorkspaceChanged>(LoadAsync);
+        _ = AutoVerifyAsync();
     }
 
     private async Task LoadAsync()
@@ -87,6 +108,47 @@ public partial class Setup : LiveComponentBase
         {
             Logger.LogError(ex, "The setup state could not be loaded");
             _error = "The setup state could not be loaded.";
+        }
+    }
+
+    // The check only reads, so it runs by itself once the tunnel is online and step 3 unlocks without a click.
+    private async Task AutoVerifyAsync()
+    {
+        if (_busy || _autoRunning || _verified || _check is not null || SavedUrl is null || TunnelNow.Phase != TunnelPhase.Online)
+        {
+            return;
+        }
+
+        _autoRunning = true;
+        try
+        {
+            var check = await Urls.VerifyCurrentAsync(Cancel);
+            await InvokeAsync(() =>
+            {
+                if (TunnelNow.Phase == TunnelPhase.Online)
+                {
+                    _check = check;
+                    _verified = check.Success;
+                }
+
+                StateHasChanged();
+            });
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (ObjectDisposedException)
+        {
+            // The circuit ended.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "The automatic tunnel check failed");
+        }
+        finally
+        {
+            _autoRunning = false;
         }
     }
 

@@ -158,3 +158,16 @@
 .wm-table th.wm-rowhead .wm-mono { font-size: 12px; font-weight: 400; overflow-wrap: anywhere; }
 .wm-table td.wm-stats { min-width: 13rem; }
 .wm-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+
+/* ---------- experience pass ---------- */
+/* A name in the first cell of a row (a tool, a package, a cache key) keeps its real spelling; only column headings are upper case. */
+.wm-table tbody th[scope="row"]:not(.wm-rowhead) {
+    font-size: 0.875rem;
+    font-weight: 600;
+    letter-spacing: normal;
+    text-transform: none;
+    color: var(--mud-palette-text-primary);
+}
+
+/* A tab strip scrolls sideways only. A one pixel rounding difference must not add a vertical scrollbar. */
+.wm-tabs { overflow-y: hidden; }
