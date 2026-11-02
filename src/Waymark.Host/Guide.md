@@ -27,7 +27,7 @@ Waymark keeps what you learn about a codebase so the next session does not repea
 2. **While you work**, as soon as you have found the components of a feature that took searching to find, save them with `memorise(ws, action='save_feature_map', name, components, summary)`. Do not wait for the end: a session can stop at any time.
 3. **After you change** a feature (new files, types or members; renamed or deleted ones), update its map in the same task: add what is new and `remove` what you deleted or renamed. A map that names code that no longer exists misleads the next session.
 4. **When you read** the README, docs or code to learn how part of the project works, that is learning too. The first time a workspace has no maps, save an overview map (for example `architecture-overview`) and one per feature you had to understand.
-5. **Before your final answer** on any task that explored or changed a feature, check that its map is saved and current. If it is not, save it now, then answer.
+5. **Before your final answer** on any task that explored or changed a feature, check that its map is saved and current. If it is not, save it now, then answer. Say in one line which map you saved or updated (name and id), so the owner can see that it was done. If you saved none, say why.
 
 One map per feature: saving to an existing name merges, so update the map of the feature instead of creating a near-duplicate, and keep its summary true. Name features in kebab-case (`command-gates`). Skip saving only for a lookup that needed a single file. The component forms and limits are in the code guide.
 
