@@ -97,7 +97,7 @@ internal sealed class FlowSaveService(
         var same = await store.FindByRootAsync(found.Id, steps[0].Spec, null, ct).ConfigureAwait(false);
         if (same.Count > 0 && reason.Length == 0)
         {
-            var list = string.Join("; ", same.Select(flow => $"'{flow.Name}' (id {flow.Id}): {FlowArgs.Cell(flow.Summary)}"));
+            var list = string.Join("; ", same.Select(flow => $"'{flow.Name}' (id {flow.Id}): {FlowArgs.Cell(flow.Summary).TrimEnd('.')}"));
             throw new ArgumentException(
                 $"Nothing was saved: {(same.Count == 1 ? "another flow starts" : "other flows start")} at the same step: {list}. " +
                 "Same trigger and same outcome: update that flow (read it with recall, save it with expectedVersion). Two flows that already say the same thing: delete one with memorise(action='delete_feature_map'). " +

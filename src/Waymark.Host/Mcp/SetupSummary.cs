@@ -25,8 +25,8 @@ public sealed class SetupSummary(
     TimeProvider time) : ISetupSummary
 {
     private const string None = "none";
-    private const int MaxMapNamesPerWorkspace = 25;
-    private const int MaxSummaryChars = 70;
+    private const int MaxMapNamesPerWorkspace = 15;
+    private const int MaxSummaryChars = 60;
 
     public async Task<string> DescribeAsync(CancellationToken ct)
     {

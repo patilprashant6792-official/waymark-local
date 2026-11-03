@@ -28,6 +28,7 @@ public partial class FeatureMapList : LiveComponentBase
     private int _total;
     private bool _loaded;
     private bool _busy;
+    private bool _checking;
 
     [Parameter, EditorRequired]
     public Workspace Workspace { get; set; } = default!;
@@ -77,8 +78,23 @@ public partial class FeatureMapList : LiveComponentBase
             _maps = view.Maps;
             _total = view.Total;
             _error = null;
-            _status = await Service.CheckAsync(Workspace, _maps, Cancel);
-            _checkedUtc = Time.GetUtcNow();
+
+            // Show the maps at once: the check reads and parses every file the steps name, which takes seconds when there are many maps.
+            _status = NoStatus;
+            _checkedUtc = null;
+            _checking = true;
+            _loaded = true;
+            await InvokeAsync(StateHasChanged);
+
+            var maps = _maps;
+            var status = await Service.CheckAsync(Workspace, maps, Cancel);
+
+            // A newer load may have replaced the maps while this one was checking: its answer is for the old steps.
+            if (ReferenceEquals(maps, _maps))
+            {
+                _status = status;
+                _checkedUtc = Time.GetUtcNow();
+            }
         }
         catch (OperationCanceledException)
         {
@@ -89,6 +105,10 @@ public partial class FeatureMapList : LiveComponentBase
         {
             Logger.LogError(ex, "The feature maps of workspace {WorkspaceId} could not be loaded or checked", Workspace.Id);
             _error = "The feature maps could not be loaded or checked.";
+        }
+        finally
+        {
+            _checking = false;
         }
 
         _loaded = true;
@@ -216,7 +236,8 @@ public partial class FeatureMapList : LiveComponentBase
     // The same text memorise takes (indented under the step that calls it), so a flow can be pasted into a note or saved again.
     private static string StepsText(FeatureMap map) => FlowStepText.Format(FlowStepText.FromStored(map.Steps));
 
-    private static string Indent(FeatureMapStep step) => $"padding-left:{step.Depth * 16}px";
+    // The steps are paths: they wrap anywhere, so a long path never pushes the actions out of sight.
+    private static string Indent(FeatureMapStep step) => $"padding-left:{step.Depth * 16}px;min-width:260px;overflow-wrap:anywhere";
 
     // What the code says about the link from the step above, in the words of the other states on this page. Never colour alone: each has a word.
     private static (StatusState State, string Text, string? Title)? LinkChip(FeatureComponentStatus? status)
@@ -241,7 +262,9 @@ public partial class FeatureMapList : LiveComponentBase
         var count = $"{DisplayFormat.Count(_total)} {(_total == 1 ? "map" : "maps")}";
         var matching = _searchedFor.Length > 0 ? $" match '{_searchedFor}'" : string.Empty;
         var shown = _total > _maps.Count ? $", the newest {_maps.Count} shown (search to find the rest)" : string.Empty;
-        var checkedText = _checkedUtc is { } at ? $" Checked against the code {DisplayFormat.Ago(at, Time.GetUtcNow())}." : string.Empty;
+        var checkedText = _checking
+            ? " Checking against the code..."
+            : _checkedUtc is { } at ? $" Checked against the code {DisplayFormat.Ago(at, Time.GetUtcNow())}." : string.Empty;
         return $"{count}{matching}{shown}.{checkedText}";
     }
 }

@@ -47,7 +47,7 @@ else
                 <CollapsibleSection Id="@($"fm-{map.Id}")" Title="@map.Name" InitiallyExpanded="@(_maps.Count == 1)">
                     <Summary>
                         <span class="wm-chip info">@map.Steps.Count @(map.Steps.Count == 1 ? "step" : "steps")</span>
-                        <span class="wm-chip off" title="Goes up every time the flow is saved">v@map.Version</span>
+                        <span class="wm-chip off" title="Goes up every time the flow is saved">v@(map.Version)</span>
                         @if (!map.Ordered)
                         {
                             <span class="wm-chip warn" title="Saved before flows existed: a plain list of components. Claude puts the steps in call order the next time it uses the map.">unordered</span>
