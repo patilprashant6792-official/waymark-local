@@ -11,6 +11,7 @@ using Waymark.Modules.Code.Scheduling;
 using Waymark.Modules.Code.Rewriting;
 using Waymark.Modules.Code.Search;
 using Waymark.Modules.Code.Memory;
+using Waymark.Modules.Code.Memory.Semantic;
 using Waymark.Modules.Code.Skeleton;
 using Waymark.Languages.Python;
 using Waymark.Languages.TypeScript;
@@ -49,9 +50,22 @@ public sealed class CodeModule : IMcpModule
         services.TryAddSingleton(ContentOptions.FromConfiguration(configuration));
         services.TryAddSingleton<ITextSearchService, TextSearchService>();
         services.TryAddSingleton<ICSharpRewriter, CSharpRewriter>();
-        services.TryAddSingleton<FeatureComponentReader>();
+        services.TryAddSingleton(FlowOptions.FromConfiguration(configuration));
+        services.TryAddSingleton<FlowStepReader>();
+        services.TryAddSingleton<FlowLinkChecker>();
+        services.TryAddSingleton<FlowDriftFinder>();
+        services.TryAddSingleton<FlowInspector>();
+        services.TryAddSingleton<FlowRecallService>();
+        services.TryAddSingleton<FlowSaveService>();
         services.TryAddSingleton<IFeatureMemoryService, FeatureMemoryService>();
         services.TryAddSingleton<IFeatureComponentChecker, FeatureComponentChecker>();
+
+        // Search by meaning over flows is not built yet: the empty index is registered so that saving, deleting, importing and listing flows are already wired to it.
+        services.TryAddSingleton<IFlowSemanticIndex, NoFlowSemanticIndex>();
+        services.AddHostedService<FlowSemanticSync>();
+
+        // The files module registers a silent advisor with TryAdd; this one replaces it, whichever module registers first.
+        services.Replace(ServiceDescriptor.Singleton<IFlowEditAdvisor, FlowEditAdvisor>());
     }
 
     public void AddTools(IMcpServerBuilder mcp)

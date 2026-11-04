@@ -53,18 +53,29 @@ internal static class ReceiverFilter
             .ThenBy(p => p.Key, StringComparer.Ordinal)];
     }
 
-    private static SiteMatch Match(CodeCallSiteRow site, IReadOnlySet<string> related, IReadOnlySet<string> valueNames)
+    private static SiteMatch Match(CodeCallSiteRow site, IReadOnlySet<string> related, IReadOnlySet<string> valueNames) =>
+        MatchReceiver(site.ReceiverType, site.ReceiverTypeGuessed, related, valueNames);
+
+    /// <summary>
+    /// Whether a call whose receiver has this declared type can reach a method of the related types. Shared by code_callers and by the link check of a flow,
+    /// so both say the same about the same call.
+    /// </summary>
+    /// <param name="receiverType">The declared type of the receiver, or null when the file does not tell.</param>
+    /// <param name="guessed">True when the type is only a guess (see <see cref="CodeCallSiteEntry"/>).</param>
+    public static SiteMatch MatchReceiver(string? receiverType, bool guessed, IReadOnlySet<string> related, IReadOnlySet<string> valueNames)
     {
-        if (site.ReceiverType is null)
+        ArgumentNullException.ThrowIfNull(related);
+        ArgumentNullException.ThrowIfNull(valueNames);
+        if (receiverType is null)
         {
             return SiteMatch.NameOnly;
         }
 
-        if (site.ReceiverTypeGuessed && valueNames.Contains(site.ReceiverType))
+        if (guessed && valueNames.Contains(receiverType))
         {
             return SiteMatch.NameOnly;
         }
 
-        return related.Contains(site.ReceiverType) ? SiteMatch.Typed : SiteMatch.Unrelated;
+        return related.Contains(receiverType) ? SiteMatch.Typed : SiteMatch.Unrelated;
     }
 }

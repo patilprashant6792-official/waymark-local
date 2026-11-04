@@ -261,9 +261,9 @@ public partial class ImportBundleDialog : LiveComponentBase
 
         if (Content.HasFlag(BundleContent.FeatureMaps))
         {
-            var line = $"Feature maps: {plan.MapsNew} new, {plan.MapsExtended} gain components ({plan.ComponentsToAdd} components in all)";
+            var line = $"Feature maps: {plan.MapsNew} new ({plan.StepsToAdd} steps in all)";
             line += plan.MapsUnchanged > 0 ? $", {plan.MapsUnchanged} here already" : string.Empty;
-            line += plan.ComponentsOverLimit > 0 ? $", {plan.ComponentsOverLimit} components not added (a map holds at most {Waymark.Core.Memory.FeatureMapRules.MaxComponentsPerMap})" : string.Empty;
+            line += plan.MapsConflicting > 0 ? $", {plan.MapsConflicting} not added (a map of that name is here with other steps; yours stays as it is, delete it first to take the one in the file)" : string.Empty;
             yield return line + ".";
         }
 
@@ -284,7 +284,7 @@ public partial class ImportBundleDialog : LiveComponentBase
         var applied = item.Applied;
         var text = string.Create(
             CultureInfo.InvariantCulture,
-            $"{(item.CreatedWorkspace ? "Workspace created. " : string.Empty)}Added {applied?.RulesAdded ?? 0} access rules, {applied?.MapsAdded ?? 0} new feature maps, and {applied?.ComponentsAdded ?? 0} components ({applied?.MapsExtended ?? 0} existing maps grew).");
+            $"{(item.CreatedWorkspace ? "Workspace created. " : string.Empty)}Added {applied?.RulesAdded ?? 0} access rules and {applied?.MapsAdded ?? 0} new feature maps ({applied?.StepsAdded ?? 0} steps).");
         return text;
     }
 

@@ -5,7 +5,7 @@
 @using Waymark.Host.Ui
 
 <h2 class="wm-section" style="margin-top:0">Feature maps</h2>
-<p class="wm-lead">When Claude explores a feature of this workspace it can save the files, types, members and line ranges it needed under the feature's name, so the next session reads them in one call. A map holds names only, never code, and it follows you across branches: a component that is not in the code that is checked out is marked and kept, not deleted. Claude creates and extends the maps; here you read them, check them against the code, and remove what is wrong.</p>
+<p class="wm-lead">When Claude traces a feature of this workspace it saves the path as a flow: the methods from the trigger to the outcome, in call order, under the feature's name, so the next session reads the path in one call and opens only the methods it needs. A map holds names only, never code, and it follows you across branches: a step that is not in the code that is checked out is marked and kept, not deleted. Claude creates and changes the flows; here you read them, check them against the code, and remove what is wrong.</p>
 <BundleToolbar WorkspaceId="Workspace.Id" Content="BundleContent.FeatureMaps" ExportLabel="Export feature maps" Hint="Keep your maps when you move to another computer." />
 
 @if (_error is not null)
@@ -22,7 +22,7 @@ else
     <section class="wm-card" aria-labelledby="fm-find">
         <h2 id="fm-find" class="wm-section" style="margin-top:0">Find</h2>
         <div class="wm-row">
-            <MudTextField T="string" Label="Search" @bind-Value="_query" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Words in a name, summary, path or note" MaxLength="200" Style="min-width:320px" OnKeyUp="OnSearchKey" />
+            <MudTextField T="string" Label="Search" @bind-Value="_query" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Words in a name, summary, path, method or note" MaxLength="200" Style="min-width:320px" OnKeyUp="OnSearchKey" />
             <MudButton Variant="Variant.Outlined" OnClick="SearchAsync" Disabled="@(_busy || string.IsNullOrWhiteSpace(_query))">Search</MudButton>
             @if (_searchedFor.Length > 0)
             {
@@ -35,20 +35,30 @@ else
 
     @if (_maps.Count == 0)
     {
-        <EmptyState Icon="@Icons.Material.Outlined.Bookmarks" Title="@(_searchedFor.Length > 0 ? "No map matches" : "No feature maps yet")" Text="@(_searchedFor.Length > 0 ? "Try other words, or show all." : "After Claude explores a feature it saves one with memorise, and it appears here at once.")" />
+        <EmptyState Icon="@Icons.Material.Outlined.Bookmarks" Title="@(_searchedFor.Length > 0 ? "No map matches" : "No feature maps yet")" Text="@(_searchedFor.Length > 0 ? "Try other words, or show all." : "After Claude traces a feature it saves one with memorise, and it appears here at once.")" />
     }
     else
     {
         foreach (var map in _maps)
         {
             var missing = MissingCount(map);
+            var broken = BrokenCount(map);
             <div style="margin-top:16px">
                 <CollapsibleSection Id="@($"fm-{map.Id}")" Title="@map.Name" InitiallyExpanded="@(_maps.Count == 1)">
                     <Summary>
-                        <span class="wm-chip info">@map.Components.Count @(map.Components.Count == 1 ? "component" : "components")</span>
+                        <span class="wm-chip info">@map.Steps.Count @(map.Steps.Count == 1 ? "step" : "steps")</span>
+                        <span class="wm-chip off" title="Goes up every time the flow is saved">v@(map.Version)</span>
+                        @if (!map.Ordered)
+                        {
+                            <span class="wm-chip warn" title="Saved before flows existed: a plain list of components. Claude puts the steps in call order the next time it uses the map.">unordered</span>
+                        }
                         @if (missing > 0)
                         {
                             <span class="wm-chip warn" title="Kept in memory, but not in the code that is checked out">@missing not on this branch</span>
+                        }
+                        @if (broken > 0)
+                        {
+                            <span class="wm-chip err" title="Both steps are in the code, and the step above makes no such call">@broken @(broken == 1 ? "link does" : "links do") not call</span>
                         }
                         <span class="wm-muted">Updated @DisplayFormat.Ago(map.UpdatedUtc, Time.GetUtcNow())</span>
                     </Summary>
@@ -57,19 +67,27 @@ else
                         {
                             <p>@map.Summary</p>
                         }
+                        @if (map.DistinctReason.Length > 0)
+                        {
+                            <p class="wm-muted">Kept next to another flow with the same trigger: @map.DistinctReason</p>
+                        }
                         <div class="wm-table-wrap">
                             <table class="wm-table">
-                                <caption class="visually-hidden">Components of the feature map @map.Name</caption>
+                                <caption class="visually-hidden">Steps of the feature map @map.Name</caption>
                                 <thead>
-                                    <tr><th scope="col">Component</th><th scope="col">Note</th><th scope="col">In the code now</th><th scope="col">Actions</th></tr>
+                                    <tr><th scope="col">Step</th><th scope="col">Note</th><th scope="col">In the code now</th><th scope="col">Link from the step above</th><th scope="col">Actions</th></tr>
                                 </thead>
                                 <tbody>
-                                    @foreach (var component in map.Components)
+                                    @for (var i = 0; i < map.Steps.Count; i++)
                                     {
-                                        var status = StatusOf(component.Spec);
+                                        var index = i;
+                                        var step = map.Steps[i];
+                                        var status = StatusOf(map, i);
+                                        var link = LinkChip(status);
+                                        var whyNot = WhyNotRemovable(map, i);
                                         <tr>
-                                            <th scope="row" class="wm-mono">@component.Spec</th>
-                                            <td>@component.Note</td>
+                                            <th scope="row" class="wm-mono" style="@Indent(step)">@step.Spec</th>
+                                            <td>@step.Note</td>
                                             <td>
                                                 @if (status is null)
                                                 {
@@ -82,16 +100,30 @@ else
                                                 else
                                                 {
                                                     <StateChip State="StatusState.Attention" Text="Not on this branch" Title="@status.Problem" />
+                                                    @if (status.MovedTo is not null)
+                                                    {
+                                                        <span class="wm-muted wm-mono" title="A method of this name is in another file">moved? @status.MovedTo</span>
+                                                    }
                                                 }
                                             </td>
-                                            <td><MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" Disabled="_busy" OnClick="() => RemoveComponentAsync(map, component)">Remove</MudButton></td>
+                                            <td>
+                                                @if (link is { } chip)
+                                                {
+                                                    <StateChip State="chip.State" Text="@chip.Text" Title="@chip.Title" />
+                                                }
+                                                else if (i == 0 && map.Ordered)
+                                                {
+                                                    <span class="wm-muted">Trigger</span>
+                                                }
+                                            </td>
+                                            <td><MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" Disabled="@(_busy || whyNot is not null)" title="@whyNot" OnClick="() => RemoveStepAsync(map, index)">Remove</MudButton></td>
                                         </tr>
                                     }
                                 </tbody>
                             </table>
                         </div>
                         <div class="wm-row" style="margin-top:12px">
-                            <CopyButton Text="@ComponentsText(map)" Label="Copy components" />
+                            <CopyButton Text="@StepsText(map)" Label="Copy steps" />
                             <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy" OnClick="() => DeleteMapAsync(map)">Delete map</MudButton>
                         </div>
                     </ChildContent>

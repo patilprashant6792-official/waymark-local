@@ -4,12 +4,13 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using ModelContextProtocol;
 using ModelContextProtocol.Server;
+using Waymark.Core.Memory;
 using Waymark.Core.Tools;
 
 namespace Waymark.Modules.Files.Tools;
 
 [McpServerToolType]
-public sealed class FileWriteTool(IFileEditor editor, ToolPipelineOptions pipeline)
+public sealed class FileWriteTool(IFileEditor editor, ToolPipelineOptions pipeline, IFlowEditAdvisor advisor)
 {
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -69,7 +70,16 @@ public sealed class FileWriteTool(IFileEditor editor, ToolPipelineOptions pipeli
             throw new McpException(ex.Message);
         }
 
-        return Format(results, dryRun);
+        var text = Format(results, dryRun);
+        if (dryRun)
+        {
+            return text;
+        }
+
+        // Tells the agent when a written file held a step of a saved flow and a link no longer holds. Silent for almost every write.
+        var written = results.Where(r => r is { Success: true, LineCount: not null }).Select(r => r.RelativeFilePath).ToList();
+        var advice = await advisor.AdviseAsync(workspace, written, FlowEditKind.Edited, cancellationToken).ConfigureAwait(false);
+        return advice is null ? text : $"{text}\n{advice}";
     }
 
     private List<WriteFileEntry> ParseFiles(string? filesJson)

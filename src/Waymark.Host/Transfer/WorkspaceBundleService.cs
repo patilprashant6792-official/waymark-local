@@ -85,8 +85,13 @@ public sealed class WorkspaceBundleService(
             {
                 var stored = await LoadMapsAsync(workspace.Id, ct).ConfigureAwait(false);
                 exportedMaps.AddRange(stored
-                    .Where(map => map.Components.Count > 0)
-                    .Select(map => new BundleMap(map.Name, map.Summary, map.UpdatedUtc, [.. map.Components.Select(component => new BundleComponent(component.Spec, component.Note))])));
+                    .Where(map => map.Steps.Count > 0)
+                    .Select(map => new BundleMap(
+                        map.Name,
+                        map.Summary,
+                        map.UpdatedUtc,
+                        [.. map.Steps.Select(step => new BundleComponent(step.Spec, step.Note, step.Depth, step.Link))],
+                        map.Ordered)));
             }
 
             items.Add(new BundleWorkspace(workspace.Name, workspace.Path, workspace.Enabled, exportedRules, exportedMaps));
@@ -259,9 +264,12 @@ public sealed class WorkspaceBundleService(
                 await events.PublishAsync(new AccessRulesChanged(item.Target.Id)).ConfigureAwait(false);
             }
 
-            if (written.MapsAdded + written.MapsExtended > 0)
+            if (written.MapsAdded > 0)
             {
                 await events.PublishAsync(new FeatureMapsChanged(item.Target.Id)).ConfigureAwait(false);
+
+                // More than one flow arrived: whatever indexes flows builds the workspace again.
+                await events.PublishAsync(new FlowChanged(item.Target.Id, 0, FlowChange.Imported)).ConfigureAwait(false);
             }
         }
 
@@ -376,5 +384,5 @@ public sealed class WorkspaceBundleService(
     private static string DescribeApplied(WorkspaceApplied applied, bool created) =>
         string.Create(
             CultureInfo.InvariantCulture,
-            $"{(created ? "workspace created; " : string.Empty)}rules +{applied.RulesAdded}; maps +{applied.MapsAdded} new, {applied.MapsExtended} extended, {applied.ComponentsAdded} components");
+            $"{(created ? "workspace created; " : string.Empty)}rules +{applied.RulesAdded}; maps +{applied.MapsAdded} new, {applied.StepsAdded} steps");
 }

@@ -161,6 +161,12 @@ public static class WorkspaceBundleSanitizer
             return null;
         }
 
+        return map.Ordered ? CleanFlow(workspace, name, summary, map, notes) : CleanList(workspace, name, summary, map, notes);
+    }
+
+    /// <summary>A map that is a plain list of components (an earlier version, or a map saved before flows): the components only, in order.</summary>
+    private static BundleMap? CleanList(string workspace, string name, string summary, BundleMap map, NoteList notes)
+    {
         var components = new List<BundleComponent>();
         var specs = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach (var component in map.Components ?? [])
@@ -196,7 +202,54 @@ public static class WorkspaceBundleSanitizer
             return null;
         }
 
-        return new BundleMap(name, summary, map.UpdatedUtc, components);
+        return new BundleMap(name, summary, map.UpdatedUtc, components, false);
+    }
+
+    /// <summary>A flow: the steps are checked with the same grammar memorise uses (one trigger, one level deeper at most per step, links known), so an import cannot bring in a flow that Claude could not save.</summary>
+    private static BundleMap? CleanFlow(string workspace, string name, string summary, BundleMap map, NoteList notes)
+    {
+        var lines = new List<string>();
+        foreach (var component in map.Components ?? [])
+        {
+            if (component is null)
+            {
+                continue;
+            }
+
+            var note = component.Note?.Trim() ?? string.Empty;
+            if (note.Length > FeatureComponentSpec.MaxNoteChars || note.Any(char.IsControl))
+            {
+                notes.Add($"{workspace}: the feature map '{name}' was left out (a note is longer than {FeatureComponentSpec.MaxNoteChars} characters or has control characters).");
+                return null;
+            }
+
+            if (!FlowLinkKinds.TryParse(component.Link, out var link) || component.Depth < 0 || component.Depth > FeatureMapRules.MaxDepth)
+            {
+                notes.Add($"{workspace}: the feature map '{name}' was left out (a step has a link or a depth that is not valid).");
+                return null;
+            }
+
+            var line = new string(' ', component.Depth * FlowStepText.IndentWidth) + (component.Spec ?? string.Empty).Trim();
+            if (link != FlowLinkKind.Call)
+            {
+                line += " ~" + FlowLinkKinds.ToText(link);
+            }
+
+            lines.Add(note.Length == 0 ? line : $"{line} | {note}");
+        }
+
+        if (!FlowStepText.TryParse(string.Join("\n", lines), out var steps, out var errors))
+        {
+            notes.Add($"{workspace}: the feature map '{name}' was left out ({errors[0]})");
+            return null;
+        }
+
+        return new BundleMap(
+            name,
+            summary,
+            map.UpdatedUtc,
+            [.. steps.Select(step => new BundleComponent(step.Spec, step.Note, step.Depth, FlowLinkKinds.ToText(step.Link)))],
+            true);
     }
 
     private sealed class NoteList

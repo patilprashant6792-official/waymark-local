@@ -8,7 +8,11 @@ namespace Waymark.Core.Transfer;
 public static class WorkspaceBundleJson
 {
     public const string FormatName = "waymark-workspace-bundle";
-    public const int CurrentVersion = 1;
+
+    /// <summary>Version 2 added the depth and link of a step (feature maps became flows). Version 1 files are still read: their maps import as unordered lists.</summary>
+    public const int CurrentVersion = 2;
+
+    public const int MinReadableVersion = 1;
 
     /// <summary>The largest bundle text that is read, in characters. A bundle of hundreds of maps is well below this.</summary>
     public const int MaxChars = 5_000_000;
@@ -58,7 +62,7 @@ public static class WorkspaceBundleJson
             return false;
         }
 
-        if (parsed.FormatVersion != CurrentVersion)
+        if (parsed.FormatVersion < MinReadableVersion || parsed.FormatVersion > CurrentVersion)
         {
             error = parsed.FormatVersion > CurrentVersion
                 ? "The bundle was made by a newer Waymark. Update Waymark on this computer, then import it again."

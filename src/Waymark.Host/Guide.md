@@ -19,17 +19,25 @@ Orient with code, change with files, verify with commands. Let each group's guid
 
 Orient the way a developer explores a new repository: start from the `code_skeleton(ws)` overview, open only the folders the task needs (`code_skeleton(ws, path=...)`), and read files last. Do not ask for the whole tree of a large workspace up front.
 
-## Feature maps are your memory (keep them without being asked)
+## Feature maps are flows: your memory of the code
 
-Waymark keeps what you learn about a codebase so the next session does not repeat the work. Saving is part of every task, not an extra:
+A feature map is a **flow**: one trigger (an endpoint, a tool, a job, a button) to one outcome, as the ordered methods the request passes through. Waymark keeps what you learn so the next session does not search for "what is called next". `recall` gives you the path without any code; you open only the methods the task needs with the usual code tools. Follow this loop:
 
-1. **Before** you explore a feature, look under "Feature maps saved" in the live setup below. `recall(ws, action='get', ids='12')` returns the current code of a saved map's components in one call; `recall(ws, action='list', query='gate')` searches when none is listed. Explore only what the map lacks.
-2. **While you work**, as soon as you have found the components of a feature that took searching to find, save them with `memorise(ws, action='save_feature_map', name, components, summary)`. Do not wait for the end: a session can stop at any time.
-3. **After you change** a feature (new files, types or members; renamed or deleted ones), update its map in the same task: add what is new and `remove` what you deleted or renamed. A map that names code that no longer exists misleads the next session.
-4. **When you read** the README, docs or code to learn how part of the project works, that is learning too. The first time a workspace has no maps, save an overview map (for example `architecture-overview`) and one per feature you had to understand.
-5. **Before your final answer** on any task that explored or changed a feature, check that its map is saved and current. If it is not, save it now, then answer. Say in one line which map you saved or updated (name and id), so the owner can see that it was done. If you saved none, say why.
+1. **Find.** Look under "Feature maps (flows) saved" in the live setup below, or `recall(ws, action='list', query='...')` with words from the task, or with the name of a method you are about to change (it finds the flows that method is a step of).
+2. **Read.** `recall(ws, action='get', ids='12')` returns each step's place, signature and whether its link to the step above still holds. It never returns code. Read only the steps you need with `code_method`; explore only what the flow lacks.
+3. **Change** the code. A `🧭` line in the result of a file tool means the change touched a step of a flow and a link no longer holds: fix the flow in this task.
+4. **Decide whether the path changed.** Most edits change code inside a step and need no save.
 
-One map per feature: saving to an existing name merges, so update the map of the feature instead of creating a near-duplicate, and keep its summary true. Name features in kebab-case (`command-gates`). Skip saving only for a lookup that needed a single file. The component forms and limits are in the code guide.
+   | What changed | What to do |
+   |---|---|
+   | Code inside a step only | Nothing |
+   | Steps added, removed, renamed or moved, same trigger and outcome | Update that flow: `memorise(ws, action='save_feature_map', name, steps, expectedVersion=<the v you read>)` with the whole new steps |
+   | A new trigger, or a different outcome | Create a flow: `name`, `summary`, `steps` |
+   | Two flows describe the same trigger and outcome | Keep the better one and delete the other: `memorise(ws, action='delete_feature_map', name)` |
+
+5. **Report** in one line which flow you saved or updated (name and id), so the owner can see it. If you saved none, say why (the path did not change).
+
+When you traced a feature that has no flow, save it as soon as you have traced it, not at the end: a session can stop at any time. The first time a workspace has no flows, save `architecture-overview`-style flows for the features you had to understand. Name a flow after its trigger in kebab-case (`memorise-save`). A step that the flow marks as not on this branch is kept for the branch that has it: do not remove it for that reason. The step grammar, link marks and limits are in the code guide.
 
 Moving or duplicating code is copying, not retyping: `file_edit_lines` and `file_write` take `from` (lines, a file or a folder tree, also from another workspace) so you write none of it. To move code between codebases: orient in both workspaces with `code_skeleton`, take line ranges from `code_outline`, preview with `dryRun`, copy, then build the target. Details are in the files guide.
 
