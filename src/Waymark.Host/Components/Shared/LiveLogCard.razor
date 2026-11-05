@@ -2,6 +2,7 @@
 @using MudBlazor
 @using Waymark.Core.LiveFeed
 @using Waymark.Host.Ui
+@inject CallPanelState Calls
 
 <section class="wm-panel" aria-labelledby="live-card-title">
     <header class="wm-panel-head">
@@ -37,7 +38,7 @@
                 </span>
                 @if (LiveLineFormat.CallIdOf(entry) is { } callId)
                 {
-                    <a class="wm-live-more" href="@($"calls/{callId}")" title="Open this call: its input and output">open</a>
+                    <button type="button" class="wm-live-more" title="Open this call: its input and output" @onclick="() => Calls.Open(callId)">open</button>
                 }
             </div>
         }

@@ -1,0 +1,22 @@
+@implements IDisposable
+@using MudBlazor
+@using Microsoft.AspNetCore.Components.Web
+
+@if (State.OpenId is { } id)
+{
+    <aside class="wm-call-panel" aria-label="Call details" tabindex="-1" @ref="_panel" @onkeydown="OnKey">
+        <div class="wm-call-bar">
+            <span class="wm-call-ref wm-mono">#@id</span>
+            @if (State.Sequence.Count > 0)
+            {
+                <MudIconButton Icon="@Icons.Material.Filled.KeyboardArrowUp" Size="Size.Small" Disabled="@(State.Neighbour(-1) is null)" title="Newer call" aria-label="Newer call" OnClick="() => State.Move(-1)" />
+                <MudIconButton Icon="@Icons.Material.Filled.KeyboardArrowDown" Size="Size.Small" Disabled="@(State.Neighbour(1) is null)" title="Older call" aria-label="Older call" OnClick="() => State.Move(1)" />
+            }
+            <a class="wm-call-full" href="@($"calls/{id}")" title="Open as a full page" aria-label="Open as a full page">
+                <MudIcon Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" />
+            </a>
+            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" title="Close (Esc)" aria-label="Close call details" OnClick="State.Close" />
+        </div>
+        <CallView Id="id" Compact="true" />
+    </aside>
+}

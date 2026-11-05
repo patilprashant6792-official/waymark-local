@@ -9,6 +9,7 @@ public static class UiServiceCollectionExtensions
     {
         ArgumentNullException.ThrowIfNull(services);
         services.AddSingleton<ShellStatus>();
+        services.AddScoped<CallPanelState>();
         services.AddSingleton<ToolCatalog>();
         services.AddSingleton<ContextUsageService>();
         services.AddSingleton<Waymark.Core.Tools.IContextMeter, Waymark.Host.Mcp.OpenAiContextMeter>();

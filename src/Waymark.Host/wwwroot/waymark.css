@@ -599,20 +599,6 @@ h1:focus, main:focus {
     font-weight: 600;
 }
 
-.wm-drawer {
-    position: fixed;
-    top: 0;
-    right: 0;
-    bottom: 0;
-    width: min(460px, 100vw);
-    z-index: 1500;
-    padding: 20px;
-    overflow-y: auto;
-    background: var(--mud-palette-surface);
-    border-left: 1px solid var(--mud-palette-lines-default);
-    box-shadow: -8px 0 24px rgba(0, 0, 0, 0.18);
-}
-
 .wm-dl {
     display: grid;
     grid-template-columns: 110px 1fr;
@@ -1001,6 +987,19 @@ a.wm-live-more { display: inline-block; text-decoration: none; }
 .wm-cell .wm-panel > .wm-panel-head { position: sticky; top: 0; z-index: 1; flex: none; background: var(--mud-palette-surface); }
 .wm-cell .wm-panel:has(.wm-live-term) { overflow: hidden; }
 
+/* Scrollbars follow the palette: thin, with no light-grey native track on the dark theme. */
+.wm-cell .wm-tile, .wm-cell .wm-panel, .wm-cell .wm-panel > :not(.wm-panel-head) {
+    scrollbar-width: thin;
+    scrollbar-color: color-mix(in srgb, var(--mud-palette-text-secondary) 55%, transparent) transparent;
+}
+
+@media (min-width: 901px) {
+    /* The header stays put and only the list under it scrolls, so the scrollbar never runs beside the header or into the rounded corners. */
+    /* Cards with KPI tiles or the live terminal keep their own scrolling. */
+    .wm-cell .wm-panel:not(:has(.wm-mkpis, .wm-live-term)) { overflow: hidden; }
+    .wm-cell .wm-panel:not(:has(.wm-mkpis, .wm-live-term)) > :not(.wm-panel-head) { flex: 1 1 auto; min-height: 0; overflow-y: auto; }
+}
+
 .wm-grid.editing .wm-cell { cursor: grab; touch-action: none; user-select: none; outline: 2px dashed color-mix(in srgb, var(--mud-palette-primary) 55%, transparent); outline-offset: 2px; }
 .wm-grid.editing .wm-cell:hover, .wm-grid.editing .wm-cell:focus-visible { outline-color: var(--mud-palette-primary); }
 .wm-grid.editing .wm-cell-body { pointer-events: none; opacity: 0.9; }
@@ -1149,4 +1148,64 @@ a.wm-live-more { display: inline-block; text-decoration: none; }
 @media (forced-colors: active) {
     .wm-rows > li[data-flash="a"], .wm-table tbody tr[data-flash="a"] > td, .wm-live-line[data-flash="a"], .wm-mkpis > div[data-flash="a"] { animation-name: wm-flash-fc-a; }
     .wm-rows > li[data-flash="b"], .wm-table tbody tr[data-flash="b"] > td, .wm-live-line[data-flash="b"], .wm-mkpis > div[data-flash="b"] { animation-name: wm-flash-fc-b; }
+}
+
+/* ---------- call details: a compact floating panel that opens in place (Audit, Dashboard, Live log) ---------- */
+/* It floats over the right edge, so the page behind it never reflows and keeps its filters, scroll position and live feed; the page stays clickable. */
+.wm-call-panel {
+    position: fixed;
+    top: calc(var(--wm-header-h) + 8px);
+    right: 12px;
+    bottom: 12px;
+    z-index: 1500;
+    width: min(480px, calc(100vw - 24px));
+    overflow-y: auto;
+    padding: 12px 14px 20px;
+    background: var(--mud-palette-surface);
+    border: 1px solid var(--mud-palette-lines-default);
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.35);
+    outline: none;
+}
+
+.wm-call-bar {
+    position: sticky;
+    top: 0;
+    z-index: 2;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    margin: -12px -14px 8px;
+    padding: 4px 8px 4px 14px;
+    background: var(--mud-palette-surface);
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+}
+
+.wm-call-ref { flex: 1; color: var(--mud-palette-text-secondary); font-size: 12px; }
+.wm-call-full { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; color: var(--mud-palette-text-secondary); border-radius: 50%; }
+.wm-call-full:hover { color: var(--mud-palette-text-primary); background: var(--mud-palette-action-default-hover); }
+
+.wm-call-head { margin-bottom: 8px; }
+.wm-call-sub { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; margin: 0; color: var(--mud-palette-text-secondary); }
+
+.wm-call.compact { font-size: 13px; }
+.wm-call.compact .wm-call-title { margin: 0 0 4px; font-size: 1rem; font-weight: 600; overflow-wrap: anywhere; }
+.wm-call.compact .wm-card { margin-top: 8px; padding: 8px 10px; border-radius: 8px; }
+.wm-call.compact .wm-section { margin: 0 0 6px; font-size: 0.78rem; letter-spacing: 0.05em; text-transform: uppercase; color: var(--mud-palette-text-secondary); }
+.wm-call.compact .wm-call-note { margin: 4px 0 8px; font-size: 12px; }
+.wm-call.compact .wm-dl { grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr); gap: 2px 10px; font-size: 12.5px; }
+.wm-call.compact .wm-dl dt.full { grid-column: 1; }
+.wm-call.compact .wm-dl dd.full { grid-column: 2 / -1; }
+.wm-call.compact .wm-arg { margin-bottom: 8px; }
+.wm-call.compact .wm-arg-name { font-size: 12.5px; }
+.wm-call.compact .wm-payload.wm-term { max-height: 34vh; padding: 6px 8px; font-size: 12px; }
+.wm-call.compact .wm-alert, .wm-call.compact .mud-alert { margin-top: 8px; font-size: 12.5px; }
+
+/* The audit list: the time stays on one line, and the open call's row is marked. */
+.wm-audit-table td:first-child { white-space: nowrap; }
+.wm-table tr.clickable.selected td { background: color-mix(in srgb, var(--mud-palette-primary) 12%, transparent); }
+.wm-table tr.clickable.selected td:first-child { box-shadow: inset 3px 0 0 var(--mud-palette-primary); }
+
+@media (max-width: 900px) {
+    .wm-call-panel { top: 8px; }
 }

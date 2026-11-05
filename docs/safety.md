@@ -47,10 +47,10 @@ The same rules hold for every toolchain; what differs is where code can start.
 
 ## Inputs and outputs of tool calls
 
-Every tool call has a details page (`/calls/{id}`, opened from Audit, Live and Home) with what the AI sent and what it received.
+Every tool call has details with what the AI sent and what it received. They open in a compact side panel beside the page you are on (from Audit, Live and Home), so the list keeps its filters and place; the panel's full-page button goes to `/calls/{id}`.
 
 - **Kept apart from the audit row.** The audit list still shows argument names only. The input and output go into their own table (`audit_payloads`), after the same secret hiding as a result: every text value of the input is checked, a value under a name such as `password` or `token` is replaced outright, and the output is stored exactly as the AI received it (secrets hidden, size limit applied, without the guide text Waymark attaches).
-- **Loaded on demand.** The details page shows the input at once; the output is read from the database only when you click **Show output**.
+- **Loaded on demand.** The call details show the input at once; the output is read from the database only when you click **Show output**.
 - **On this computer only, and under your control.** Switch it off, choose how long it is kept (1 to 30 days, default 14) or delete everything kept, on the Audit page. A change and a deletion are each written to the audit trail. The audit rows stay for 90 days either way.
 - **Limits.** An input is cut at 100,000 characters and an output at 200,000; the page says when that happened. Calls made before this was added, or while it was off, have nothing kept.
 - **Treat the database like your source code.** It already holds names and signatures from your code; with this switched on it also holds the text of files and command output that tools returned. Secret hiding goes by shape and is not a guarantee.

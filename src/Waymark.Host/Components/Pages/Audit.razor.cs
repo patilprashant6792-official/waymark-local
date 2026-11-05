@@ -22,7 +22,6 @@ public partial class Audit : LiveComponentBase
     private IReadOnlyList<StoredAuditEntry> _rows = [];
     private IReadOnlyList<string> _tools = [];
     private IReadOnlyList<string> _workspaces = [];
-    private StoredAuditEntry? _selected;
     private string _text = string.Empty;
     private string _tool = string.Empty;
     private string _workspace = string.Empty;
@@ -53,6 +52,9 @@ public partial class Audit : LiveComponentBase
     [Inject]
     private ToolPayloadService Payloads { get; set; } = default!;
 
+    [Inject]
+    private CallPanelState Calls { get; set; } = default!;
+
     private int FirstShown => _rows.Count == 0 ? 0 : (_page * PageSize) + 1;
 
     private int LastShown => (_page * PageSize) + _rows.Count;
@@ -63,6 +65,7 @@ public partial class Audit : LiveComponentBase
 
     protected override async Task OnInitializedAsync()
     {
+        Calls.Changed += OnCallsChanged;
         try
         {
             _tools = await Store.DistinctActionsAsync(AuditCategory.Tool, Cancel);
@@ -119,10 +122,15 @@ public partial class Audit : LiveComponentBase
             _rows = await Store.QueryAsync(query, Cancel);
             _total = await Store.CountAsync(query, Cancel);
             _error = null;
+            Calls.SetSequence([.. _rows.Select(r => r.Id)]);
         }
         catch (OperationCanceledException)
         {
             // The page was closed.
+        }
+        catch (ObjectDisposedException)
+        {
+            // The page was closed while a live refresh was in flight.
         }
         catch (Exception ex)
         {
@@ -213,18 +221,6 @@ public partial class Audit : LiveComponentBase
         }
     }
 
-    private void Open(StoredAuditEntry row) => _selected = row;
-
-    private void Close() => _selected = null;
-
-    private void OnDrawerKey(KeyboardEventArgs e)
-    {
-        if (e.Key == "Escape")
-        {
-            Close();
-        }
-    }
-
     private async Task TailAsync()
     {
         using var timer = new PeriodicTimer(TailEvery);
@@ -232,7 +228,7 @@ public partial class Audit : LiveComponentBase
         {
             while (await timer.WaitForNextTickAsync(Cancel))
             {
-                if (IsTailing && _selected is null)
+                if (IsTailing && Calls.OpenId is null)
                 {
                     await InvokeAsync(async () =>
                     {
@@ -252,15 +248,32 @@ public partial class Audit : LiveComponentBase
         }
     }
 
-
     private void OnRowKey(KeyboardEventArgs e, StoredAuditEntry row)
     {
         if (e.Key == "Enter")
         {
-            Open(row);
+            Calls.Open(row.Id);
         }
     }
-    private static string ClientOf(AuditEntry entry) => entry.Actor ?? "-";
+
+    private void OnCallsChanged()
+    {
+        try
+        {
+            _ = InvokeAsync(StateHasChanged);
+        }
+        catch (ObjectDisposedException)
+        {
+            // The circuit ended while the change was in flight.
+        }
+    }
+
+    public override void Dispose()
+    {
+        Calls.Changed -= OnCallsChanged;
+        Calls.SetSequence([]);
+        base.Dispose();
+    }
 
     private async Task LoadKeepAsync()
     {
