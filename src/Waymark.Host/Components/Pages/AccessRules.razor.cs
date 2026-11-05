@@ -6,11 +6,19 @@ using Waymark.Core.Security;
 using Waymark.Core.Workspaces;
 using Waymark.Host.Components.Shared;
 using Waymark.Host.Security;
+using Waymark.Host.Components.Ui;
 
 namespace Waymark.Host.Components.Pages;
 
 public partial class AccessRules : LiveComponentBase
 {
+    private static readonly IReadOnlyList<WmOption<AccessRuleKind>> KindOptions =
+    [
+        new(AccessRuleKind.BlockFolder, "Block a folder or path"),
+        new(AccessRuleKind.BlockFileName, "Block a file name"),
+        new(AccessRuleKind.BlockKeyword, "Block a word in the path"),
+        new(AccessRuleKind.AllowExtension, "Allow a file type")
+    ];
     private IReadOnlyList<AccessRule> _rules = [];
     private Workspace? _workspace;
     private AccessListing? _listing;

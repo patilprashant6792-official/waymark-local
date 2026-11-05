@@ -6,7 +6,7 @@
 <MudDialog>
     <DialogContent>
         <div class="wm-stack">
-            <p class="wm-muted" style="margin:0">@Intro</p>
+            <p class="wm-muted wm-flush">@Intro</p>
 
             @if (_error is not null)
             {
@@ -16,7 +16,7 @@
             @if (_report is null)
             {
                 <div>
-                    <label for="wm-bundle-file" style="display:block;margin-bottom:4px">Bundle file (.json)</label>
+                    <label for="wm-bundle-file" class="wm-label-block">Bundle file (.json)</label>
                     <InputFile id="wm-bundle-file" OnChange="OnFileAsync" accept=".json,application/json" disabled="@_busy" />
                 </div>
             }
@@ -31,7 +31,7 @@
                 @if (_parsed.Notes.Count > 0)
                 {
                     <InlineAlert Severity="Severity.Warning" Title="Left out of the file">
-                        <ul style="margin:4px 0 0;padding-left:20px">
+                        <ul class="wm-list">
                             @foreach (var note in _parsed.Notes)
                             {
                                 <li>@note</li>
@@ -44,43 +44,27 @@
                 {
                     <section class="wm-card" @key="row.Source.Name" aria-label="@row.Source.Name">
                         <div class="wm-row spread">
-                            <h3 class="wm-section" style="margin:0">@row.Source.Name</h3>
+                            <h3 class="wm-card-title wm-flush">@row.Source.Name</h3>
                             <span class="wm-muted">@FileSummary(row.Source)</span>
                         </div>
-                        <div class="wm-row" style="margin-top:12px">
-                            <MudSelect T="ImportAction" Label="What to do" Value="row.Action" ValueChanged="@((ImportAction value) => ActionChangedAsync(row, value))" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:280px" Disabled="_busy">
-                                @if (TargetWorkspaceId is null)
-                                {
-                                    <MudSelectItem T="ImportAction" Value="ImportAction.MergeIntoExisting" Disabled="@(_existing.Count == 0)">Merge into a workspace I have</MudSelectItem>
-                                    <MudSelectItem T="ImportAction" Value="ImportAction.CreateWorkspace">Create it as a new workspace</MudSelectItem>
-                                }
-                                else
-                                {
-                                    <MudSelectItem T="ImportAction" Value="ImportAction.MergeIntoExisting">Merge into this workspace</MudSelectItem>
-                                }
-                                <MudSelectItem T="ImportAction" Value="ImportAction.Skip">Skip it</MudSelectItem>
-                            </MudSelect>
+                        <div class="wm-row wm-note">
+                            <WmSelect TValue="ImportAction" Label="What to do" Width="FieldWidth.Large" Value="row.Action" ValueChanged="@((ImportAction value) => ActionChangedAsync(row, value))" Options="ActionOptions" Disabled="_busy" />
 
                             @if (row.Action == ImportAction.MergeIntoExisting && TargetWorkspaceId is null)
                             {
-                                <MudSelect T="long" Label="Merge into" Value="row.TargetId" ValueChanged="@((long value) => TargetChangedAsync(row, value))" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:240px" Disabled="_busy">
-                                    @foreach (var workspace in _existing)
-                                    {
-                                        <MudSelectItem T="long" Value="workspace.Id">@workspace.Name</MudSelectItem>
-                                    }
-                                </MudSelect>
+                                <WmSelect TValue="long" Label="Merge into" Value="row.TargetId" ValueChanged="@((long value) => TargetChangedAsync(row, value))" Options="ExistingOptions" Disabled="_busy" />
                             }
 
                             @if (row.Action == ImportAction.CreateWorkspace)
                             {
-                                <MudTextField T="string" Label="New name" Value="row.NewName" ValueChanged="@((string value) => NameChangedAsync(row, value))" Variant="Variant.Outlined" Margin="Margin.Dense" MaxLength="64" Style="min-width:200px" Disabled="_busy" />
-                                <MudTextField T="string" Label="Folder on this computer" Value="row.NewPath" ValueChanged="@((string value) => PathChangedAsync(row, value))" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="The full path of the project folder here. The file only suggests the folder it had on the other computer." Style="min-width:360px;flex:1" Disabled="_busy" />
+                                <WmTextField Label="New name" Value="row.NewName" ValueChanged="@((string value) => NameChangedAsync(row, value))" MaxLength="64" Width="FieldWidth.Small" Disabled="_busy" />
+                                <WmTextField Label="Folder on this computer" Value="row.NewPath" ValueChanged="@((string value) => PathChangedAsync(row, value))" HelperText="The full path of the project folder here. The file only suggests the folder it had on the other computer." Width="FieldWidth.Large" Disabled="_busy" />
                             }
                         </div>
 
                         @if (row.Action != ImportAction.Skip && row.Preview is { } preview)
                         {
-                            <div aria-live="polite" style="margin-top:12px">
+                            <div aria-live="polite" class="wm-note">
                                 @if (preview.Problem is not null)
                                 {
                                     <InlineAlert Severity="Severity.Warning">@preview.Problem</InlineAlert>
@@ -94,7 +78,7 @@
 
                                     @if (plan.RulesAllowingFileTypes > 0)
                                     {
-                                        <div style="margin-top:8px"><InlineAlert Severity="Severity.Warning">@AllowText(plan)</InlineAlert></div>
+                                        <InlineAlert Severity="Severity.Warning">@AllowText(plan)</InlineAlert>
                                     }
                                 }
                             </div>
@@ -124,12 +108,12 @@
     <DialogActions>
         @if (_report is null)
         {
-            <MudButton Variant="Variant.Outlined" OnClick="Close">Cancel</MudButton>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="ImportAsync" Disabled="@(!CanImport)">Import</MudButton>
+            <WmButton OnClick="Close">Cancel</WmButton>
+            <WmButton Kind="ButtonKind.Primary" OnClick="ImportAsync" Disabled="@(!CanImport)">Import</WmButton>
         }
         else
         {
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="Close">Close</MudButton>
+            <WmButton Kind="ButtonKind.Primary" OnClick="Close">Close</WmButton>
         }
     </DialogActions>
 </MudDialog>

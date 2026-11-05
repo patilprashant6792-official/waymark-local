@@ -1,0 +1,22 @@
+@* The signature element: the path a call takes, always in the same order. Reused wherever a page needs to say "is it all connected?". *@
+<ol class="wm-chain" aria-label="@Label">
+    @foreach (var hop in Hops)
+    {
+        <li class="wm-hop @hop.CssClass">
+            <div class="wm-hop-name">@hop.Name</div>
+            <div class="wm-hop-state"><WmStatus State="hop.Status" Text="@hop.State" /></div>
+            @if (!string.IsNullOrEmpty(hop.Detail))
+            {
+                <div class="wm-muted wm-ellipsis" title="@hop.Detail">@hop.Detail</div>
+            }
+        </li>
+    }
+</ol>
+
+@code {
+    [Parameter, EditorRequired]
+    public IReadOnlyList<ChainHop> Hops { get; set; } = [];
+
+    [Parameter]
+    public string Label { get; set; } = "From Claude to your code";
+}

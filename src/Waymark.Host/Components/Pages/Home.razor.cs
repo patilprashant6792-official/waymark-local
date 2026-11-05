@@ -12,6 +12,7 @@ using Waymark.Core.Auth;
 using Waymark.Core.Settings;
 using Waymark.Host.Auth;
 using Waymark.Host.Components.Shared;
+using Waymark.Host.Components.Patterns;
 using Waymark.Host.Edge;
 using Waymark.Host.NuGetAdmin;
 using Waymark.Host.Ui;
@@ -24,6 +25,7 @@ public partial class Home : LiveComponentBase
     private const int RecentCommands = 5;
     private const int ReloadEveryTicks = 5;
     private const int RecentCallRows = 8;
+    private static readonly TimeSpan ActiveWindow = TimeSpan.FromMinutes(10);
 
     private readonly Dictionary<long, CodeIndexProgress> _progress = [];
     private IDisposable? _progressSubscription;
@@ -137,6 +139,62 @@ public partial class Home : LiveComponentBase
         Indexing is { } running ? (StatusState.Working, $"Indexing {DisplayFormat.Count(running.FilesProcessed)} of {DisplayFormat.Count(running.FilesTotal)}")
         : _workspaces.Count == 0 ? (StatusState.Off, "No workspaces")
         : (StatusState.Healthy, "Ready");
+
+    // The path of a call, left to right: Claude, the tunnel, Waymark's guard, your code. Built only from what this page already loads.
+    private IReadOnlyList<ChainHop> Chain => [ClaudeHop, TunnelHop, GuardHop, CodeHop];
+
+    private ChainHop ClaudeHop
+    {
+        get
+        {
+            if (_recent.Count == 0)
+            {
+                return new ChainHop("Claude", HopKind.Off, "No calls yet", "Nothing has connected so far");
+            }
+
+            var last = _recent[0].Entry.TimestampUtc;
+            var ago = DisplayFormat.Ago(last, Time.GetUtcNow());
+            return Time.GetUtcNow() - last <= ActiveWindow
+                ? new ChainHop("Claude", HopKind.Ok, "Active", $"Last call {ago}")
+                : new ChainHop("Claude", HopKind.Off, "Idle", $"Last call {ago}");
+        }
+    }
+
+    private ChainHop TunnelHop
+    {
+        get
+        {
+            var (state, text) = TunnelState;
+            var kind = state switch
+            {
+                StatusState.Healthy => HopKind.Ok,
+                StatusState.Failed => HopKind.Bad,
+                StatusState.Attention or StatusState.Working => HopKind.Hold,
+                _ => HopKind.Off
+            };
+            return new ChainHop("Tunnel", kind, text, Status.Tunnel.Domain is { Length: > 0 } domain ? domain : "Local agents need no tunnel");
+        }
+    }
+
+    private ChainHop GuardHop
+    {
+        get
+        {
+            if (Status.Paused)
+            {
+                return new ChainHop("Waymark guard", HopKind.Hold, "Paused", "Every tool call is refused");
+            }
+
+            var holding = _commandsWaiting.Count + _pending.Count;
+            return holding > 0
+                ? new ChainHop("Waymark guard", HopKind.Hold, $"Holding {holding}", "Waiting for your decision")
+                : new ChainHop("Waymark guard", HopKind.Ok, "Guarding", "Gates and approvals are on");
+        }
+    }
+
+    private ChainHop CodeHop => _workspaces.Count == 0
+        ? new ChainHop("Your code", HopKind.Off, "No workspaces", "Add a folder for Claude to see")
+        : new ChainHop("Your code", HopKind.Ok, $"{_workspaces.Count} {(_workspaces.Count == 1 ? "workspace" : "workspaces")}", $"{DisplayFormat.Count(IndexedFiles)} files indexed");
 
     // Things worth a look, shown as chips under the title; empty when everything is fine.
     private IReadOnlyList<AttentionItem> Attention

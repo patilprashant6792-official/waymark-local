@@ -1,0 +1,69 @@
+@* Every page starts here: tab title, heading, lead sentence and the page's actions. One place to restyle all of them. *@
+@if (Embedded)
+{
+    @* Sitting inside another page (a workspace's tab): a section heading only, no page title and no page wrapper. *@
+    <SectionHeader Title="@Title" Lead="@Lead" LeadContent="@LeadContent" Actions="@Actions" />
+    @ChildContent
+}
+else
+{
+    <PageTitle>@Title - Waymark</PageTitle>
+
+    <div class="wm-page @(Wide ? "wide" : null)">
+        @if (Back is not null)
+        {
+            <a class="wm-back" href="@Back.Href">
+                <MudIcon Icon="@Icons.Material.Outlined.ArrowBack" Size="Size.Small" />
+                <span>@Back.Label</span>
+            </a>
+        }
+        <header class="wm-page-head">
+            <div>
+                <h1 class="wm-title">@Title</h1>
+                @if (!string.IsNullOrEmpty(Lead))
+                {
+                    <p class="wm-lead">@Lead</p>
+                }
+                @LeadContent
+            </div>
+            @if (Actions is not null)
+            {
+                <div class="wm-actions">@Actions</div>
+            }
+        </header>
+        @ChildContent
+    </div>
+}
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    /// <summary>One sentence under the title that says what the page is for.</summary>
+    [Parameter]
+    public string? Lead { get; set; }
+
+    /// <summary>Richer lead text, when a plain sentence is not enough.</summary>
+    [Parameter]
+    public RenderFragment? LeadContent { get; set; }
+
+    /// <summary>The page's actions, top right. At most one of them is Primary.</summary>
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+
+    [Parameter]
+    public bool Wide { get; set; }
+
+    /// <summary>True when the page is a section of another page: only a section heading is drawn.</summary>
+    [Parameter]
+    public bool Embedded { get; set; }
+
+    /// <summary>A link above the title, for a page that belongs to another (a workspace's tabs).</summary>
+    [Parameter]
+    public PageBack? Back { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    public sealed record PageBack(string Href, string Label);
+}

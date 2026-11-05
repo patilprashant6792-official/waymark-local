@@ -1,48 +1,41 @@
-﻿@page "/workspaces"
+@page "/workspaces"
 @inherits LiveComponentBase
-@using MudBlazor
-@using Waymark.Host.Components.Shared
 @using Waymark.Host.Ui
 @using Waymark.Core.Transfer
 
-<PageTitle>Workspaces - Waymark</PageTitle>
+<PageFrame Title="Workspaces" Lead="Folders Claude may read and, when you allow it, change. Nothing outside these folders is reachable. Open a workspace to set its access rules and other options.">
+    <Actions>
+        <BundleToolbar Content="BundleContent.All" ExportLabel="Export all" />
+        <WmButton Kind="ButtonKind.Primary" Icon="@Icons.Material.Outlined.Add" OnClick="AddAsync">Add workspace</WmButton>
+    </Actions>
+    <ChildContent>
+        @if (_error is not null)
+        {
+            <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
+        }
 
-<div class="wm-page">
-    <div class="wm-page-head">
-        <div>
-            <h1 class="wm-title">Workspaces</h1>
-            <p class="wm-lead">Folders Claude may read and, when you allow it, change. Nothing outside these folders is reachable. Open a workspace to set its access rules and other options.</p>
-        </div>
-        <div class="wm-row">
-            <BundleToolbar Content="BundleContent.All" ExportLabel="Export all" />
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddAsync">Add workspace</MudButton>
-        </div>
-    </div>
-
-    @if (_error is not null)
-    {
-        <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
-    }
-
-    @if (!_loaded)
-    {
-        <p class="wm-lead" aria-live="polite">Loading...</p>
-    }
-    else if (_items.Count == 0)
-    {
-        <EmptyState Icon="@Icons.Material.Outlined.FolderOpen" Title="No workspaces yet" Text="Add a folder. Waymark indexes it so Claude can search it quickly.">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" StartIcon="@Icons.Material.Filled.Add" OnClick="AddAsync" Style="margin-top:12px">Add workspace</MudButton>
-        </EmptyState>
-    }
-    else
-    {
-        <ul class="wm-tiles wm-ws-grid" aria-label="Workspaces">
-            @foreach (var item in _items)
-            {
-                <li @key="item.Id">
-                    <WorkspaceCard Workspace="item" Stats="_stats.GetValueOrDefault(item.Id)" Progress="_progress.GetValueOrDefault(item.Id)" Repo="_repos.GetValueOrDefault(item.Id)" ShownPath="@ShownPath(item.Path)" Now="Time.GetUtcNow()" />
-                </li>
-            }
-        </ul>
-    }
-</div>
+        @if (!_loaded)
+        {
+            <p class="wm-lead" aria-live="polite">Loading...</p>
+        }
+        else if (_items.Count == 0)
+        {
+            <EmptyState Icon="@Icons.Material.Outlined.FolderOpen" Title="No workspaces yet" Text="Add a folder. Waymark indexes it so Claude can search it quickly.">
+                <div class="wm-actions wm-card-actions">
+                    <WmButton Kind="ButtonKind.Primary" Icon="@Icons.Material.Outlined.Add" OnClick="AddAsync">Add workspace</WmButton>
+                </div>
+            </EmptyState>
+        }
+        else
+        {
+            <ul class="wm-tiles wm-ws-grid" aria-label="Workspaces">
+                @foreach (var item in _items)
+                {
+                    <li @key="item.Id">
+                        <WorkspaceCard Workspace="item" Stats="_stats.GetValueOrDefault(item.Id)" Progress="_progress.GetValueOrDefault(item.Id)" Repo="_repos.GetValueOrDefault(item.Id)" ShownPath="@ShownPath(item.Path)" Now="Time.GetUtcNow()" />
+                    </li>
+                }
+            </ul>
+        }
+    </ChildContent>
+</PageFrame>

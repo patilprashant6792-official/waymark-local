@@ -1,0 +1,103 @@
+/* App shell: header, menu, main column, page frame. */
+.wm-shell {
+    /* As tall as the window: the header stays put, the menu and the page scroll on their own. */
+    height: 100vh;
+    height: 100dvh;
+    display: grid;
+    grid-template-columns: var(--wm-nav-w) minmax(0, 1fr);
+    grid-template-rows: var(--wm-header-h) minmax(0, 1fr);
+    grid-template-areas: "header header" "nav main";
+}
+
+.wm-header { grid-area: header; position: sticky; top: 0; z-index: 100; display: flex; align-items: center; gap: var(--wm-space-3); padding: 0 var(--wm-space-4); background: var(--wm-bg); border-bottom: 1px solid var(--wm-line); }
+
+.wm-logo { display: inline-flex; align-items: center; gap: var(--wm-space-2); font-weight: 600; font-size: var(--wm-text-lg); color: var(--wm-text); text-decoration: none; /* header padding 16 + toggle 36 + two gaps of 12 + this = menu width, so the chips start where the page starts */ min-width: max(0px, calc(var(--wm-nav-w) - 76px)); }
+.wm-logo-mark { width: 28px; height: 28px; flex: none; border-radius: 7px; }
+
+.wm-header-chips { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wm-space-2); flex: 1; min-width: 0; }
+.wm-header-actions { display: flex; align-items: center; gap: var(--wm-space-2); }
+
+.wm-nav-toggle { display: inline-flex; flex: none; align-items: center; justify-content: center; width: 36px; height: 36px; padding: 0; color: var(--wm-muted); background: none; border: 0; border-radius: var(--wm-r-ctl); cursor: pointer; }
+.wm-nav-toggle:hover { color: var(--wm-text); background: var(--wm-hover); }
+
+.wm-nav { grid-area: nav; display: flex; flex-direction: column; gap: 2px; min-height: 0; padding: var(--wm-space-4) var(--wm-space-2); overflow-y: auto; background: var(--wm-bg); border-right: 1px solid var(--wm-line); }
+.wm-nav-group { margin: var(--wm-space-4) var(--wm-space-3) var(--wm-space-1); font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--wm-hint); }
+.wm-nav-group:first-child { margin-top: 0; }
+
+.wm-nav-item { display: flex; align-items: center; gap: 10px; min-height: 36px; padding: 6px var(--wm-space-3); border-radius: var(--wm-r-ctl); color: var(--wm-muted); font-weight: 500; text-decoration: none; }
+.wm-nav-item .mud-icon-root { font-size: 18px; }
+.wm-nav-item:hover { color: var(--wm-text); background: var(--wm-hover); }
+.wm-nav-item.active { color: var(--wm-text); background: var(--wm-selected); font-weight: 600; }
+.wm-nav-item.disabled { color: var(--wm-hint); pointer-events: none; }
+
+.wm-badge { margin-left: auto; min-width: 20px; padding: 0 6px; border-radius: var(--wm-r-ctl); text-align: center; font-size: 0.75rem; font-weight: 700; line-height: 20px; color: var(--mud-palette-warning-text); background: var(--wm-warn); }
+
+.wm-nav-foot { margin-top: auto; padding: var(--wm-space-3); font-size: var(--wm-text-xs); color: var(--wm-hint); }
+
+.wm-main { grid-area: main; position: relative; min-width: 0; min-height: 0; overflow-y: auto; }
+
+/* ---------- page frame ---------- */
+.wm-page { max-width: var(--wm-page-w); margin: 0 auto; padding: var(--wm-space-5) var(--wm-space-5) 64px; }
+.wm-page.wide { max-width: var(--wm-page-w-wide); }
+
+.wm-page-head { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--wm-space-4); margin-bottom: var(--wm-space-5); }
+.wm-page-head > div:first-child { flex: 1 1 360px; min-width: 0; }
+.wm-title { margin: 0 0 var(--wm-space-1); font-size: var(--wm-text-title); font-weight: 600; letter-spacing: -0.01em; line-height: 1.2; }
+.wm-lead { max-width: 68ch; margin: 0; color: var(--wm-muted); }
+.wm-page-head .wm-lead { margin-bottom: 0; }
+.wm-page > .wm-lead { margin-bottom: var(--wm-space-5); }
+.wm-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wm-space-2); }
+
+.wm-back { display: inline-flex; align-items: center; gap: var(--wm-space-1); margin-bottom: var(--wm-space-3); font-weight: 500; color: var(--wm-muted); text-decoration: none; }
+.wm-back:hover { color: var(--wm-text); }
+
+/* ---------- collapsed menu: icons only ---------- */
+@media (min-width: 901px) {
+    .wm-shell.nav-anim { transition: grid-template-columns var(--wm-dur-med) var(--wm-ease); }
+    .wm-shell.nav-anim .wm-logo { transition: min-width var(--wm-dur-med) var(--wm-ease); }
+    .wm-shell.nav-collapsed { --wm-nav-w: 64px; }
+    .nav-collapsed .wm-nav { overflow-x: hidden; }
+    .nav-collapsed .wm-nav-item { position: relative; justify-content: center; padding: 8px 0; }
+    /* The names stay in the page for screen readers; only the icon is drawn. */
+    .nav-collapsed .wm-nav-item > span:not(.wm-badge) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+    .nav-collapsed .wm-nav-group { height: 1px; margin: 10px 12px; padding: 0; overflow: hidden; font-size: 0; background: var(--wm-line); }
+    .nav-collapsed .wm-nav-group:first-child { margin-top: 0; background: none; }
+    .nav-collapsed .wm-badge { position: absolute; top: 0; right: 4px; min-width: 16px; margin: 0; padding: 0 4px; font-size: 10px; line-height: 16px; }
+    .nav-collapsed .wm-nav-foot { display: none; }
+}
+
+/* ---------- narrow screens: the menu is a strip above the page ---------- */
+@media (max-width: 900px) {
+    .wm-shell { height: auto; grid-template-columns: 1fr; grid-template-rows: auto auto 1fr; grid-template-areas: "header" "nav" "main"; }
+    .wm-main { overflow-y: visible; }
+    .wm-header { flex-wrap: wrap; height: auto; padding: var(--wm-space-2) var(--wm-space-4); }
+    .wm-logo { min-width: 0; }
+    .wm-nav { flex-direction: row; overflow-x: auto; padding: var(--wm-space-2) var(--wm-space-4); border-right: none; border-bottom: 1px solid var(--wm-line); }
+    .wm-nav-group, .wm-nav-foot, .wm-nav-toggle { display: none; }
+    .wm-nav-item { white-space: nowrap; }
+    .wm-page { padding: var(--wm-space-4); }
+}
+
+/* ---------- keyboard shortcuts panel ---------- */
+.wm-shortcuts { position: fixed; right: 16px; bottom: 16px; z-index: 1300; width: min(360px, calc(100vw - 32px)); padding: var(--wm-space-4); background: var(--wm-surface); color: var(--wm-text); border: 1px solid var(--wm-line); border-radius: var(--wm-r-card); box-shadow: var(--wm-elev-2); }
+.wm-shortcuts[hidden] { display: none; }
+
+/* ---------- Ctrl K palette ---------- */
+.wm-palette-trigger { display: inline-flex; align-items: center; gap: var(--wm-space-2); min-height: var(--wm-ctl-h-sm); padding: 4px 12px; font: inherit; color: var(--wm-muted); background: transparent; border: 1px solid var(--wm-line-input); border-radius: var(--wm-r-ctl); cursor: pointer; }
+.wm-palette-trigger:hover { color: var(--wm-text); background: var(--wm-hover); }
+.wm-palette-backdrop { position: fixed; inset: 0; z-index: 2100; display: flex; align-items: flex-start; justify-content: center; padding: 12vh 16px 16px; background: rgba(0, 0, 0, 0.6); }
+.wm-palette { display: flex; flex-direction: column; width: min(560px, 100%); max-height: 70vh; overflow: hidden; color: var(--wm-text); background: var(--wm-surface); border: 1px solid var(--wm-line); border-radius: var(--wm-r-panel); box-shadow: var(--wm-elev-2); }
+.wm-palette-search { display: flex; align-items: center; gap: var(--wm-space-2); padding: var(--wm-space-3) var(--wm-space-4); border-bottom: 1px solid var(--wm-line); }
+.wm-palette-input { flex: 1; min-width: 0; font: inherit; font-size: var(--wm-text-lg); color: inherit; background: transparent; border: 0; outline: none; }
+.wm-palette-list { margin: 0; padding: 6px; overflow-y: auto; list-style: none; }
+.wm-palette-item { display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: var(--wm-r-sm); cursor: pointer; }
+.wm-palette-item .wm-muted { margin-left: auto; font-size: var(--wm-text-sm); }
+.wm-palette-item.active { background: var(--wm-selected); }
+.wm-palette-empty { margin: 0; padding: var(--wm-space-3) var(--wm-space-4); color: var(--wm-muted); }
+.wm-palette-foot { margin: 0; padding: var(--wm-space-2) var(--wm-space-4); font-size: var(--wm-text-xs); color: var(--wm-hint); border-top: 1px solid var(--wm-line); }
+@media (max-width: 900px) { .wm-palette-hint { display: none; } }
+@media (forced-colors: active) { .wm-palette { border: 1px solid CanvasText; } .wm-palette-item.active { outline: 2px solid Highlight; } }
+
+/* header status links */
+.wm-header-link { color: inherit; text-decoration: none; }
+.wm-header-link:hover, .wm-header-link:focus-visible { text-decoration: underline; }

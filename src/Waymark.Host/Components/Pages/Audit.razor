@@ -1,180 +1,180 @@
-﻿@page "/audit"
+@page "/audit"
 @inherits LiveComponentBase
-@using Microsoft.AspNetCore.Components.Web
-@using MudBlazor
 @using Waymark.Core.Audit
-@using Waymark.Host.Components.Shared
 @using Waymark.Host.Ui
 
-<PageTitle>Audit - Waymark</PageTitle>
-
-<div class="wm-page">
-    <div class="wm-row spread">
-        <div>
-            <h1 class="wm-title">Audit</h1>
-            <p class="wm-lead" style="margin-bottom:12px">Everything that was asked of Waymark, and what happened. The list shows argument names only; open a tool call to see its full input and output. The purpose given for a command is kept in full.</p>
-        </div>
-        <div class="wm-row">
-            <MudButton Variant="Variant.Outlined" StartIcon="@Icons.Material.Filled.Download" OnClick="ExportAsync">Export JSON</MudButton>
-        </div>
-    </div>
-
-    @if (_error is not null)
-    {
-        <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
-    }
-
-    <CollapsibleSection Id="audit-keep" Title="Inputs and outputs of tool calls" InitiallyExpanded="false">
-        <Summary>
-            <span class="wm-chip info">@(_keep.Enabled ? "Kept for " + (_keep.Days == 1 ? "1 day" : _keep.Days + " days") : "Not kept")</span>
-            <span class="wm-muted" aria-live="polite">@DisplayFormat.Count(_keepStats.Calls) calls kept, about @DisplayFormat.Size(_keepStats.Chars)</span>
-        </Summary>
-        <ChildContent>
-        <p class="wm-muted" style="margin-top:0">
-            Every tool call has details that show what the AI sent and what it received; its output is loaded only when you open it. The list below still shows argument names only.
-            The full texts are kept on this computer, with secrets hidden by shape (not a guarantee), and deleted after the period you choose. The audit rows themselves stay for @AuditRetentionService.DefaultRetentionDays days.
-        </p>
-        <div class="wm-row">
-            <label><input type="checkbox" checked="@_keep.Enabled" @onchange="OnKeepToggledAsync" /> Keep inputs and outputs</label>
-            <label>Keep for
-                <select class="wm-select" value="@_keep.Days" disabled="@(!_keep.Enabled)" @onchange="OnKeepDaysChangedAsync">
-                    @foreach (var days in ToolPayloadLimits.DayChoices)
-                    {
-                        <option value="@days">@(days == 1 ? "1 day" : $"{days} days")</option>
-                    }
-                </select>
-            </label>
-            <MudButton Variant="Variant.Outlined" Color="@(_confirmClear ? Color.Error : Color.Default)" Disabled="@(_keepStats.Calls == 0)" OnClick="ClearKeepAsync">@(_confirmClear ? "Click again to delete them" : "Delete kept inputs and outputs")</MudButton>
-            @if (_confirmClear)
-            {
-                <MudButton Variant="Variant.Text" OnClick="() => _confirmClear = false">Cancel</MudButton>
-            }
-        </div>
-        @if (_keepNote is not null)
+<PageFrame Title="Audit" Wide="true" Lead="Everything that was asked of Waymark and what happened (History), and what is happening right now (Live). The list shows argument names only; open a tool call to see its full input and output.">
+    <Actions>
+        @if (!ShowLive)
         {
-            <p class="wm-muted" role="status" style="margin:8px 0 0">@_keepNote</p>
+            <WmButton Icon="@Icons.Material.Outlined.Download" OnClick="ExportAsync">Export JSON</WmButton>
         }
-        </ChildContent>
-    </CollapsibleSection>
+    </Actions>
+    <ChildContent>
+        <WmTabs Label="Audit views" Tabs="ViewTabs" Selected="@(ShowLive ? "live" : "history")" SelectedChanged="ShowView" />
 
-    <section class="wm-card" aria-label="Filters">
-        <div class="wm-row">
-            <label>Search
-                <input id="audit-search" class="wm-input" type="search" placeholder="Press / to search" @bind="_text" @bind:event="onchange" @bind:after="ApplyFiltersAsync" @onkeydown="OnSearchKeyAsync" />
-            </label>
-            <label>Kind
-                <select class="wm-select" @bind="_kind" @bind:after="ApplyFiltersAsync">
-                    <option value="">Everything</option>
-                    <option value="tool">Tool calls</option>
-                    <option value="approval">Approvals</option>
-                    <option value="auth">Sign-ins and keys</option>
-                    <option value="config">Settings</option>
-                </select>
-            </label>
-            <label>Tool
-                <select class="wm-select" @bind="_tool" @bind:after="ApplyFiltersAsync">
-                    <option value="">All tools</option>
-                    @foreach (var tool in _tools)
-                    {
-                        <option value="@tool">@tool</option>
-                    }
-                </select>
-            </label>
-            <label>Workspace
-                <select class="wm-select" @bind="_workspace" @bind:after="ApplyFiltersAsync">
-                    <option value="">All workspaces</option>
-                    @foreach (var workspace in _workspaces)
-                    {
-                        <option value="@workspace">@workspace</option>
-                    }
-                </select>
-            </label>
-            <label>Outcome
-                <select class="wm-select" @bind="_outcome" @bind:after="ApplyFiltersAsync">
-                    <option value="">Any</option>
-                    <option value="ok">OK</option>
-                    <option value="denied">Denied</option>
-                    <option value="error">Error</option>
-                </select>
-            </label>
-            <label>Range
-                <select class="wm-select" @bind="_range" @bind:after="ApplyFiltersAsync">
-                    <option value="1h">Last hour</option>
-                    <option value="24h">Last 24 hours</option>
-                    <option value="7d">Last 7 days</option>
-                    <option value="all">Everything kept</option>
-                </select>
-            </label>
-            <MudButton Variant="Variant.Text" OnClick="ClearFiltersAsync">Clear filters</MudButton>
-        </div>
-    </section>
-
-    <div class="wm-row spread" style="margin:12px 0">
-        <div class="wm-row">
-            @if (IsTailing)
+        @if (ShowLive)
+        {
+            <LiveStream />
+        }
+        else
+        {
+            @if (_error is not null)
             {
-                <StateChip State="StatusState.Working" Text="@(Calls.OpenId is null ? "Live" : "Live, held while a call is open")" />
-                <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.Pause" OnClick="() => _live = false">Pause</MudButton>
+                <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
             }
-            else if (_page == 0)
+
+            <CollapsibleSection Id="audit-keep" Title="Inputs and outputs of tool calls" InitiallyExpanded="false">
+                <Summary>
+                    <WmTag Tone="Tone.Info" Text="@(_keep.Enabled ? "Kept for " + (_keep.Days == 1 ? "1 day" : _keep.Days + " days") : "Not kept")" />
+                    <span class="wm-muted" aria-live="polite">@DisplayFormat.Count(_keepStats.Calls) calls kept, about @DisplayFormat.Size(_keepStats.Chars)</span>
+                </Summary>
+                <ChildContent>
+                    <p class="wm-muted">
+                        Every tool call has details that show what the AI sent and what it received; its output is loaded only when you open it. The list below still shows argument names only.
+                        The full texts are kept on this computer, with secrets hidden by shape (not a guarantee), and deleted after the period you choose. The audit rows themselves stay for @AuditRetentionService.DefaultRetentionDays days.
+                    </p>
+                    <div class="wm-row">
+                        <label><input type="checkbox" checked="@_keep.Enabled" @onchange="OnKeepToggledAsync" /> Keep inputs and outputs</label>
+                        <label class="wm-filter-field">Keep for
+                            <select class="wm-select" value="@_keep.Days" disabled="@(!_keep.Enabled)" @onchange="OnKeepDaysChangedAsync">
+                                @foreach (var days in ToolPayloadLimits.DayChoices)
+                                {
+                                    <option value="@days">@(days == 1 ? "1 day" : $"{days} days")</option>
+                                }
+                            </select>
+                        </label>
+                        <WmButton Kind="@(_confirmClear ? ButtonKind.Danger : ButtonKind.Secondary)" Disabled="@(_keepStats.Calls == 0)" OnClick="ClearKeepAsync">@(_confirmClear ? "Click again to delete them" : "Delete kept inputs and outputs")</WmButton>
+                        @if (_confirmClear)
+                        {
+                            <WmButton Kind="ButtonKind.Ghost" OnClick="() => _confirmClear = false">Cancel</WmButton>
+                        }
+                    </div>
+                    @if (_keepNote is not null)
+                    {
+                        <p class="wm-muted" role="status">@_keepNote</p>
+                    }
+                </ChildContent>
+            </CollapsibleSection>
+
+            <div class="wm-filter-bar" role="search" aria-label="Filters">
+                <label class="wm-filter-field">Search
+                    <input id="audit-search" class="wm-input" type="search" placeholder="Press / to search" @bind="_text" @bind:event="onchange" @bind:after="ApplyFiltersAsync" @onkeydown="OnSearchKeyAsync" />
+                </label>
+                <label class="wm-filter-field">Kind
+                    <select class="wm-select" @bind="_kind" @bind:after="ApplyFiltersAsync">
+                        <option value="">Everything</option>
+                        <option value="tool">Tool calls</option>
+                        <option value="approval">Approvals</option>
+                        <option value="auth">Sign-ins and keys</option>
+                        <option value="config">Settings</option>
+                    </select>
+                </label>
+                <label class="wm-filter-field">Tool
+                    <select class="wm-select" @bind="_tool" @bind:after="ApplyFiltersAsync">
+                        <option value="">All tools</option>
+                        @foreach (var tool in _tools)
+                        {
+                            <option value="@tool">@tool</option>
+                        }
+                    </select>
+                </label>
+                <label class="wm-filter-field">Workspace
+                    <select class="wm-select" @bind="_workspace" @bind:after="ApplyFiltersAsync">
+                        <option value="">All workspaces</option>
+                        @foreach (var workspace in _workspaces)
+                        {
+                            <option value="@workspace">@workspace</option>
+                        }
+                    </select>
+                </label>
+                <label class="wm-filter-field">Outcome
+                    <select class="wm-select" @bind="_outcome" @bind:after="ApplyFiltersAsync">
+                        <option value="">Any</option>
+                        <option value="ok">OK</option>
+                        <option value="denied">Denied</option>
+                        <option value="error">Error</option>
+                    </select>
+                </label>
+                <label class="wm-filter-field">Range
+                    <select class="wm-select" @bind="_range" @bind:after="ApplyFiltersAsync">
+                        <option value="1h">Last hour</option>
+                        <option value="24h">Last 24 hours</option>
+                        <option value="7d">Last 7 days</option>
+                        <option value="all">Everything kept</option>
+                    </select>
+                </label>
+                <WmButton Kind="ButtonKind.Ghost" OnClick="ClearFiltersAsync">Clear filters</WmButton>
+            </div>
+
+            <div class="wm-row spread wm-list-status">
+                <div class="wm-row">
+                    @if (IsTailing)
+                    {
+                        <WmStatus State="StatusState.Working" Live="true" Text="@(Calls.OpenId is null ? "Live" : "Live, held while a call is open")" />
+                        <WmButton Small="true" Icon="@Icons.Material.Outlined.Pause" OnClick="() => _live = false">Pause</WmButton>
+                    }
+                    else if (_page == 0)
+                    {
+                        <WmStatus State="StatusState.Off" Text="Paused" />
+                        <WmButton Small="true" Icon="@Icons.Material.Outlined.PlayArrow" OnClick="() => _live = true">Resume</WmButton>
+                    }
+                    else
+                    {
+                        <WmStatus State="StatusState.Off" Text="Older entries" />
+                    }
+                </div>
+                <span class="wm-muted" aria-live="polite">Showing @DisplayFormat.Count(FirstShown)&ndash;@DisplayFormat.Count(LastShown) of @DisplayFormat.Count(_total) &middot; kept for @AuditRetentionService.DefaultRetentionDays days</span>
+            </div>
+
+            @if (_rows.Count == 0)
             {
-                <StateChip State="StatusState.Off" Text="Paused" />
-                <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.PlayArrow" OnClick="() => _live = true">Resume</MudButton>
+                <EmptyState Icon="@Icons.Material.Outlined.History" Title="Nothing matches" Text="Change the filters, or wait for the next call." />
             }
             else
             {
-                <StateChip State="StatusState.Off" Text="Older entries" />
+                <div class="wm-table-wrap">
+                    <table class="wm-table wm-audit-table">
+                        <caption class="visually-hidden">Audit entries, newest first. Select a row for details.</caption>
+                        <thead>
+                            <tr><th scope="col">When</th><th scope="col">Tool or event</th><th scope="col">Workspace or target</th><th scope="col">Outcome</th><th scope="col" class="num">Time</th><th scope="col" class="num">Size</th><th scope="col" class="num">Tokens</th><th scope="col"><span class="visually-hidden">Details</span></th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var row in _rows)
+                            {
+                                var outcome = DisplayFormat.Outcome(row.Entry.Outcome);
+                                var isOpen = Calls.OpenId == row.Id;
+                                <tr class="clickable@(isOpen ? " cur" : string.Empty)" tabindex="0" aria-current="@(isOpen ? "true" : null)" @onclick="() => Calls.Open(row.Id)" @onkeydown="e => OnRowKey(e, row)">
+                                    <td>@DisplayFormat.DateAndClock(row.Entry.TimestampUtc)</td>
+                                    <td>
+                                        <span class="wm-mono">@row.Entry.Action</span>
+                                        @if (row.Entry.Purpose is { Length: > 0 } why)
+                                        {
+                                            <span class="wm-audit-why">@why</span>
+                                        }
+                                    </td>
+                                    <td>@(row.Entry.Target ?? "-")</td>
+                                    <td><WmStatus State="outcome.State" Text="@outcome.Text" /></td>
+                                    <td class="num">@DisplayFormat.Duration(row.Entry.DurationMs)</td>
+                                    <td class="num">@DisplayFormat.Bytes(row.Entry.ResultBytes)</td>
+                                    <td class="num">@DisplayFormat.Tokens(row.Entry.ResultTokens, row.Entry.ResultBytes)</td>
+                                    <td>
+                                        @if (row.Entry.Category == AuditCategory.Tool)
+                                        {
+                                            <WmButton Kind="ButtonKind.Ghost" Small="true" aria-label="@($"Open call {row.Id}: {row.Entry.Action}")" OnClick="() => Calls.Open(row.Id)">Open</WmButton>
+                                        }
+                                    </td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="wm-actions wm-card-actions">
+                    <WmButton Disabled="@(_page == 0)" OnClick="NewerAsync">Newer</WmButton>
+                    <WmButton Disabled="@(!HasOlder)" OnClick="OlderAsync">Older</WmButton>
+                </div>
             }
-        </div>
-        <span class="wm-muted" aria-live="polite">Showing @DisplayFormat.Count(FirstShown)&ndash;@DisplayFormat.Count(LastShown) of @DisplayFormat.Count(_total) &middot; kept for @AuditRetentionService.DefaultRetentionDays days</span>
-    </div>
-
-    @if (_rows.Count == 0)
-    {
-        <EmptyState Icon="@Icons.Material.Outlined.History" Title="Nothing matches" Text="Change the filters, or wait for the next call." />
-    }
-    else
-    {
-        <div class="wm-table-wrap">
-            <table class="wm-table wm-audit-table">
-                <caption class="visually-hidden">Audit entries, newest first. Select a row for details.</caption>
-                <thead>
-                    <tr><th scope="col">When</th><th scope="col">Tool or event</th><th scope="col">Workspace or target</th><th scope="col">Outcome</th><th scope="col" class="num">Time</th><th scope="col" class="num">Size</th><th scope="col" class="num">Tokens</th><th scope="col"><span class="visually-hidden">Details</span></th></tr>
-                </thead>
-                <tbody>
-                    @foreach (var row in _rows)
-                    {
-                        var outcome = DisplayFormat.Outcome(row.Entry.Outcome);
-                        var isOpen = Calls.OpenId == row.Id;
-                        <tr class="clickable@(isOpen ? " selected" : string.Empty)" tabindex="0" aria-current="@(isOpen ? "true" : null)" @onclick="() => Calls.Open(row.Id)" @onkeydown="e => OnRowKey(e, row)">
-                            <td>@DisplayFormat.DateAndClock(row.Entry.TimestampUtc)</td>
-                            <td>
-                                <span class="wm-mono">@row.Entry.Action</span>
-                                @if (row.Entry.Purpose is { Length: > 0 } why)
-                                {
-                                    <span class="wm-audit-why">@why</span>
-                                }
-                            </td>
-                            <td>@(row.Entry.Target ?? "-")</td>
-                            <td><StateChip State="outcome.State" Text="@outcome.Text" /></td>
-                            <td class="num">@DisplayFormat.Duration(row.Entry.DurationMs)</td>
-                            <td class="num">@DisplayFormat.Bytes(row.Entry.ResultBytes)</td>
-                            <td class="num">@DisplayFormat.Tokens(row.Entry.ResultTokens, row.Entry.ResultBytes)</td>
-                            <td>
-                                @if (row.Entry.Category == AuditCategory.Tool)
-                                {
-                                    <button type="button" class="wm-live-more" aria-label="@($"Open call {row.Id}: {row.Entry.Action}")" @onclick="() => Calls.Open(row.Id)" @onclick:stopPropagation="true">Open</button>
-                                }
-                            </td>
-                        </tr>
-                    }
-                </tbody>
-            </table>
-        </div>
-
-        <div class="wm-row" style="margin-top:12px">
-            <MudButton Variant="Variant.Outlined" Disabled="@(_page == 0)" OnClick="NewerAsync">Newer</MudButton>
-            <MudButton Variant="Variant.Outlined" Disabled="@(!HasOlder)" OnClick="OlderAsync">Older</MudButton>
-        </div>
-    }
-</div>
+        }
+    </ChildContent>
+</PageFrame>

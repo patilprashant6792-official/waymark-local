@@ -9,7 +9,7 @@
 <section class="wm-card wm-cmd-card" aria-label="A command waits for your approval">
     <div class="wm-row spread">
         <h2 class="wm-card-title">Claude wants to run: @Title</h2>
-        <StateChip State="StatusState.Attention" Text="@ExpiresText" Icon="@Icons.Material.Filled.Timer" />
+        <WmStatus State="StatusState.Attention" Text="@ExpiresText" />
     </div>
     <p class="wm-muted">Nothing runs until you approve. You can read it first and, for a shell script, change it.</p>
     <dl class="wm-dl">
@@ -40,7 +40,7 @@
         <ul class="wm-risks" aria-label="Things this script seems to do">
             @foreach (var risk in Run.Risks)
             {
-                <li><span class="wm-chip warn"><MudIcon Icon="@Icons.Material.Filled.Warning" Size="Size.Small" /><span>@risk</span></span></li>
+                <li><WmTag Tone="Tone.Warn" Text="@risk" /></li>
             }
         </ul>
     }
@@ -60,14 +60,14 @@
         <InlineAlert Severity="Severity.Warning">@_error</InlineAlert>
     }
 
-    <div class="wm-row wm-cmd-actions">
+    <div class="wm-actions wm-cmd-actions">
         <input class="wm-input wm-reason" type="text" maxlength="200" placeholder="Reason for denying (optional)" aria-label="Reason for denying" @bind="_reason" @bind:event="oninput" />
-        <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy" OnClick="() => DecideAsync(false)">Deny</MudButton>
+        <WmButton Kind="ButtonKind.Danger" Disabled="_busy" OnClick="() => DecideAsync(false)">Deny</WmButton>
         @if (Run.Tier == CommandTier.Shell)
         {
-            <MudButton Variant="Variant.Text" Disabled="_busy" OnClick="ToggleEdit">@(_editing ? "Show original" : "Edit script")</MudButton>
+            <WmButton Kind="ButtonKind.Ghost" Disabled="_busy" OnClick="ToggleEdit">@(_editing ? "Show original" : "Edit script")</WmButton>
         }
-        <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="_busy" OnClick="() => DecideAsync(true)">@(IsEdited ? "Approve edited script" : "Approve and run")</MudButton>
+        <WmButton Kind="ButtonKind.Primary" Disabled="_busy" OnClick="() => DecideAsync(true)">@(IsEdited ? "Approve edited script" : "Approve and run")</WmButton>
     </div>
 </section>
 

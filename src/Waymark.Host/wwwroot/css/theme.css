@@ -1,0 +1,65 @@
+/* Waymark theme variables. Colours are NOT defined here: DesignSystem.cs -> WaymarkTheme.cs -> MudBlazor writes --mud-palette-*,
+   and this file only gives them product names. Everything else (space, type, radius, motion) lives here and nowhere else. */
+:root {
+    /* type */
+    --wm-font: "Inter", "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+    --wm-mono: "Cascadia Mono", ui-monospace, Consolas, monospace;
+    --wm-text-xs: 0.75rem;
+    --wm-text-sm: 0.8125rem;
+    --wm-text-md: 0.875rem;
+    --wm-text-lg: 1rem;
+    --wm-text-xl: 1.125rem;
+    --wm-text-title: 1.75rem;
+
+    /* space, 4px base */
+    --wm-space-1: 4px;
+    --wm-space-2: 8px;
+    --wm-space-3: 12px;
+    --wm-space-4: 16px;
+    --wm-space-5: 24px;
+    --wm-space-6: 32px;
+    --wm-space-7: 48px;
+    --wm-gap: var(--wm-space-4);
+
+    /* shape: controls are pills, cards 14, panels 16 */
+    --wm-r-ctl: 999px;
+    --wm-r-sm: 8px;
+    --wm-r-card: 14px;
+    --wm-r-panel: 16px;
+    --wm-radius: var(--wm-r-card);
+
+    /* control sizes */
+    --wm-ctl-h: 40px;
+    --wm-ctl-h-sm: 32px;
+
+    /* layout */
+    --wm-header-h: 56px;
+    --wm-nav-w: 232px;
+    --wm-page-w: 1120px;
+    --wm-page-w-wide: 1360px;
+
+    /* motion */
+    --wm-ease: cubic-bezier(0.2, 0, 0, 1);
+    --wm-dur-fast: 120ms;
+    --wm-dur-med: 220ms;
+
+    /* colour names; values come from MudBlazor */
+    --wm-bg: var(--mud-palette-background);
+    --wm-surface: var(--mud-palette-surface);
+    --wm-surface-2: var(--mud-palette-background-gray);
+    --wm-line: var(--mud-palette-lines-default);
+    --wm-line-input: var(--mud-palette-lines-inputs);
+    --wm-text: var(--mud-palette-text-primary);
+    --wm-muted: var(--mud-palette-text-secondary);
+    --wm-hint: var(--mud-palette-text-disabled);
+    --wm-primary: var(--mud-palette-primary);
+    --wm-on-primary: var(--mud-palette-primary-text);
+    --wm-ok: var(--mud-palette-success);
+    --wm-warn: var(--mud-palette-warning);
+    --wm-err: var(--mud-palette-error);
+    --wm-info: var(--mud-palette-info);
+    --wm-hover: color-mix(in srgb, var(--mud-palette-text-primary) 6%, transparent);
+    --wm-selected: color-mix(in srgb, var(--mud-palette-text-primary) 10%, transparent);
+    --wm-elev-1: 0 1px 2px rgba(0, 0, 0, 0.18);
+    --wm-elev-2: 0 8px 24px rgba(0, 0, 0, 0.32);
+}

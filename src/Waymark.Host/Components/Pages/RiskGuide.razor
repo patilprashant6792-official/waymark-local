@@ -3,11 +3,7 @@
 @using Waymark.Core.Commands
 @using Waymark.Host.Ui
 
-<PageTitle>Safety - Waymark</PageTitle>
-
-<div class="wm-page">
-    <h1 class="wm-title">Safety</h1>
-    <p class="wm-lead">Waymark gives an AI agent real access to this computer. This page says what that means, what is switched on to limit the damage, and what was caught.</p>
+<PageFrame Title="Safety" Lead="Waymark gives an AI agent real access to this computer. This page says what that means, what is switched on to limit the damage, and what was caught.">
 
     @if (_error is not null)
     {
@@ -29,14 +25,12 @@
 
     @if (AutoProjectCode.Count > 0)
     {
-        <div style="margin-top:12px">
-            <InlineAlert Severity="Severity.Error" Title="Code runs without asking">
-                @string.Join(", ", AutoProjectCode.Select(o => o.Label)) can start code from your project, including code Claude has just written, without waiting for you. Set them back to Ask on <a href="commands">Commands</a> unless you mean this.
-            </InlineAlert>
-        </div>
+        <InlineAlert Severity="Severity.Error" Title="Code runs without asking">
+            @string.Join(", ", AutoProjectCode.Select(o => o.Label)) can start code from your project, including code Claude has just written, without waiting for you. Set them back to Ask on <a href="commands">Commands</a> unless you mean this.
+        </InlineAlert>
     }
 
-    <h2 class="wm-section">What is switched on</h2>
+    <SectionHeader Title="What is switched on" />
     <ul class="wm-rows" aria-label="Safeguards">
         <li>
             <div class="wm-row-main">
@@ -44,57 +38,57 @@
                 <div class="wm-muted">Private keys, cloud and source-host tokens, JWTs, passwords in connection strings and URLs, secret-named JSON values and environment lines, and every value in your Vault are replaced by a marker in each tool result, error messages included.</div>
                 <div class="wm-muted">Secrets are recognised by their shape, so one in an unusual form can still get through. Turn off with <span class="wm-mono">Waymark:Safety:RedactSecrets</span>.</div>
             </div>
-            <StateChip State="@(Options.RedactSecrets ? StatusState.Healthy : StatusState.Failed)" Text="@(Options.RedactSecrets ? "On" : "Off")" />
+            <WmStatus State="@(Options.RedactSecrets ? StatusState.Healthy : StatusState.Failed)" Text="@(Options.RedactSecrets ? "On" : "Off")" />
         </li>
         <li>
             <div class="wm-row-main">
                 <strong>Safety line on every result</strong>
                 <div class="wm-muted">One closing line asks Claude to discard a secret it was shown and to advise you to rotate it and delete the chat. Change it with <span class="wm-mono">Waymark:Safety:FooterText</span>, turn it off with <span class="wm-mono">Waymark:Safety:AppendFooter</span>.</div>
-                <div class="wm-code" style="margin-top:6px">@Options.FooterText</div>
+                <div class="wm-code wm-note">@Options.FooterText</div>
             </div>
-            <StateChip State="@(Options.AppendFooter ? StatusState.Healthy : StatusState.Off)" Text="@(Options.AppendFooter ? "On" : "Off")" />
+            <WmStatus State="@(Options.AppendFooter ? StatusState.Healthy : StatusState.Off)" Text="@(Options.AppendFooter ? "On" : "Off")" />
         </li>
         <li>
             <div class="wm-row-main">
                 <strong>Markers cannot be written back</strong>
                 <div class="wm-muted">A write or command that contains a finished marker is refused, so a hidden secret never ends up as text in your files.</div>
             </div>
-            <StateChip State="StatusState.Healthy" Text="Always on" />
+            <WmStatus State="StatusState.Healthy" Text="Always on" />
         </li>
         <li>
             <div class="wm-row-main">
                 <strong>Operations that run code ask first</strong>
                 <div class="wm-muted">@AskingProjectCodeCount of @ProjectCodeCount operations that start code from your project (tests, builds, scripts, dev servers and type checkers in .NET, Python and Node) wait for your approval.</div>
             </div>
-            <StateChip State="@(AutoProjectCode.Count == 0 ? StatusState.Healthy : StatusState.Failed)" Text="@(AutoProjectCode.Count == 0 ? "All ask" : $"{AutoProjectCode.Count} automatic")" />
+            <WmStatus State="@(AutoProjectCode.Count == 0 ? StatusState.Healthy : StatusState.Failed)" Text="@(AutoProjectCode.Count == 0 ? "All ask" : $"{AutoProjectCode.Count} automatic")" />
         </li>
         <li>
             <div class="wm-row-main">
                 <strong>Installs run no package code</strong>
                 <div class="wm-muted">Python installs use wheels only (<span class="wm-mono">uv --no-build</span>, <span class="wm-mono">pip --only-binary :all:</span>) and never build the project; a requirements file with editable, path or URL lines is refused. Node installs are <span class="wm-mono">npm ci --ignore-scripts</span> from the lock file, and npm runs as <span class="wm-mono">node npm-cli.js</span>, never through a <span class="wm-mono">.cmd</span> shim. A package that needs its install script has to be set up by you through the shell.</div>
             </div>
-            <StateChip State="StatusState.Healthy" Text="Always on" />
+            <WmStatus State="StatusState.Healthy" Text="Always on" />
         </li>
         <li>
             <div class="wm-row-main">
                 <strong>Scripts run only when named</strong>
                 <div class="wm-muted">A <span class="wm-mono">package.json</span> script runs only if it exists there, and its text is shown on the approval card. Extra arguments cannot load or evaluate code (<span class="wm-mono">--require</span>, <span class="wm-mono">--import</span>, <span class="wm-mono">--eval</span>).</div>
             </div>
-            <StateChip State="StatusState.Healthy" Text="Always on" />
+            <WmStatus State="StatusState.Healthy" Text="Always on" />
         </li>
         <li>
             <div class="wm-row-main">
                 <strong>Package lookups read, never install</strong>
                 <div class="wm-muted">To show a package's API, Waymark itself contacts nuget.org, pypi.org (and files.pythonhosted.org) or registry.npmjs.org, checks the integrity hash the registry publishes, reads declarations or source by syntax, and deletes the download. Credential files (<span class="wm-mono">.npmrc</span>, <span class="wm-mono">.pypirc</span>, <span class="wm-mono">pip.conf</span>, <span class="wm-mono">.netrc</span>) are never read by any tool.</div>
             </div>
-            <StateChip State="StatusState.Healthy" Text="Always on" />
+            <WmStatus State="StatusState.Healthy" Text="Always on" />
         </li>
     </ul>
 
-    <h2 class="wm-section">Operations by risk</h2>
+    <SectionHeader Title="Operations by risk" />
     <div class="wm-row">
         <label class="wm-muted" for="risk-toolchain">Toolchain</label>
-        <select id="risk-toolchain" class="wm-input" value="@ToolchainKey" @onchange="OnToolchainChanged">
+        <select id="risk-toolchain" class="wm-select" value="@ToolchainKey" @onchange="OnToolchainChanged">
             <option value="@Toolchains.All">All toolchains (@Operations.Count operations)</option>
             @foreach (var toolchain in Toolchains.Ordered)
             {
@@ -121,7 +115,7 @@
                         <td>@Toolchains.TitleOf(operation.Family)</td>
                         <td><RiskChip Operation="operation" /></td>
                         <td>@operation.Default</td>
-                        <td><StateChip State="GateState(operation, gate)" Text="@gate.ToString()" /></td>
+                        <td><WmStatus State="GateState(operation, gate)" Text="@gate.ToString()" /></td>
                     </tr>
                 }
             </tbody>
@@ -129,8 +123,7 @@
     </div>
     <p class="wm-muted">Reads is safe to run on its own. Changes, Runs code and Sends out are worth an approval until you trust the workspace. Per-workspace choices are made on <a href="commands">Commands</a>.</p>
 
-    <h2 class="wm-section">Exposure ledger</h2>
-    <p class="wm-muted">Each row is a time Waymark hid something before it reached Claude. Rotate the credential and remove it from the file or output so it stops showing up. Only kinds and counts are kept, never a value.</p>
+    <SectionHeader Title="Exposure ledger" Lead="Each row is a time Waymark hid something before it reached Claude. Rotate the credential and remove it from the file or output so it stops showing up. Only kinds and counts are kept, never a value." />
     @if (_ledger.Count == 0)
     {
         <EmptyState Icon="@Icons.Material.Outlined.Shield" Title="Nothing hidden yet" Text="When Waymark hides a secret in a result, it is listed here." />
@@ -157,4 +150,4 @@
             </table>
         </div>
     }
-</div>
+</PageFrame>

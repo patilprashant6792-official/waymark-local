@@ -6,6 +6,7 @@ using Waymark.Core.Workspaces;
 using Waymark.Host.Commands;
 using Waymark.Host.Components.Shared;
 using Waymark.Host.Ui;
+using Waymark.Host.Components.Ui;
 using Waymark.Modules.Commands;
 using Waymark.Modules.Commands.Execution;
 
@@ -133,6 +134,20 @@ public partial class CommandSettings : LiveComponentBase
         CommandGate.Ask => "ask",
         _ => "auto"
     };
+
+    // Off, Ask, Auto for one operation. Auto on an operation that starts project code is amber (the "run" class): the one choice that deserves a second look.
+    private IReadOnlyList<WmOption<CommandGate>> GateOptions(OperationInfo operation)
+    {
+        var runsCode = RiskTiers.RunsProjectCode(operation);
+        return Choices
+            .Select(choice =>
+            {
+                var allowed = choice <= operation.MaxGate;
+                var cssClass = choice == CommandGate.Auto && runsCode ? "auto run" : GateClass(choice);
+                return new WmOption<CommandGate>(choice, choice.ToString(), cssClass, !allowed, allowed ? null : "A shell script is always approved by you");
+            })
+            .ToList();
+    }
 
     protected override async Task OnInitializedAsync()
     {

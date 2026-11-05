@@ -17,7 +17,8 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private readonly MudTheme _theme = WaymarkTheme.Create();
     private readonly CancellationTokenSource _cancel = new();
     private MudThemeProvider? _themeProvider;
-    private bool _dark;
+    // Dark is the product default; a saved choice of "light" is the only thing that changes it.
+    private bool _dark = true;
     private bool _busy;
     private bool _navCollapsed = true;
     private bool _navAnimate;
@@ -58,6 +59,13 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     // A collapsed menu shows only icons, so each item gets a tooltip with its name.
     private string? Tip(string label) => _navCollapsed ? label : null;
 
+    private (int Count, string Text)? BadgeFor(NavEntry entry) => entry.Badge switch
+    {
+        NavBadge.Approvals when Status.PendingApprovals > 0 => (Status.PendingApprovals, ApprovalText),
+        NavBadge.Commands when Status.PendingCommands > 0 => (Status.PendingCommands, CommandText),
+        _ => null
+    };
+
     protected override async Task OnInitializedAsync()
     {
         await Status.RefreshAsync(_cancel.Token);
@@ -77,12 +85,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         {
             _navCollapsed = await Js.InvokeAsync<string?>("localStorage.getItem", NavKey) != "expanded";
             var saved = await Js.InvokeAsync<string?>("localStorage.getItem", ThemeKey);
-            _dark = saved switch
-            {
-                "dark" => true,
-                "light" => false,
-                _ => _themeProvider is not null && await _themeProvider.GetSystemDarkModeAsync()
-            };
+            _dark = saved != "light";
             StateHasChanged();
         }
         catch (Exception ex) when (ex is JSException or JSDisconnectedException or InvalidOperationException)

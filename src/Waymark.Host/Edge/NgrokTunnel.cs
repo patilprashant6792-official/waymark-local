@@ -152,12 +152,14 @@ public sealed class NgrokTunnel(
         ManagedProcess started;
         try
         {
+            // The temp folder is the working folder on purpose: ngrok then never keeps Waymark's app folder in use, which an update has to replace.
             started = ManagedProcess.Start(
                 executable,
                 arguments,
                 environment,
                 line => LogScrubber.Scrub(line).Replace(authtoken, LogScrubber.Hidden, StringComparison.Ordinal),
-                line => logger.LogDebug("ngrok: {Line}", line));
+                line => logger.LogDebug("ngrok: {Line}", line),
+                Path.GetTempPath());
         }
         catch (System.ComponentModel.Win32Exception ex)
         {

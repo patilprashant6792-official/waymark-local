@@ -5,7 +5,7 @@
 
 @* A way to jump to a page from the keyboard. It only navigates: nothing here runs, approves or changes anything. *@
 <button type="button" class="wm-palette-trigger" aria-haspopup="dialog" aria-label="Go to a page (Ctrl+K)" @onclick="Open">
-    <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" />
+    <MudIcon Icon="@Icons.Material.Outlined.Search" Size="Size.Small" />
     <span class="wm-palette-hint">Go to a page</span>
     <kbd class="wm-kbd">Ctrl K</kbd>
 </button>
@@ -15,7 +15,7 @@
     <div class="wm-palette-backdrop" role="presentation" @onclick="Close">
         <div class="wm-palette" role="dialog" aria-modal="true" aria-label="Go to a page" @onclick:stopPropagation="true" @onkeydown="OnKey">
             <div class="wm-palette-search">
-                <MudIcon Icon="@Icons.Material.Filled.Search" Size="Size.Small" />
+                <MudIcon Icon="@Icons.Material.Outlined.Search" Size="Size.Small" />
                 <input id="wm-palette-input" class="wm-palette-input" type="text" role="combobox" aria-expanded="true" aria-controls="wm-palette-list" aria-activedescendant="@ActiveId" aria-label="Go to a page" placeholder="Go to a page..." autocomplete="off" spellcheck="false" @bind="_text" @bind:event="oninput" @bind:after="Filter" />
             </div>
             <ul id="wm-palette-list" class="wm-palette-list" role="listbox" aria-label="Pages">
@@ -41,25 +41,9 @@
 }
 
 @code {
+    // The pages come from NavCatalog, the same list the menu draws.
     private static readonly PaletteItem[] Items =
-    [
-        new("Dashboard", string.Empty, Icons.Material.Filled.Dashboard, "Overview of this machine", "home overview start"),
-        new("Approvals", "approvals", Icons.Material.Filled.HowToReg, "Pairings waiting for you", "pairing connect clients"),
-        new("Console", "console", Icons.Material.Filled.Computer, "Live terminal of commands", "terminal output shell run"),
-        new("Audit", "audit", Icons.Material.Filled.History, "Stored record of calls", "history log trail"),
-        new("Live log", "live", Icons.Material.Filled.Terminal, "Tool calls, file changes, sign-ins", "activity watcher auth errors"),
-        new("Workspaces", "workspaces", Icons.Material.Filled.Folder, "Folders Claude may read", "folders index access rules"),
-        new("Tools", "tools", Icons.Material.Filled.Build, "Switch tools on or off", "profiles token"),
-        new("Host prompt", "guides", Icons.Material.Filled.MenuBook, "Your instructions for every connected agent", "guides instructions skills teach prompts"),
-        new("Packages", "packages", Icons.Material.Filled.Inventory, "Package index", "nuget pypi npm packages explorer cache"),
-        new("Commands", "commands", Icons.Material.Filled.Tune, "What Claude may run", "gates off ask auto shell trust"),
-        // Connectors and Vault are hidden for now and kept for further implementation:
-        // new("Connectors", "connectors", Icons.Material.Filled.Extension, "Connected apps", "apps data"),
-        // new("Vault", "vault", Icons.Material.Filled.Lock, "Named secrets", "secrets passwords"),
-        new("Safety", "safety", Icons.Material.Filled.Shield, "Risks, safeguards, exposure ledger", "risk danger leak redact secrets exposure"),
-        new("Access keys", "access-keys", Icons.Material.Filled.VpnKey, "Keys for clients", "api tokens"),
-        new("Setup", "setup", Icons.Material.Filled.Settings, "Tunnel, public address and local MCP address", "ngrok tunnel domain mcp local localhost url connector claude code cursor codex"),
-    ];
+        [.. NavCatalog.Visible.Select(entry => new PaletteItem(entry.Title, entry.Href, entry.Icon, entry.Hint, entry.Keywords))];
 
     private DotNetObjectReference<CommandPalette>? _self;
     private List<PaletteItem> _matches = [.. Items];

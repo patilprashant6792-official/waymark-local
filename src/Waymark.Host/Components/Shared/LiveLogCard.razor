@@ -7,8 +7,8 @@
 <section class="wm-panel" aria-labelledby="live-card-title">
     <header class="wm-panel-head">
         <h2 id="live-card-title">Live log<ActivityDot Token="@_version.ToString()" /></h2>
-        <a class="wm-expand" href="live" title="Open the full live log" aria-label="Open the full live log">
-            <MudIcon Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" />
+<a class="wm-expand" href="audit?view=live" title="Open the full live log" aria-label="Open the full live log">
+            <MudIcon Icon="@Icons.Material.Outlined.OpenInFull" Size="Size.Small" />
         </a>
     </header>
     <div id="@TerminalId" class="wm-term wm-live-term wm-live-mini" tabindex="0" role="log" aria-live="off" aria-label="Latest live activity">
@@ -38,7 +38,7 @@
                 </span>
                 @if (LiveLineFormat.CallIdOf(entry) is { } callId)
                 {
-                    <button type="button" class="wm-live-more" title="Open this call: its input and output" @onclick="() => Calls.Open(callId)">open</button>
+                    <WmLinkButton title="Open this call: its input and output" OnClick="() => Calls.Open(callId)">open</WmLinkButton>
                 }
             </div>
         }

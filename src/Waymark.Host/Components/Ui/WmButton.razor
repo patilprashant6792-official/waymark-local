@@ -1,0 +1,64 @@
+@using MudBlazor
+
+@* The only button pages may use. MudBlazor stays inside Components/Ui, so a page cannot pick its own variant or colour. *@
+<MudButton Variant="@VariantOf"
+           Color="@ColorOf"
+           Size="@(Small ? Size.Small : Size.Medium)"
+           StartIcon="@Icon"
+           Disabled="@(Disabled || Busy)"
+           OnClick="OnClick"
+           Href="@Href"
+           Target="@Target"
+           ButtonType="@Type"
+           FullWidth="@FullWidth"
+           UserAttributes="@Attributes">@ChildContent</MudButton>
+
+@code {
+    [Parameter]
+    public ButtonKind Kind { get; set; } = ButtonKind.Secondary;
+
+    /// <summary>A leading icon, from Icons.Material.Outlined.</summary>
+    [Parameter]
+    public string? Icon { get; set; }
+
+    [Parameter]
+    public bool Small { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    /// <summary>True while the action runs: the button is disabled so it cannot be pressed twice.</summary>
+    [Parameter]
+    public bool Busy { get; set; }
+
+    [Parameter]
+    public bool FullWidth { get; set; }
+
+    [Parameter]
+    public ButtonType Type { get; set; } = ButtonType.Button;
+
+    [Parameter]
+    public string? Href { get; set; }
+
+    [Parameter]
+    public string? Target { get; set; }
+
+    [Parameter]
+    public EventCallback<Microsoft.AspNetCore.Components.Web.MouseEventArgs> OnClick { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    /// <summary>Anything else (aria-*, title, data-*) goes to the button.</summary>
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? Attributes { get; set; }
+
+    private Variant VariantOf => Kind switch
+    {
+        ButtonKind.Primary => Variant.Filled,
+        ButtonKind.Ghost => Variant.Text,
+        _ => Variant.Outlined
+    };
+
+    private Color ColorOf => Kind == ButtonKind.Danger ? Color.Error : Color.Primary;
+}

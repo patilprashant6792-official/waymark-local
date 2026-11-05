@@ -1,0 +1,34 @@
+@* An on/off switch with a name for screen readers and an optional tooltip that says what On and Off mean. *@
+@if (string.IsNullOrEmpty(Tooltip))
+{
+    <MudSwitch T="bool" Value="Value" ValueChanged="ValueChanged" Color="Color.Primary" Disabled="Disabled" UserAttributes="@Merged" />
+}
+else
+{
+    <MudTooltip Text="@Tooltip">
+        <MudSwitch T="bool" Value="Value" ValueChanged="ValueChanged" Color="Color.Primary" Disabled="Disabled" UserAttributes="@Merged" />
+    </MudTooltip>
+}
+
+@code {
+    [Parameter]
+    public bool Value { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> ValueChanged { get; set; }
+
+    /// <summary>The name of the switch for screen readers. Required: the switch has no visible text.</summary>
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Tooltip { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? Attributes { get; set; }
+
+    private Dictionary<string, object> Merged => new(Attributes ?? []) { ["aria-label"] = Label };
+}

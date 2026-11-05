@@ -1,0 +1,47 @@
+@using MudBlazor
+
+@* An icon-only button always carries a name for screen readers and a tooltip for everyone else. *@
+<MudIconButton Icon="@Icon"
+               Size="Size.Small"
+               Disabled="@Disabled"
+               OnClick="OnClick"
+               Href="@Href"
+               Target="@Target"
+               UserAttributes="@Merged" />
+
+@code {
+    [Parameter, EditorRequired]
+    public string Icon { get; set; } = string.Empty;
+
+    /// <summary>What the button does. Required: an icon alone is not a name.</summary>
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public string? Href { get; set; }
+
+    [Parameter]
+    public string? Target { get; set; }
+
+    [Parameter]
+    public EventCallback<Microsoft.AspNetCore.Components.Web.MouseEventArgs> OnClick { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? Attributes { get; set; }
+
+    private Dictionary<string, object> Merged
+    {
+        get
+        {
+            var all = new Dictionary<string, object>(Attributes ?? [])
+            {
+                ["aria-label"] = Label
+            };
+            all.TryAdd("title", Label);
+            return all;
+        }
+    }
+}

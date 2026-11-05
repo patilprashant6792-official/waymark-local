@@ -1,0 +1,73 @@
+@using MudBlazor
+
+@* The only text input pages may use. Width comes from a scale, never from a pixel value on the page. *@
+<MudTextField T="string"
+              Class="@WidthClass"
+              Variant="Variant.Outlined"
+              Margin="Margin.Dense"
+              Label="@Label"
+              Placeholder="@Placeholder"
+              HelperText="@HelperText"
+              Value="@Value"
+              ValueChanged="ValueChanged"
+              Lines="@Lines"
+              MaxLength="@MaxLength"
+              Immediate="@Immediate"
+              Disabled="@Disabled"
+              ReadOnly="@ReadOnly"
+              InputType="@InputType"
+              OnKeyUp="OnKeyUp"
+              UserAttributes="@Attributes" />
+
+@code {
+    [Parameter]
+    public string? Label { get; set; }
+
+    [Parameter]
+    public string? Placeholder { get; set; }
+
+    [Parameter]
+    public string? HelperText { get; set; }
+
+    [Parameter]
+    public string? Value { get; set; }
+
+    [Parameter]
+    public EventCallback<string> ValueChanged { get; set; }
+
+    [Parameter]
+    public int Lines { get; set; } = 1;
+
+    [Parameter]
+    public int MaxLength { get; set; } = 524288;
+
+    /// <summary>Update the value on every key press instead of when the field loses focus.</summary>
+    [Parameter]
+    public bool Immediate { get; set; }
+
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    [Parameter]
+    public InputType InputType { get; set; } = InputType.Text;
+
+    [Parameter]
+    public FieldWidth Width { get; set; } = FieldWidth.Medium;
+
+    [Parameter]
+    public EventCallback<Microsoft.AspNetCore.Components.Web.KeyboardEventArgs> OnKeyUp { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object>? Attributes { get; set; }
+
+    private string WidthClass => Width switch
+    {
+        FieldWidth.Small => "wm-w-sm",
+        FieldWidth.Large => "wm-w-lg",
+        FieldWidth.Full => "wm-w-full",
+        _ => "wm-w-md"
+    };
+}

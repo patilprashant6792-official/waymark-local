@@ -5,12 +5,7 @@
 @using Waymark.Host.Components.Shared
 @using Waymark.Host.Ui
 
-<PageTitle>Tools - Waymark</PageTitle>
-
-<div class="wm-page">
-    <h1 class="wm-title">Tools</h1>
-    <p class="wm-lead">Choose what Claude can do here. Every tool you leave on adds its description to every conversation, so fewer tools means more room for your work.</p>
-
+<PageFrame Title="Tools" Lead="Choose what Claude can do here. Every tool you leave on adds its description to every conversation, so fewer tools means more room for your work.">
     @if (_rows.Count > 0)
     {
         <section class="wm-kpis" aria-label="Tool statistics">
@@ -30,23 +25,19 @@
         <Summary>
             @if (CurrentProfile == "custom")
             {
-                <StateChip State="StatusState.Attention" Text="Custom" />
+                <WmStatus State="StatusState.Attention" Text="Custom" />
             }
-            <span class="wm-chip info">Applies on reconnect</span>
+            <WmTag Text="Applies on reconnect" />
         </Summary>
         <ChildContent>
-            <div class="wm-seg" role="radiogroup" aria-label="Tool profile">
-                <button type="button" role="radio" aria-checked="@(CurrentProfile == "readonly" ? "true" : "false")" class="@(CurrentProfile == "readonly" ? "on" : null)" disabled="@_busy" @onclick='() => ApplyProfileAsync("readonly")'>Read-only</button>
-                <button type="button" role="radio" aria-checked="@(CurrentProfile == "edit" ? "true" : "false")" class="@(CurrentProfile == "edit" ? "on" : null)" disabled="@_busy" @onclick='() => ApplyProfileAsync("edit")'>Edit</button>
-                <button type="button" role="radio" aria-checked="@(CurrentProfile == "full" ? "true" : "false")" class="@(CurrentProfile == "full" ? "on" : null)" disabled="@_busy" @onclick='() => ApplyProfileAsync("full")'>Full</button>
-            </div>
-            <p class="wm-muted" style="margin:8px 0">Read-only can look but not change. Edit adds creating, editing and moving files. Full also allows deleting.</p>
+            <WmSegmented TValue="string" Label="Tool profile" Options="ProfileOptions" Value="CurrentProfile" ValueChanged="ApplyProfileAsync" Disabled="_busy" />
+            <p class="wm-muted wm-note">Read-only can look but not change. Edit adds creating, editing and moving files. Full also allows deleting.</p>
 
             <div aria-live="polite">
                 <strong>@EnabledCount of @_rows.Count tools on</strong>
                 <span class="wm-muted"> &middot; about @DisplayFormat.Count(EnabledTokens) of @DisplayFormat.Count(TotalTokens) tokens (a rough guess: text length divided by four)</span>
             </div>
-            <MudProgressLinear Value="@(TotalTokens == 0 ? 0 : 100d * EnabledTokens / TotalTokens)" Color="Color.Primary" Class="mt-2" aria-label="Share of tool descriptions switched on" />
+            <progress class="wm-progress" max="100" value="@(TotalTokens == 0 ? 0 : (int)(100d * EnabledTokens / TotalTokens))" aria-label="Share of tool descriptions switched on"></progress>
         </ChildContent>
     </CollapsibleSection>
 
@@ -82,8 +73,8 @@
         <CollapsibleSection @key="group.Key" Id="@($"tools-group-{group.Key}")" Title="@group.Key" TitleClass="wm-cap">
             <Summary>
                 <span aria-live="polite">@GroupSummary(group)</span>
-                <MudButton Variant="Variant.Outlined" Size="Size.Small" Disabled="@(_busy || group.All(r => r.Enabled))" OnClick="() => SetGroupAsync(group, true)" aria-label="@($"Switch on all shown {group.Key} tools")">All on</MudButton>
-                <MudButton Variant="Variant.Outlined" Size="Size.Small" Disabled="@(_busy || group.All(r => !r.Enabled))" OnClick="() => SetGroupAsync(group, false)" aria-label="@($"Switch off all shown {group.Key} tools")">All off</MudButton>
+                <WmButton Small="true" Disabled="@(_busy || group.All(r => r.Enabled))" OnClick="() => SetGroupAsync(group, true)" aria-label="@($"Switch on all shown {group.Key} tools")">All on</WmButton>
+                <WmButton Small="true" Disabled="@(_busy || group.All(r => !r.Enabled))" OnClick="() => SetGroupAsync(group, false)" aria-label="@($"Switch off all shown {group.Key} tools")">All off</WmButton>
             </Summary>
             <ChildContent>
                 <div class="wm-table-wrap">
@@ -96,16 +87,16 @@
                             @foreach (var row in group)
                             {
                                 <tr>
-                                    <td><MudSwitch T="bool" Value="row.Enabled" ValueChanged="v => ToggleAsync(row, v)" Disabled="_busy" Color="Color.Primary" aria-label="@($"Switch {row.Tool.Name}")" /></td>
+                                    <td><WmSwitch Value="row.Enabled" ValueChanged="v => ToggleAsync(row, v)" Disabled="_busy" Label="@($"Switch {row.Tool.Name}")" /></td>
                                     <th scope="row" class="wm-mono">@row.Tool.Name</th>
                                     <td>
                                         @if (row.Tool.Gate == ToolGate.Confirm)
                                         {
-                                            <StateChip State="StatusState.Attention" Text="Needs confirmation" />
+                                            <WmStatus State="StatusState.Attention" Text="Needs confirmation" />
                                         }
                                         else
                                         {
-                                            <StateChip State="StatusState.Healthy" Text="Read only" />
+                                            <WmStatus State="StatusState.Healthy" Text="Read only" />
                                         }
                                     </td>
                                     <td class="num">@DisplayFormat.Count(row.Tokens)</td>
@@ -123,4 +114,13 @@
     {
         <EmptyState Icon="@Icons.Material.Outlined.Search" Title="No tool matches" Text="Clear the filter to see every tool again." />
     }
-</div>
+</PageFrame>
+
+@code {
+    private static readonly IReadOnlyList<WmOption<string>> ProfileOptions =
+    [
+        new("readonly", "Read-only"),
+        new("edit", "Edit"),
+        new("full", "Full")
+    ];
+}
