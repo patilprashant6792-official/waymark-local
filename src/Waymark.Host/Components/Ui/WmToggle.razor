@@ -25,5 +25,5 @@
 
     /// <summary>An id or data attribute a script needs to find the toggle.</summary>
     [Parameter(CaptureUnmatchedValues = true)]
-    public Dictionary<string, object>? Attributes { get; set; }
+    public Dictionary<string, object> Attributes { get; set; } = new();
 }

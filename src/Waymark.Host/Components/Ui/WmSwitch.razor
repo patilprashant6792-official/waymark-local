@@ -28,7 +28,7 @@ else
     public bool Disabled { get; set; }
 
     [Parameter(CaptureUnmatchedValues = true)]
-    public Dictionary<string, object>? Attributes { get; set; }
+    public Dictionary<string, object> Attributes { get; set; } = new();
 
     private Dictionary<string, object> Merged => new(Attributes ?? []) { ["aria-label"] = Label };
 }

@@ -30,7 +30,7 @@
     public EventCallback<Microsoft.AspNetCore.Components.Web.MouseEventArgs> OnClick { get; set; }
 
     [Parameter(CaptureUnmatchedValues = true)]
-    public Dictionary<string, object>? Attributes { get; set; }
+    public Dictionary<string, object> Attributes { get; set; } = new();
 
     private Dictionary<string, object> Merged
     {

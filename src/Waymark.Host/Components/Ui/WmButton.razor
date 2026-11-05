@@ -51,7 +51,7 @@
 
     /// <summary>Anything else (aria-*, title, data-*) goes to the button.</summary>
     [Parameter(CaptureUnmatchedValues = true)]
-    public Dictionary<string, object>? Attributes { get; set; }
+    public Dictionary<string, object> Attributes { get; set; } = new();
 
     private Variant VariantOf => Kind switch
     {
