@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>Waymark.Tests</AssemblyName>
+    <RootNamespace>Waymark.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="xunit.v3" />
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Waymark.Core\Waymark.Core.csproj" />
+    <ProjectReference Include="..\..\src\Waymark.Modules.Files\Waymark.Modules.Files.csproj" />
+    <ProjectReference Include="..\..\src\Waymark.Modules.Code\Waymark.Modules.Code.csproj" />
+  </ItemGroup>
+</Project>
