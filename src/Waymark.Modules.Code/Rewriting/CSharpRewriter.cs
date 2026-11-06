@@ -48,6 +48,22 @@ internal sealed class CSharpRewriter : ICSharpRewriter
         return new CSharpRewriteResult(current, namespaceHits, identifierHits, syntaxErrors);
     }
 
+    public CSharpIdentifierSearch FindIdentifier(string text, string identifier)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(identifier);
+        var name = identifier.Trim();
+        CheckIdentifier(name, "identifier");
+
+        var options = new CSharpParseOptions(LanguageVersion.Latest, DocumentationMode.Parse, SourceCodeKind.Regular);
+        var tree = CSharpSyntaxTree.ParseText(text, options);
+        var rules = new Dictionary<string, string>(StringComparer.Ordinal) { [name] = name };
+        var spans = FindIdentifierEdits(tree, rules)
+            .Select(edit => new CSharpTokenSpan(edit.Start, edit.End - edit.Start))
+            .ToList();
+        return new CSharpIdentifierSearch(spans, CountErrors(tree));
+    }
+
     private static List<NamespaceRule> BuildNamespaceRules(IReadOnlyDictionary<string, string> namespaces)
     {
         var rules = new List<NamespaceRule>(namespaces.Count);

@@ -5,6 +5,7 @@ using ModelContextProtocol.Server;
 using Waymark.Core.Modules;
 using Waymark.Core.Code;
 using Waymark.Core.Memory;
+using Waymark.Core.Text;
 using Waymark.Modules.Code.Content;
 using Waymark.Modules.Code.Reading;
 using Waymark.Modules.Code.Scheduling;
@@ -66,6 +67,9 @@ public sealed class CodeModule : IMcpModule
 
         // The files module registers a silent advisor with TryAdd; this one replaces it, whichever module registers first.
         services.Replace(ServiceDescriptor.Singleton<IFlowEditAdvisor, FlowEditAdvisor>());
+
+        // The files module registers an empty catalog with TryAdd (file_replace lists files through it); this one replaces it, whichever module registers first.
+        services.Replace(ServiceDescriptor.Singleton<ITextFileCatalog, ContentFileCatalog>());
     }
 
     public void AddTools(IMcpServerBuilder mcp)

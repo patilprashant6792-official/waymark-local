@@ -52,6 +52,21 @@ internal sealed record TextFileFormat(Encoding Encoding, string? Newline)
         return bytes;
     }
 
+    /// <summary>
+    /// The bytes to store for text that already has the line endings it should keep: byte order mark (if the encoding has one) followed by
+    /// the text exactly as given. Unlike <see cref="Encode"/> no line ending is changed, so a file with mixed endings keeps every one of them.
+    /// </summary>
+    public byte[] EncodeExact(string content)
+    {
+        ArgumentNullException.ThrowIfNull(content);
+        var preamble = Encoding.GetPreamble();
+        var body = Encoding.GetBytes(content);
+        var bytes = new byte[preamble.Length + body.Length];
+        preamble.CopyTo(bytes, 0);
+        body.CopyTo(bytes, preamble.Length);
+        return bytes;
+    }
+
     /// <summary>The text of a whole file, without its byte order mark.</summary>
     /// <exception cref="DecoderFallbackException">The bytes are not valid text in this encoding (a binary file); rewriting it would corrupt it.</exception>
     public string DecodeStrict(ReadOnlySpan<byte> bytes)

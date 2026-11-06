@@ -7,7 +7,7 @@ Waymark is a modular monolith. A module references `Waymark.Core` only; `Waymark
 | Code | code_skeleton, code_folder_files, code_changes_since, code_outline, code_method, code_read, code_search, code_grep, code_callers, code_types (C# through Roslyn; Python and TypeScript/JavaScript through tree-sitter in `Waymark.Languages.Python` and `Waymark.Languages.TypeScript`; a language is an `ILanguageIndexer`) | Read |
 | Code (feature maps) | recall, memorise | Read |
 | Packages (project `Waymark.Modules.NuGet`, module `packages`) | pkg_search, pkg_outline, pkg_find, pkg_expand (`ecosystem`: nuget, pypi or npm) | Read |
-| Files | file_write, file_edit_lines (both can copy with `from` / `fromFolder`), folder_create, file_move, file_delete, folder_move, folder_delete | Confirm (off until switched on) |
+| Files | file_write, file_edit_lines (both can copy with `from` / `fromFolder`), file_replace, folder_create, file_move, file_delete, folder_move, folder_delete | Confirm (off until switched on) |
 | Commands | cmd_project (.NET and Python actions), cmd_git, cmd_proc, cmd_shell, cmd_wait, cmd_output, cmd_list, cmd_stop | Confirm for the four that start something (off until switched on); the read tools are Read. Each operation also has an Off / Ask / Auto gate chosen by the owner, see `commands-policy.md` |
 | Host | waymark_ping, util_datetime | Read |
 
@@ -31,6 +31,19 @@ The overview is a breadth-first tree under a size budget: `FolderScanner` reads 
 - `FolderCopyPlanner` expands `fromFolder` (glob below the folder, `pathRename`, collision check, access rules per item) and `confirmCount` guards against a changed tree. `PathGlob` lives in `Waymark.Core/Text` and is shared with `code_grep`.
 - C# renames go through `ICSharpRewriter` (`Waymark.Core/Code`); `CSharpRewriter` in the Code module uses Roslyn to find names and edits the text by position, so formatting and comments outside the renamed names are untouched. It works on syntax only, without symbol resolution.
 - Settings under `Waymark:Files:*` (`FilesOptions`): `MaxWriteBytes` 2000000, `MaxBatchEntries` 50, `MaxPatchesPerCall` 200, `MaxFolderEntries` 20000, `MaxCopySourceBytes` 10000000, `MaxTransformsPerCopy` 50, `MaxCopyFilesPerCall` 500.
+
+## Find and replace (`file_replace`)
+
+One Confirm tool, two calls: a preview that reads and keeps a plan, and an apply that writes exactly that plan. Code in `Waymark.Modules.Files/Replace`.
+
+- `ReplaceService` (facade, `IReplaceService`) checks the arguments (`ReplaceRequestValidator`), runs `ReplacePlanner` for a preview and `ReplaceApplier` under `FileWriteGate` for an apply.
+- `ReplacePlanner` lists files through `ITextFileCatalog` (Core; `ContentFileCatalog` in the Code module wraps the `code_grep` walker, so the access rules, vendored and minified rules and the 1 MB limit are the same; the Files module registers `NoTextFileCatalog` as the empty default). It reads each file, finds the places (`LiteralMatcher`, or `ICSharpRewriter.FindIdentifier` in C# mode), hashes the bytes (SHA-256) and stops under its own time budget. A partial scan, a refused named path, too many files or matches, or no match gives no plan.
+- `ReplacePlanStore` keeps plans in memory: random 128-bit id, `PlanMinutes` (10), single use, at most `MaxOpenPlans` (16). A restart forgets them. A plan holds the normalised arguments (`ValidatedRequest.Signature`), and per file its path, hash and places; no file text.
+- `ReplaceApplier` reads every planned file again and refuses if any hash differs, builds every new file in memory (`SpanApplier`, then `TextFileFormat.EncodeExact`, which keeps every line ending), refuses a replacement that adds a secret on a changed line (`IContentInspector`, before and after), then writes through `CopyTransaction` with `CancellationToken.None`, so the call timeout cannot stop it halfway. One `FileChanged` per file; the tool asks `IFlowEditAdvisor` once with every path.
+- Exclusions (`ReplaceExclusions`): `path` or `path#L12`, applied to the plan before the count check.
+- Settings under `Waymark:Files:Replace:*` (`ReplaceOptions`): `MaxFiles` 200, `MaxMatches` 5000, `MaxFindChars` 200, `MaxWithChars` 1000, `PlanMinutes` 10, `MaxOpenPlans` 16, `ScanBudgetSeconds` 20, `MaxPreviewLinesPerFile` 20.
+- `AtomicFile` swaps an existing file with `File.Replace` on Windows (keeps creation time, ACLs, attributes and named streams), falling back to a move; this applies to every file tool.
+- Tests: `tests/Waymark.Tests` (xUnit v3 on Microsoft Testing Platform); the acceptance prompt is `docs/file-replace-test.md`.
 
 ## Feature maps = flows (`recall`, `memorise`)
 

@@ -7,6 +7,7 @@ These tools change files in a workspace. The owner switches them on in Waymark (
 | Situation | Call |
 |---|---|
 | Part of an existing file | `file_edit_lines` |
+| The same text or C# identifier in many places, across files | `file_replace` (preview, then apply) |
 | New files, or a rewrite of more than 80% of a file | `file_write` (one call, many entries) |
 | Move or duplicate lines or whole files (also between workspaces) | `from` in `file_edit_lines` / `file_write` (section "Copy, don't retype") |
 | A whole folder tree into a new layout | `fromFolder` in `file_write` |
@@ -45,6 +46,28 @@ Each rule prevents a known failure:
 4. Send complete syntactic units with the file's indentation (a whole method or using block). Half a brace is the commonest build break. Code that already exists somewhere is copied with `from`, not retyped.
 5. Read the changed range again afterwards to confirm the placement.
 6. Several files: one call per file, and finish all of them before building.
+
+## file_replace
+
+Find and replace across the files of one workspace, in two calls. The server changes only the matched characters: encoding, byte order mark and every line ending stay as they were, so it is safe on files with mixed line endings. It also works on lines that hold a secret (you would see `[redacted:...]` there and could not retype the line).
+
+1. **Preview**: `find`, `with`, and `pathGlob` (`**/*.cs`, `src/Orders/**`, `**` for all) or `pathsJson` (exact files, e.g. those `code_grep` found). Nothing is written. The result lists every match with its line (`⟦match⟧`), the count, and a `planId`.
+2. **Check the preview.** Drop false matches with `excludeJson`: `"path"` drops a file, `"path#L12"` every match on that line. Show the user the plan when more than 5 files change.
+3. **Apply**: the same arguments plus `planId` and `confirmCount` (the count after exclusions). Every file changes, or none.
+
+| Option | Meaning |
+|---|---|
+| `mode: "literal"` (default) | Plain text on one line. `caseSensitive` defaults to true; `wholeWord` (default false) keeps `Order` from matching `OrderId`. |
+| `mode: "csharp"` | `find` and `with` are identifiers; every identifier token with that name in `.cs` files is renamed (declarations, uses, `nameof`, doc `cref`, `#if` symbols), never strings or comments. Syntax only: a same-named member of another type changes too, so read the preview. Run a literal pass afterwards for `.razor`, `.json` and docs. |
+
+Rules that prevent known failures:
+
+1. A plan lasts 10 minutes and is used once. A wrong `confirmCount` or different arguments are refused and the plan stays usable: correct the call and send it again. A planned file that changed or was deleted after the preview is refused too, nothing is written, and that plan is used up: preview again.
+2. A preview without a `planId` cannot be applied: the scan was partial (too slow, too many files, over 200 changed files or 5,000 matches), a named path was refused, or nothing matched. Narrow the scope.
+3. Ask the user to save files open in an editor first: an unsaved buffer saved later would overwrite the change.
+4. A replacement that would add a secret is refused. `find` and `with` are one line each.
+5. Build or test afterwards. For a rename, `code_search` the old name to confirm nothing is left, then build: a clean build is the proof.
+6. Undo is git: the result lists the paths for `cmd_git` restore.
 
 ## Copy, don't retype
 
@@ -94,7 +117,7 @@ An entry of `file_write` with only `fromFolder` copies a folder tree: `{"fromFol
 4. Build the target (`cmd_project`) after each folder and fix the errors before the next one. A clean build is the proof, not the copy report.
 5. Keep the copy reports: git cannot follow a copy between repositories.
 
-Limits (owner settings under `Waymark:Files:`): files up to 2 MB are written (`MaxWriteBytes`), sources up to 10 MB are read (`MaxCopySourceBytes`), 200 patches and 50 files per call, 500 files per folder copy (`MaxCopyFilesPerCall`), 50 replace rules per copy (`MaxTransformsPerCopy`).
+Limits (owner settings under `Waymark:Files:`): files up to 2 MB are written (`MaxWriteBytes`), sources up to 10 MB are read (`MaxCopySourceBytes`), 200 patches and 50 files per call, 500 files per folder copy (`MaxCopyFilesPerCall`), 50 replace rules per copy (`MaxTransformsPerCopy`). `file_replace` limits are under `Waymark:Files:Replace:` (`MaxFiles` 200, `MaxMatches` 5000, `PlanMinutes` 10, `ScanBudgetSeconds` 20).
 
 ## Structure changes
 
@@ -117,7 +140,7 @@ Moves leave C# namespaces and usings alone, and renaming a file does not rename 
 Copies made with `from` / `fromFolder` can rename namespaces and types as they are copied (`csharp`, C# files only; use `replace` for Python and other text), so prefer a copy to a move plus manual fixes when the namespace changes. `file_move` itself never changes file content.
 
 1. `code_search` the old namespace or type name, and `code_grep` it for references outside C# (.csproj, .razor, json, docs).
-2. Fix each file with `file_edit_lines` (one call per file), including the type and its references for a rename.
+2. Fix the references: for a name used in many files, `file_replace` (`mode: "csharp"` for C#, literal with `wholeWord` for other text) in one previewed step; otherwise `file_edit_lines` (one call per file), including the type and its references for a rename.
 3. Build with `cmd_project`: CS0246 and CS0234 errors show what is left. For Python, run the tests (`py_test`) and the type check (`py_typecheck`): an `ImportError` shows a moved module.
 
 After a delete, build at once: a clean build is the only proof that nothing depended on it.
@@ -128,4 +151,4 @@ Waymark hides secrets in results with `[redacted:...]` markers. Never write a ma
 
 ## Flows (feature maps)
 
-`file_edit_lines`, `file_write`, `file_move` and `file_delete` add a `🧭` line to their result when the change touched a step of a saved flow and something no longer matches: a link no longer holds, a step is gone from its file, or the file that held steps was moved or deleted. Update the flow in the same task (`recall`, then `memorise` with `expectedVersion`; see the code guide). Most edits touch no step and give no such line. Folder moves and folder deletes give none; check `recall(ws, 'list', query=<a method name>)` after one. The owner can switch the hint off (`Waymark:FeatureMaps:EditHints`).
+`file_edit_lines`, `file_write`, `file_replace`, `file_move` and `file_delete` add a `🧭` line to their result when the change touched a step of a saved flow and something no longer matches: a link no longer holds, a step is gone from its file, or the file that held steps was moved or deleted. Update the flow in the same task (`recall`, then `memorise` with `expectedVersion`; see the code guide). Most edits touch no step and give no such line. Folder moves and folder deletes give none; check `recall(ws, 'list', query=<a method name>)` after one. The owner can switch the hint off (`Waymark:FeatureMaps:EditHints`).
