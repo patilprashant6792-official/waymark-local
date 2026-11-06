@@ -1,140 +1,141 @@
-﻿@page "/setup"
+@page "/setup"
 @inherits LiveComponentBase
 @using MudBlazor
 @using Waymark.Core.Edge
 @using Waymark.Host.Components.Shared
+@using Waymark.Host.Ui
 
-<PageTitle>Setup - Waymark</PageTitle>
-
-<div class="wm-page">
-    <h1 class="wm-title">Setup</h1>
-    <p class="wm-lead">Four steps to let Claude reach this computer from the internet. An agent that runs on this computer can skip them: see <a href="#setup-local">Local agents on this computer</a>.</p>
-
-    @if (_error is not null)
-    {
-        <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
-    }
-
-    <section class="wm-card" aria-labelledby="setup-1">
-        <h2 id="setup-1" class="wm-section">1. Public address</h2>
-        <p class="wm-muted">Create a free static domain at ngrok.com (Universal Gateway, Domains) and paste it here with your authtoken. Waymark installs and starts ngrok itself.</p>
-        <div class="wm-row">
-            <MudTextField T="string" Label="Address" @bind-Value="_address" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="For example https://your-name.ngrok-free.app" Style="min-width:360px" />
-            <MudTextField T="string" Label="ngrok authtoken" @bind-Value="_authtoken" InputType="InputType.Password" Variant="Variant.Outlined" Margin="Margin.Dense"
-                          HelperText="@(_authInfo.IsSet ? $"A token is saved (ends in {_authInfo.Hint}). Leave empty to keep it." : "Paste your authtoken. It is stored encrypted and never shown again.")" Style="min-width:320px" />
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" OnClick="SaveAsync" Disabled="@(_busy || string.IsNullOrWhiteSpace(_address))">Save and start tunnel</MudButton>
-        </div>
-        @if (SavedUrl is not null)
+<PageFrame Title="Setup">
+    <LeadContent>
+        <p class="wm-lead">Four steps to let Claude reach this computer from the internet. An agent that runs on this computer can skip them: see <a href="#setup-local">Local agents on this computer</a>.</p>
+    </LeadContent>
+    <ChildContent>
+        @if (_error is not null)
         {
-            <p style="margin-top:8px">Saved address: <span class="wm-mono">@SavedUrl</span></p>
-        }
-    </section>
-
-    <section class="wm-card" aria-labelledby="setup-2" style="margin-top:16px">
-        <div class="wm-row spread">
-            <h2 id="setup-2" class="wm-section" style="margin:0">2. Check the tunnel</h2>
-            @{ var chip = TunnelChip(); }
-            <StateChip State="chip.State" Text="@chip.Text" />
-        </div>
-        <p class="wm-muted">@TunnelNow.Message</p>
-        <div class="wm-row">
-            <MudButton Variant="Variant.Outlined" OnClick="CheckAsync" Disabled="@(_busy || SavedUrl is null)">Check again</MudButton>
-            <MudButton Variant="Variant.Text" OnClick="StopAsync" Disabled="@(_busy || SavedUrl is null)">Stop tunnel</MudButton>
-            <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="DisconnectAsync" Disabled="@(_busy || SavedUrl is null)">Disconnect</MudButton>
-        </div>
-
-        @if (_check is { } check)
-        {
-            <ul class="wm-checks" aria-live="polite" style="list-style:none;padding:0;margin:12px 0 0">
-                @foreach (var step in check.Steps)
-                {
-                    <li style="margin:4px 0">
-                        <StateChip State="@(step.Passed ? StatusState.Healthy : StatusState.Failed)" Text="@(step.Passed ? "Passed" : "Failed")" />
-                        <strong>@step.Name</strong> <span class="wm-muted">@step.Detail</span>
-                    </li>
-                }
-            </ul>
+            <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
         }
 
-        @if (HasFailure)
-        {
-            <div class="wm-card" role="alert" style="margin-top:12px">
-                <strong>That did not work, and nothing is broken.</strong>
-                <p class="wm-muted">Read the failed line above. If ngrok could not start on its own, run this in a terminal on this computer, then choose Check again:</p>
-                <div class="wm-row">
-                    <code class="wm-code">@TunnelCommand</code>
-                    <MudButton Size="Size.Small" Variant="Variant.Outlined" OnClick="() => CopyAsync(TunnelCommand)">Copy command</MudButton>
-                </div>
-            </div>
-        }
-    </section>
-
-    <section class="wm-card" aria-labelledby="setup-3" style="margin-top:16px">
-        <h2 id="setup-3" class="wm-section">3. Add Waymark to Claude</h2>
-        @if (ConnectorUnlocked)
-        {
-            <p class="wm-muted">In Claude, add a custom connector and paste this address. Claude will ask to pair; approve it on the Approvals page.</p>
+        <section class="wm-card" aria-labelledby="setup-1">
+            <h2 id="setup-1" class="wm-card-title">1. Public address</h2>
+            <p class="wm-muted">Create a free static domain at ngrok.com (Universal Gateway, Domains) and paste it here with your authtoken. Waymark installs and starts ngrok itself.</p>
             <div class="wm-row">
-                <code class="wm-code">@ConnectorUrl</code>
-                <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" OnClick="() => CopyAsync(ConnectorUrl!)">Copy connector address</MudButton>
+                <WmTextField Label="Address" @bind-Value="_address" Width="FieldWidth.Large" HelperText="For example https://your-name.ngrok-free.app" />
+                <WmTextField Label="ngrok authtoken" @bind-Value="_authtoken" InputType="InputType.Password" Width="FieldWidth.Large"
+                             HelperText="@(_authInfo.IsSet ? $"A token is saved (ends in {_authInfo.Hint}). Leave empty to keep it." : "Paste your authtoken. It is stored encrypted and never shown again.")" />
+                <WmButton Kind="ButtonKind.Primary" OnClick="SaveAsync" Disabled="@(_busy || string.IsNullOrWhiteSpace(_address))">Save and start tunnel</WmButton>
             </div>
-        }
-        else
-        {
-            <StateChip State="StatusState.Off" Text="Locked" />
-            <span class="wm-muted"> The address appears here once the tunnel is online and step 2 passes. Waymark runs that check for you.</span>
-        }
-    </section>
+            @if (SavedUrl is not null)
+            {
+                <p class="wm-note">Saved address: <span class="wm-mono">@SavedUrl</span></p>
+            }
+        </section>
 
-    <section class="wm-card" aria-labelledby="setup-local" style="margin-top:16px">
-        <div class="wm-row spread">
-            <h2 id="setup-local" class="wm-section" style="margin:0">Local agents on this computer</h2>
-            <StateChip State="StatusState.Working" Text="No tunnel needed" Icon="@Icons.Material.Filled.Computer" />
-        </div>
-        <p class="wm-muted">Claude Code, Cursor, Codex and other agents that run on this computer and speak MCP over HTTP can connect straight to Waymark. This address works while the tunnel is off, and only this computer can reach it.</p>
+        <section class="wm-card" aria-labelledby="setup-2">
+            <div class="wm-row spread">
+                <h2 id="setup-2" class="wm-card-title">2. Check the tunnel</h2>
+                @{ var chip = TunnelChip(); }
+                <WmStatus State="chip.State" Text="@chip.Text" />
+            </div>
+            <p class="wm-muted">@TunnelNow.Message</p>
+            <div class="wm-row">
+                <WmButton OnClick="CheckAsync" Disabled="@(_busy || SavedUrl is null)">Check again</WmButton>
+                <WmButton Kind="ButtonKind.Ghost" OnClick="StopAsync" Disabled="@(_busy || SavedUrl is null)">Stop tunnel</WmButton>
+                <WmButton Kind="ButtonKind.Danger" OnClick="DisconnectAsync" Disabled="@(_busy || SavedUrl is null)">Disconnect</WmButton>
+            </div>
 
-        <p class="wm-muted" style="margin:12px 0 4px">MCP address</p>
-        <div class="wm-row">
-            <code class="wm-code">@LocalMcpUrl</code>
-            <CopyButton Text="@LocalMcpUrl" Label="Copy address" />
-        </div>
+            @if (_check is { } check)
+            {
+                <ul class="wm-checks" aria-live="polite">
+                    @foreach (var step in check.Steps)
+                    {
+                        <li>
+                            <WmStatus State="@(step.Passed ? StatusState.Healthy : StatusState.Failed)" Text="@(step.Passed ? "Passed" : "Failed")" />
+                            <strong>@step.Name</strong> <span class="wm-muted">@step.Detail</span>
+                        </li>
+                    }
+                </ul>
+            }
 
-        <p class="wm-muted" style="margin:12px 0 4px">Claude Code: run this in a terminal</p>
-        <div class="wm-row">
-            <code class="wm-code">@ClaudeCodeCommand</code>
-            <CopyButton Text="@ClaudeCodeCommand" Label="Copy command" />
-        </div>
+            @if (HasFailure)
+            {
+                <div class="wm-card quiet wm-card-actions" role="alert">
+                    <strong>That did not work, and nothing is broken.</strong>
+                    <p class="wm-muted">Read the failed line above. If ngrok could not start on its own, run this in a terminal on this computer, then choose Check again:</p>
+                    <div class="wm-row">
+                        <code class="wm-code">@TunnelCommand</code>
+                        <WmButton Small="true" OnClick="() => CopyAsync(TunnelCommand)">Copy command</WmButton>
+                    </div>
+                </div>
+            }
+        </section>
 
-        <p class="wm-muted" style="margin:12px 0 4px">Other agents: an entry for a config file with an mcpServers list. Some agents name the type differently, for example streamable-http. The address stays the same.</p>
-        <div class="wm-row" style="align-items:flex-start">
-            <div class="wm-code">@McpConfigJson</div>
-            <CopyButton Text="@McpConfigJson" Label="Copy entry" />
-        </div>
+        <section class="wm-card" aria-labelledby="setup-3">
+            <h2 id="setup-3" class="wm-card-title">3. Add Waymark to Claude</h2>
+            @if (ConnectorUnlocked)
+            {
+                <p class="wm-muted">In Claude, add a custom connector and paste this address. Claude will ask to pair; approve it on the Approvals page.</p>
+                <div class="wm-row">
+                    <code class="wm-code">@ConnectorUrl</code>
+                    <WmButton Kind="ButtonKind.Primary" Small="true" OnClick="() => CopyAsync(ConnectorUrl!)">Copy connector address</WmButton>
+                </div>
+            }
+            else
+            {
+                <WmStatus State="StatusState.Off" Text="Locked" />
+                <span class="wm-muted"> The address appears here once the tunnel is online and step 2 passes. Waymark runs that check for you.</span>
+            }
+        </section>
 
-        <p class="wm-muted" style="margin-top:12px">Signing in: an agent that opens a browser sign-in and returns to localhost, as Claude Code does, pairs as usual, and you approve it on the <a href="approvals">Approvals</a> page. Any other agent needs an <a href="access-keys">access key</a>, sent as an Authorization: Bearer header.</p>
-    </section>
+        <section class="wm-card" aria-labelledby="setup-local">
+            <div class="wm-row spread">
+                <h2 id="setup-local" class="wm-card-title">Local agents on this computer</h2>
+                <WmStatus State="StatusState.Working" Text="No tunnel needed" />
+            </div>
+            <p class="wm-muted">Claude Code, Cursor, Codex and other agents that run on this computer and speak MCP over HTTP can connect straight to Waymark. This address works while the tunnel is off, and only this computer can reach it.</p>
 
-    <section class="wm-card" aria-labelledby="setup-4" style="margin-top:16px">
-        <h2 id="setup-4" class="wm-section">4. Add a workspace</h2>
-        @if (_workspaceCount > 0)
-        {
-            <StateChip State="StatusState.Healthy" Text="@($"{_workspaceCount} added")" />
-            <span class="wm-muted"> Manage them on the <a href="workspaces">Workspaces</a> page.</span>
-        }
-        else
-        {
-            <p class="wm-muted">Claude can only see folders you add: a C#, Python or Node project, several projects in one folder, or an empty folder to start a new one. <a href="workspaces">Add your first workspace</a>.</p>
-        }
-    </section>
+            <p class="wm-muted wm-sublabel">MCP address</p>
+            <div class="wm-row">
+                <code class="wm-code">@LocalMcpUrl</code>
+                <CopyButton Text="@LocalMcpUrl" Label="Copy address" />
+            </div>
 
-    <section class="wm-card" aria-labelledby="setup-leaves" style="margin-top:16px">
-        <h2 id="setup-leaves" class="wm-section">What leaves this machine</h2>
-        <ul>
-            <li>Only what a tool returns to Claude: file text, search results, package signatures. Each call is limited in size and listed in the audit trail.</li>
-            <li>Your files stay on this computer. Nothing is uploaded in the background.</li>
-            <li>Secrets and your ngrok authtoken are stored encrypted here and are never sent to Claude.</li>
-            <li>To show a package's API, Waymark itself contacts nuget.org, pypi.org or registry.npmjs.org and sends only the package name and version. Nothing from your projects goes with it.</li>
-            <li>The tunnel carries sign-in and tool traffic only; the admin pages are never reachable through it.</li>
-        </ul>
-    </section>
-</div>
+            <p class="wm-muted wm-sublabel">Claude Code: run this in a terminal</p>
+            <div class="wm-row">
+                <code class="wm-code">@ClaudeCodeCommand</code>
+                <CopyButton Text="@ClaudeCodeCommand" Label="Copy command" />
+            </div>
+
+            <p class="wm-muted wm-sublabel">Other agents: an entry for a config file with an mcpServers list. Some agents name the type differently, for example streamable-http. The address stays the same.</p>
+            <div class="wm-row wm-align-start">
+                <div class="wm-code">@McpConfigJson</div>
+                <CopyButton Text="@McpConfigJson" Label="Copy entry" />
+            </div>
+
+            <p class="wm-muted wm-note">Signing in: an agent that opens a browser sign-in and returns to localhost, as Claude Code does, pairs as usual, and you approve it on the <a href="approvals">Approvals</a> page. Any other agent needs an <a href="access-keys">access key</a>, sent as an Authorization: Bearer header.</p>
+        </section>
+
+        <section class="wm-card" aria-labelledby="setup-4">
+            <h2 id="setup-4" class="wm-card-title">4. Add a workspace</h2>
+            @if (_workspaceCount > 0)
+            {
+                <WmStatus State="StatusState.Healthy" Text="@($"{_workspaceCount} added")" />
+                <span class="wm-muted"> Manage them on the <a href="workspaces">Workspaces</a> page.</span>
+            }
+            else
+            {
+                <p class="wm-muted">Claude can only see folders you add: a C#, Python or Node project, several projects in one folder, or an empty folder to start a new one. <a href="workspaces">Add your first workspace</a>.</p>
+            }
+        </section>
+
+        <section class="wm-card" aria-labelledby="setup-leaves">
+            <h2 id="setup-leaves" class="wm-card-title">What leaves this machine</h2>
+            <ul>
+                <li>Only what a tool returns to Claude: file text, search results, package signatures. Each call is limited in size and listed in the audit trail.</li>
+                <li>Your files stay on this computer. Nothing is uploaded in the background.</li>
+                <li>Secrets and your ngrok authtoken are stored encrypted here and are never sent to Claude.</li>
+                <li>To show a package's API, Waymark itself contacts nuget.org, pypi.org or registry.npmjs.org and sends only the package name and version. Nothing from your projects goes with it.</li>
+                <li>The tunnel carries sign-in and tool traffic only; the admin pages are never reachable through it.</li>
+            </ul>
+        </section>
+    </ChildContent>
+</PageFrame>

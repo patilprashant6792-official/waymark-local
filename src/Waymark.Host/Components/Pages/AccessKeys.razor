@@ -5,12 +5,7 @@
 @using Waymark.Host.Components.Shared
 @using Waymark.Host.Ui
 
-<PageTitle>Access keys - Waymark</PageTitle>
-
-<div class="wm-page">
-    <h1 class="wm-title">Access keys</h1>
-    <p class="wm-lead">Long-lived keys for scripts and tools that cannot sign in through the browser. Prefer the normal pairing flow for Claude.</p>
-
+<PageFrame Title="Access keys" Lead="Long-lived keys for scripts and tools that cannot sign in through the browser. Prefer the normal pairing flow for Claude.">
     @if (_error is not null)
     {
         <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
@@ -18,13 +13,13 @@
 
     @if (_created is { } created)
     {
-        <section class="wm-card" aria-labelledby="created-title" style="margin-bottom:16px">
+        <section class="wm-card" aria-labelledby="created-title">
             <h2 id="created-title" class="wm-card-title">Your new key</h2>
             <p>Copy it now. Waymark keeps only a fingerprint, so this is the only time it can be shown.</p>
             <div class="wm-code">@created.Value</div>
-            <div class="wm-row" style="margin-top:8px">
+            <div class="wm-row wm-card-actions">
                 <CopyButton Text="@created.Value" Label="Copy key" />
-                <MudButton Variant="Variant.Text" OnClick="() => _created = null">I have saved it</MudButton>
+                <WmButton Kind="ButtonKind.Ghost" OnClick="() => _created = null">I have saved it</WmButton>
             </div>
         </section>
     }
@@ -32,19 +27,13 @@
     <section class="wm-card" aria-labelledby="new-title">
         <h2 id="new-title" class="wm-card-title">Create a key</h2>
         <div class="wm-row">
-            <MudTextField @bind-Value="_name" Label="Name" Variant="Variant.Outlined" MaxLength="60" Immediate="true"
-                          HelperText="What it is for, so you can recognise it later." Style="min-width:260px" />
-            <MudSelect T="int" @bind-Value="_lifetimeDays" Label="Lasts" Variant="Variant.Outlined" Style="min-width:180px">
-                @foreach (var option in Lifetimes)
-                {
-                    <MudSelectItem T="int" Value="option.Days">@option.Text</MudSelectItem>
-                }
-            </MudSelect>
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_busy || string.IsNullOrWhiteSpace(_name))" OnClick="CreateAsync">Create key</MudButton>
+            <WmTextField @bind-Value="_name" Label="Name" MaxLength="60" Immediate="true" HelperText="What it is for, so you can recognise it later." />
+            <WmSelect TValue="int" Label="Lasts" Width="FieldWidth.Small" @bind-Value="_lifetimeDays" Options="@(Lifetimes.Select(option => new WmOption<int>(option.Days, option.Text)).ToList())" />
+            <WmButton Kind="ButtonKind.Primary" Disabled="@(_busy || string.IsNullOrWhiteSpace(_name))" OnClick="CreateAsync">Create key</WmButton>
         </div>
     </section>
 
-    <h2 class="wm-section">Keys</h2>
+    <SectionHeader Title="Keys" />
     @if (_keys.Count == 0)
     {
         <EmptyState Icon="@Icons.Material.Outlined.VpnKey" Title="No keys yet" Text="Created keys are listed here with the last four characters, never the whole key." />
@@ -67,11 +56,11 @@
                             <td>@DisplayFormat.Ago(key.CreatedUtc, Time.GetUtcNow())</td>
                             <td>@(key.ExpiresUtc is { } expires ? DisplayFormat.DateAndClock(expires) : "never")</td>
                             <td>@DisplayFormat.Ago(key.LastUsedUtc, Time.GetUtcNow())</td>
-                            <td><StateChip State="state.State" Text="@state.Text" /></td>
+                            <td><WmStatus State="state.State" Text="@state.Text" /></td>
                             <td class="num">
                                 @if (!key.IsRevoked)
                                 {
-                                    <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" Disabled="_busy" OnClick="() => RevokeAsync(key)">Revoke</MudButton>
+                                    <WmButton Kind="ButtonKind.Danger" Small="true" Disabled="_busy" OnClick="() => RevokeAsync(key)">Revoke</WmButton>
                                 }
                             </td>
                         </tr>
@@ -80,4 +69,4 @@
             </table>
         </div>
     }
-</div>
+</PageFrame>

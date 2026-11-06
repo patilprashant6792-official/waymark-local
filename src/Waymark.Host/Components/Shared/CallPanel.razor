@@ -9,13 +9,13 @@
             <span class="wm-call-ref wm-mono">#@id</span>
             @if (State.Sequence.Count > 0)
             {
-                <MudIconButton Icon="@Icons.Material.Filled.KeyboardArrowUp" Size="Size.Small" Disabled="@(State.Neighbour(-1) is null)" title="Newer call" aria-label="Newer call" OnClick="() => State.Move(-1)" />
-                <MudIconButton Icon="@Icons.Material.Filled.KeyboardArrowDown" Size="Size.Small" Disabled="@(State.Neighbour(1) is null)" title="Older call" aria-label="Older call" OnClick="() => State.Move(1)" />
+                <WmIconButton Icon="@Icons.Material.Outlined.KeyboardArrowUp" Label="Newer call" Disabled="@(State.Neighbour(-1) is null)" OnClick="() => State.Move(-1)" />
+                <WmIconButton Icon="@Icons.Material.Outlined.KeyboardArrowDown" Label="Older call" Disabled="@(State.Neighbour(1) is null)" OnClick="() => State.Move(1)" />
             }
             <a class="wm-call-full" href="@($"calls/{id}")" title="Open as a full page" aria-label="Open as a full page">
-                <MudIcon Icon="@Icons.Material.Filled.OpenInFull" Size="Size.Small" />
+                <MudIcon Icon="@Icons.Material.Outlined.OpenInFull" Size="Size.Small" />
             </a>
-            <MudIconButton Icon="@Icons.Material.Filled.Close" Size="Size.Small" title="Close (Esc)" aria-label="Close call details" OnClick="State.Close" />
+            <WmIconButton Icon="@Icons.Material.Outlined.Close" Label="Close call details (Esc)" OnClick="State.Close" />
         </div>
         <CallView Id="id" Compact="true" />
     </aside>

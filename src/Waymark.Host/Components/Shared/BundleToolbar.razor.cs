@@ -7,7 +7,7 @@ using Waymark.Host.Transfer;
 namespace Waymark.Host.Components.Shared;
 
 /// <summary>
-/// The Export and Import buttons of a page that holds what moves to another computer: all workspaces on the Workspaces page, or one workspace's access rules or feature maps
+/// The Export and Import buttons of a page that holds what moves to another computer: all workspaces on the Workspaces page, or one workspace's access rules or flows
 /// on its own page. Export downloads a file; Import opens the dialog that shows what a file adds before anything is saved.
 /// </summary>
 public partial class BundleToolbar : LiveComponentBase
@@ -52,7 +52,7 @@ public partial class BundleToolbar : LiveComponentBase
         {
             var file = await Bundles.ExportAsync(WorkspaceId, Content, Cancel);
             await Js.InvokeVoidAsync("waymark.download", Cancel, file.FileName, file.Text, "application/json");
-            Snackbar.Add($"Saved {file.FileName}. It lists your access rules and feature maps, so keep it somewhere you trust.", Severity.Success);
+            Snackbar.Add($"Saved {file.FileName}. It lists your access rules and flows, so keep it somewhere you trust.", Severity.Success);
         }
         catch (OperationCanceledException)
         {

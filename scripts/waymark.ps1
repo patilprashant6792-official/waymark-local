@@ -125,6 +125,21 @@ function Find-Repo {
     throw 'The Waymark repository was not found. Run install.cmd from the cloned repository.'
 }
 
+# Waymark starts ngrok as a child program. Ending only Waymark.Host.exe leaves that ngrok running on its own, and it keeps the app folder in use, so the folder cannot be replaced.
+# These are the ngrok programs Waymark itself started (their command line is "http <MCP port> ... --log=stdout"); an ngrok you started by hand does not match and is left alone.
+function Get-WaymarkTunnelProcesses {
+    $pattern = '\bhttp\s+' + $McpPort + '\s.*--log=stdout'
+    return @(Get-CimInstance -ClassName Win32_Process -Filter "Name = 'ngrok.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -match $pattern })
+}
+
+function Stop-WaymarkTunnel {
+    foreach ($tunnel in Get-WaymarkTunnelProcesses) {
+        Stop-Process -Id $tunnel.ProcessId -Force -ErrorAction SilentlyContinue
+        $ended = Get-Process -Id $tunnel.ProcessId -ErrorAction SilentlyContinue
+        if ($null -ne $ended) { $null = $ended.WaitForExit(10000) }
+    }
+}
+
 function Stop-Waymark {
     if ($null -ne (Get-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue)) {
         Stop-ScheduledTask -TaskName $TaskName -ErrorAction SilentlyContinue
@@ -133,6 +148,25 @@ function Stop-Waymark {
     foreach ($process in Get-RunningInstall) {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
         $null = $process.WaitForExit(15000)
+    }
+
+    Stop-WaymarkTunnel
+}
+
+# Windows can keep a folder in use for a moment after its programs end (a closing handle, a virus scanner), so a few tries are made before giving up.
+function Remove-AppDir {
+    for ($attempt = 1; $attempt -le 5; $attempt++) {
+        if (-not (Test-Path $AppDir)) { return }
+        try {
+            Remove-Item $AppDir -Recurse -Force
+            return
+        }
+        catch {
+            if ($attempt -eq 5) {
+                throw ('The old version in ' + $AppDir + ' could not be removed: ' + $_.Exception.Message + ' Something is still using that folder (a terminal opened inside it, or a program started from it). Close it and run this again. The old version was not changed except for being stopped.')
+            }
+            Start-Sleep -Seconds 1
+        }
     }
 }
 
@@ -234,8 +268,9 @@ function Invoke-Install([bool] $Pull) {
     $staging = Publish-Waymark $repo
 
     Write-Step 'Installing'
+    $hadTunnel = (Get-WaymarkTunnelProcesses).Count -gt 0
     Stop-Waymark
-    if (Test-Path $AppDir) { Remove-Item $AppDir -Recurse -Force }
+    Remove-AppDir
     Move-Item $staging $AppDir
     Copy-Item (Join-Path $repo 'scripts\waymark.ps1') $InstalledScript -Force
     Set-Content -Path $RepoFile -Value $repo -Encoding ASCII
@@ -259,6 +294,7 @@ function Invoke-Install([bool] $Pull) {
     }
 
     Write-Good ('Waymark is running at ' + $AdminUrl + ' (version ' + $version + ').')
+    if ($hadTunnel) { Write-Good 'The ngrok tunnel was stopped for the update and Waymark starts it again by itself; the Setup page shows when it is online.' }
     Start-Process $AdminUrl
 }
 

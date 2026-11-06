@@ -1,14 +1,14 @@
-﻿@using MudBlazor
+@using MudBlazor
 @inject Microsoft.JSInterop.IJSRuntime Js
 @inject ISnackbar Snackbar
 
 @if (Compact)
 {
-    <MudIconButton Icon="@Icons.Material.Filled.ContentCopy" Size="Size.Small" title="@Label" aria-label="@Label" OnClick="CopyAsync" />
+    <WmIconButton Icon="@Icons.Material.Outlined.ContentCopy" Label="@Label" OnClick="CopyAsync" />
 }
 else
 {
-    <MudButton Variant="Variant.Outlined" Size="Size.Small" StartIcon="@Icons.Material.Filled.ContentCopy" OnClick="CopyAsync">@Label</MudButton>
+    <WmButton Small="true" Icon="@Icons.Material.Outlined.ContentCopy" OnClick="CopyAsync">@Label</WmButton>
 }
 
 @code {

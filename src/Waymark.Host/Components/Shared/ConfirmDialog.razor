@@ -11,8 +11,8 @@
         </div>
     </DialogContent>
     <DialogActions>
-        <MudButton Variant="Variant.Outlined" OnClick="Cancel" autofocus="autofocus">Cancel</MudButton>
-        <MudButton Variant="Variant.Filled" Color="@(Destructive ? Color.Error : Color.Primary)" OnClick="Confirm">@ConfirmText</MudButton>
+        <WmButton OnClick="Cancel" autofocus="autofocus">Cancel</WmButton>
+        <WmButton Kind="@(Destructive ? ButtonKind.Danger : ButtonKind.Primary)" OnClick="Confirm">@ConfirmText</WmButton>
     </DialogActions>
 </MudDialog>
 

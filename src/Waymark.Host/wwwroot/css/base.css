@@ -1,0 +1,65 @@
+/* Reset, text, focus, accessibility helpers. Replaces Bootstrap and the project-template app.css. */
+*, *::before, *::after { box-sizing: border-box; }
+
+html, body {
+    margin: 0;
+    font-family: var(--wm-font);
+    font-size: 14px;
+    line-height: 1.5;
+    color: var(--wm-text);
+    background: var(--wm-bg);
+    -webkit-font-smoothing: antialiased;
+}
+
+body { overflow-x: hidden; }
+
+h1, h2, h3, h4 { margin: 0; font-weight: 600; }
+
+a { color: var(--wm-text); text-decoration-color: color-mix(in srgb, var(--wm-text) 40%, transparent); text-underline-offset: 3px; }
+a:hover { text-decoration-color: currentColor; }
+
+.mud-typography, .mud-input, .mud-button-root, .mud-input-slot { font-family: var(--wm-font); }
+
+.mono, .wm-mono { font-family: var(--wm-mono); }
+
+h1:focus, main:focus { outline: none; }
+
+:focus-visible { outline: 2px solid var(--wm-primary); outline-offset: 2px; }
+
+/* Numbers line up and do not jitter while live values change. */
+.wm-num, .wm-table td, .wm-table th { font-variant-numeric: tabular-nums; }
+
+/* Anchors and focused rows keep clear of the sticky header. */
+[id] { scroll-margin-top: calc(var(--wm-header-h) + var(--wm-space-4)); }
+
+.visually-hidden { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+.wm-skip { position: absolute; left: -9999px; top: 0; z-index: 2000; padding: 8px 12px; background: var(--wm-primary); color: var(--wm-on-primary); border-radius: var(--wm-r-ctl); }
+.wm-skip:focus { left: 8px; top: 8px; }
+
+kbd, .wm-kbd { display: inline-block; min-width: 1.6em; padding: 1px 6px; font: 0.75rem/1.5 var(--wm-mono); text-align: center; color: var(--wm-text); background: var(--wm-surface-2); border: 1px solid var(--wm-line); border-bottom-width: 2px; border-radius: 6px; }
+
+.wm-muted { color: var(--wm-muted); }
+.wm-hint { color: var(--wm-hint); }
+.wm-ellipsis { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; min-width: 0; }
+.wm-cap { text-transform: capitalize; }
+
+/* Scrollbars follow the palette. */
+* { scrollbar-width: thin; scrollbar-color: color-mix(in srgb, var(--wm-muted) 45%, transparent) transparent; }
+
+/* Blazor's own error banner. */
+.blazor-error-boundary { padding: 1rem; color: var(--mud-palette-error-text); background: var(--wm-err); border-radius: var(--wm-r-sm); }
+.blazor-error-boundary::after { content: "An error has occurred."; }
+#blazor-error-ui { position: fixed; left: 0; right: 0; bottom: 0; z-index: 2000; display: none; padding: 10px 16px; background: var(--wm-err); color: var(--mud-palette-error-text); }
+#blazor-error-ui .dismiss { position: absolute; top: 8px; right: 12px; cursor: pointer; }
+#blazor-error-ui a { color: inherit; }
+
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+}
+
+@media (forced-colors: active) {
+    :focus-visible { outline: 2px solid Highlight; }
+}
+
+@media print { .wm-skip { display: none; } }

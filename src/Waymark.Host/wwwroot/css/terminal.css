@@ -1,0 +1,72 @@
+/* The terminal is always dark, in the light and the dark theme, so its 16 colours keep their contrast. It does not use the app palette. */
+.wm-term { --term-bg: #0a0a0a; --term-fg: #e6e6e6; --term-line: #262626; --a0: #525252; --a1: #ff7b72; --a2: #3fb950; --a3: #d29922; --a4: #58a6ff; --a5: #bc8cff; --a6: #39c5cf; --a7: #b4b4b4; --a8: #8a8a8a; --a9: #ffa198; --a10: #56d364; --a11: #e3b341; --a12: #79c0ff; --a13: #d2a8ff; --a14: #56d4dd; --a15: #f5f5f5;
+    position: relative; flex: 1; min-height: 0; padding: 12px 14px; overflow: auto; font-family: var(--wm-mono); font-size: 12.5px; line-height: 1.45; color: var(--term-fg); background: var(--term-bg); border: 1px solid var(--term-line); border-radius: var(--wm-r-card); scrollbar-color: #525252 transparent; }
+.wm-term ::selection { background: #264f78; }
+.wm-term-line { min-height: 1.45em; white-space: pre-wrap; word-break: break-all; }
+.wm-term.nowrap .wm-term-line { white-space: pre; word-break: normal; }
+.wm-term-gap, .wm-term-wait { padding: 4px 0 8px; font-style: italic; color: var(--a8); }
+.wm-term-line.hit { background: rgba(210, 153, 34, 0.16); }
+.wm-term-line.hit.current { background: rgba(88, 166, 255, 0.26); box-shadow: inset 3px 0 0 var(--a12); }
+
+/* Light backgrounds get dark text by default. This comes before the fg rules, so a foreground colour set by the program still wins. */
+.wm-term .bg3, .wm-term .bg7, .wm-term .bg8, .wm-term .bg9, .wm-term .bg10, .wm-term .bg11, .wm-term .bg12, .wm-term .bg13, .wm-term .bg14, .wm-term .bg15 { color: var(--term-bg); }
+.wm-term .fg0 { color: var(--a0); } .wm-term .fg1 { color: var(--a1); } .wm-term .fg2 { color: var(--a2); } .wm-term .fg3 { color: var(--a3); }
+.wm-term .fg4 { color: var(--a4); } .wm-term .fg5 { color: var(--a5); } .wm-term .fg6 { color: var(--a6); } .wm-term .fg7 { color: var(--a7); }
+.wm-term .fg8 { color: var(--a8); } .wm-term .fg9 { color: var(--a9); } .wm-term .fg10 { color: var(--a10); } .wm-term .fg11 { color: var(--a11); }
+.wm-term .fg12 { color: var(--a12); } .wm-term .fg13 { color: var(--a13); } .wm-term .fg14 { color: var(--a14); } .wm-term .fg15 { color: var(--a15); }
+.wm-term .bg0 { background-color: var(--a0); } .wm-term .bg1 { background-color: var(--a1); } .wm-term .bg2 { background-color: var(--a2); } .wm-term .bg3 { background-color: var(--a3); }
+.wm-term .bg4 { background-color: var(--a4); } .wm-term .bg5 { background-color: var(--a5); } .wm-term .bg6 { background-color: var(--a6); } .wm-term .bg7 { background-color: var(--a7); }
+.wm-term .bg8 { background-color: var(--a8); } .wm-term .bg9 { background-color: var(--a9); } .wm-term .bg10 { background-color: var(--a10); } .wm-term .bg11 { background-color: var(--a11); }
+.wm-term .bg12 { background-color: var(--a12); } .wm-term .bg13 { background-color: var(--a13); } .wm-term .bg14 { background-color: var(--a14); } .wm-term .bg15 { background-color: var(--a15); }
+.wm-term .inv { color: var(--term-bg); background-color: var(--term-fg); }
+.wm-term .b { font-weight: 700; } .wm-term .d { opacity: 0.65; } .wm-term .i { font-style: italic; } .wm-term .u { text-decoration: underline; }
+
+/* search bar, banner, run filter */
+.wm-term-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; }
+.wm-term-search { flex: 1 1 200px; max-width: 320px; margin-top: 0; }
+.wm-term-count { min-width: 9ch; font-variant-numeric: tabular-nums; }
+.wm-term-banner { padding: 8px 12px; font-weight: 600; border: 1px solid var(--wm-line); border-left: 3px solid var(--wm-muted); border-radius: var(--wm-r-sm); }
+.wm-term-banner.ok { border-left-color: var(--wm-ok); }
+.wm-term-banner.err { border-left-color: var(--wm-err); }
+.wm-term-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; }
+.wm-term-title { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 10px; min-width: 0; }
+.wm-term-tools { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wm-space-2); }
+.wm-term-meta { display: flex; flex-wrap: wrap; gap: 2px 16px; font-size: var(--wm-text-sm); color: var(--wm-muted); }
+.wm-term-meta > .wm-ellipsis { max-width: 100%; }
+.wm-term-note { padding: 8px 12px; border: 1px solid var(--wm-line); border-left: 3px solid var(--wm-info); border-radius: var(--wm-r-sm); }
+.wm-console-filter { position: sticky; top: 0; z-index: 1; padding: var(--wm-space-2); background: var(--wm-surface); border-bottom: 1px solid var(--wm-line); }
+.wm-console-filter .wm-input { width: 100%; margin-top: 0; }
+@media (forced-colors: active) { .wm-term-line.hit { outline: 1px solid Highlight; } .wm-term-line.hit.current { outline-width: 3px; } }
+
+/* ---------- live log lines ---------- */
+.wm-live-bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 0 0 var(--wm-space-2); }
+.wm-live-search { flex: 1 1 220px; max-width: 360px; margin-top: 0; }
+.wm-live-term { flex: none; height: clamp(360px, calc(100vh - 420px), 820px); }
+.wm-live-term.wm-live-mini { flex: 1 1 0; min-height: 0; padding: 8px 12px; font-size: 12px; line-height: 1.4; border: 0; border-radius: 0; }
+.wm-live-empty { font-style: italic; color: var(--a8); }
+.wm-live-line { display: flex; align-items: baseline; padding: 1px 0; }
+.wm-live-time { flex: none; margin-right: 1ch; color: var(--a8); }
+.wm-live-kind { flex: none; min-width: 5ch; margin-right: 1ch; font-weight: 700; }
+.wm-live-kind.tool { color: var(--a4); } .wm-live-kind.watch { color: var(--a6); } .wm-live-kind.auth { color: var(--a5); } .wm-live-kind.cmd { color: var(--a3); } .wm-live-kind.app { color: var(--a8); }
+.wm-live-lvl { flex: none; margin-right: 1ch; font-weight: 700; }
+.wm-live-lvl:empty { display: none; }
+.wm-live-msg { flex: 1 1 auto; min-width: 0; }
+.wm-live-why { display: block; font-weight: 600; }
+.wm-live-why::before { content: "why "; font-weight: 400; opacity: .65; }
+.wm-run-why { display: block; overflow: hidden; font-size: var(--wm-text-sm); text-overflow: ellipsis; white-space: nowrap; }
+.wm-audit-why { display: block; font-size: var(--wm-text-sm); color: var(--wm-muted); }
+.wm-live-line.warn .wm-live-lvl, .wm-live-line.warn .wm-live-msg { color: var(--a11); }
+.wm-live-line.err .wm-live-lvl, .wm-live-line.err .wm-live-msg { color: var(--a9); }
+.wm-term .wm-link-button, .wm-live-term .wm-link-button { flex: none; margin-left: 1ch; padding: 0 6px; font: inherit; font-size: 11.5px; color: var(--a12); text-decoration: none; background: transparent; border: 1px solid var(--term-line); border-radius: 4px; }
+.wm-term .wm-link-button:hover, .wm-live-term .wm-link-button:hover { border-color: var(--a12); }
+.wm-live-exc { margin: 2px 0 6px 4ch; padding: 6px 10px; overflow-x: auto; font: inherit; font-size: 12px; white-space: pre-wrap; word-break: break-all; color: var(--a9); background: rgba(255, 123, 114, 0.08); border-left: 3px solid var(--a1); border-radius: 4px; }
+.wm-payload.wm-term { flex: none; max-height: 70vh; margin: 0; white-space: pre-wrap; word-break: break-word; }
+.wm-arg { margin: 0 0 14px; }
+.wm-arg-name { margin-bottom: 4px; font-family: var(--wm-mono); font-weight: 600; }
+
+/* happening now */
+.wm-now { margin: 0 0 var(--wm-space-3); }
+.wm-now-list { display: flex; flex-wrap: wrap; gap: var(--wm-space-2); margin: 0; padding: 0; list-style: none; }
+.wm-now-item { display: inline-flex; align-items: center; gap: var(--wm-space-2); padding: 6px 14px; border: 1px solid var(--wm-line); border-radius: var(--wm-r-ctl); }
+.wm-now-kind { font-size: var(--wm-text-xs); font-weight: 600; letter-spacing: 0.05em; text-transform: uppercase; color: var(--wm-muted); }
+.wm-now-time { font-variant-numeric: tabular-nums; color: var(--wm-muted); }

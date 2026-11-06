@@ -7,12 +7,7 @@
 @using Waymark.Host.NuGetAdmin
 @using Waymark.Host.Ui
 
-<PageTitle>Packages - Waymark</PageTitle>
-
-<div class="wm-page">
-    <h1 class="wm-title">Packages</h1>
-    <p class="wm-lead">Every NuGet, PyPI and npm package Claude has looked up. Waymark keeps a searchable index of each one and the result of reading it, so the next lookup is instant. NuGet packages are read from the shared NuGet folder of this computer, the one dotnet uses, and Waymark never deletes from it. PyPI and npm packages are downloaded to a temporary folder, checked against the registry's hash, read by syntax only, and deleted again; nothing is installed or run. If a package misbehaves, reload it (reads it again) or clear it (it is fetched afresh the next time it is asked for).</p>
-
+<PageFrame Wide="true" Title="Packages" Lead="Every NuGet, PyPI and npm package Claude has looked up. Waymark keeps a searchable index of each one and the result of reading it, so the next lookup is instant. NuGet packages are read from the shared NuGet folder of this computer, the one dotnet uses, and Waymark never deletes from it. PyPI and npm packages are downloaded to a temporary folder, checked against the registry's hash, read by syntax only, and deleted again; nothing is installed or run. If a package misbehaves, reload it (reads it again) or clear it (it is fetched afresh the next time it is asked for).">
     @if (_error is not null)
     {
         <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
@@ -35,25 +30,25 @@
         </section>
 
         <div class="wm-row">
-            <MudTextField T="string" Label="Filter by package" @bind-Value="_filter" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense" Style="min-width:260px" />
+            <WmTextField Label="Filter by package" @bind-Value="_filter" Immediate="true" />
             <label class="visually-hidden" for="pkg-ecosystem">Ecosystem</label>
-            <select id="pkg-ecosystem" class="wm-input" value="@_ecosystem" @onchange="e => _ecosystem = e.Value?.ToString() ?? string.Empty">
+            <select id="pkg-ecosystem" class="wm-select" value="@_ecosystem" @onchange="e => _ecosystem = e.Value?.ToString() ?? string.Empty">
                 <option value="">All ecosystems (@_overview.Entries.Count)</option>
                 <option value="@PackageEcosystems.NuGet">NuGet - .NET (@CountOf(PackageEcosystems.NuGet))</option>
                 <option value="@PackageEcosystems.PyPI">PyPI - Python (@CountOf(PackageEcosystems.PyPI))</option>
                 <option value="@PackageEcosystems.Npm">npm - JavaScript and TypeScript (@CountOf(PackageEcosystems.Npm))</option>
             </select>
-            <MudButton Variant="Variant.Outlined" Disabled="_busy" OnClick="LoadAsync">Refresh</MudButton>
-            <MudButton Variant="Variant.Outlined" Disabled="@(_busy || stats.Failed == 0)" OnClick="ReloadFailedAsync">Reload failed</MudButton>
-            <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="@(_busy || stats.Failed == 0)" OnClick="ClearFailedAsync">Clear failed</MudButton>
-            <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="@(_busy || (_overview.Entries.Count == 0 && _overview.OtherResults.Count == 0))" OnClick="ClearAllAsync">Clear everything</MudButton>
+            <WmButton Disabled="_busy" OnClick="LoadAsync">Refresh</WmButton>
+            <WmButton Disabled="@(_busy || stats.Failed == 0)" OnClick="ReloadFailedAsync">Reload failed</WmButton>
+            <WmButton Kind="ButtonKind.Danger" Disabled="@(_busy || stats.Failed == 0)" OnClick="ClearFailedAsync">Clear failed</WmButton>
+            <WmButton Kind="ButtonKind.Danger" Disabled="@(_busy || (_overview.Entries.Count == 0 && _overview.OtherResults.Count == 0))" OnClick="ClearAllAsync">Clear everything</WmButton>
         </div>
         @if (_busy && _status is not null)
         {
             <p class="wm-muted" aria-live="polite">@_status</p>
         }
 
-        <h2 class="wm-section" style="margin-top:24px">Indexed packages</h2>
+        <SectionHeader Title="Indexed packages" />
         @if (_overview.Entries.Count == 0)
         {
             <EmptyState Icon="@Icons.Material.Outlined.Inventory" Title="Nothing indexed yet" Text="A package appears here the first time Claude looks it up with the pkg tools (NuGet, PyPI or npm)." />
@@ -89,7 +84,7 @@
                                     }
                                 </th>
                                 <td class="wm-mono">@(PackageEcosystems.Of(package.Key) == PackageEcosystems.NuGet ? package.Key.TargetFramework : "-")</td>
-                                <td><StateChip State="state.State" Text="@state.Text" /></td>
+                                <td><WmStatus State="state.State" Text="@state.Text" /></td>
                                 <td>@DisplayFormat.Count(package.TypeCount)</td>
                                 <td>@DisplayFormat.Count(package.SymbolCount)</td>
                                 <td>@DisplayFormat.Size(entry.IndexBytes)</td>
@@ -97,9 +92,9 @@
                                 <td>@DisplayFormat.Ago(package.IndexedUtc ?? package.StartedUtc, Time.GetUtcNow())</td>
                                 <td>
                                     <div class="wm-actions">
-                                        <MudButton Size="Size.Small" Variant="Variant.Filled" Color="Color.Primary" Href="@NuGetLinks.Explore(package.Key)" Disabled="@(package.State != NuGetIndexState.Ready)">Explore</MudButton>
-                                        <MudButton Size="Size.Small" Variant="Variant.Outlined" Disabled="@(_busy || package.State == NuGetIndexState.Building)" OnClick="() => ReloadAsync(entry)">Reload</MudButton>
-                                        <MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" Disabled="_busy" OnClick="() => ClearAsync(entry)">Clear</MudButton>
+                                        <WmButton Kind="ButtonKind.Primary" Small="true" Href="@NuGetLinks.Explore(package.Key)" Disabled="@(package.State != NuGetIndexState.Ready)">Explore</WmButton>
+                                        <WmButton Small="true" Disabled="@(_busy || package.State == NuGetIndexState.Building)" OnClick="() => ReloadAsync(entry)">Reload</WmButton>
+                                        <WmButton Kind="ButtonKind.Danger" Small="true" Disabled="_busy" OnClick="() => ClearAsync(entry)">Clear</WmButton>
                                     </div>
                                 </td>
                             </tr>
@@ -111,8 +106,7 @@
 
         @if (_overview.OtherResults.Count > 0)
         {
-            <h2 class="wm-section" style="margin-top:24px">Other stored results</h2>
-            <p class="wm-muted">Results of reading a package that have no index of their own: the shortcut for "latest", or a package whose index failed or was cleared.</p>
+            <SectionHeader Title="Other stored results" Lead="Results of reading a package that have no index of their own: the shortcut for &quot;latest&quot;, or a package whose index failed or was cleared." />
             <div class="wm-table-wrap">
                 <table class="wm-table">
                     <caption class="visually-hidden">Stored results without an index</caption>
@@ -127,7 +121,7 @@
                                 <td class="wm-mono">@result.ResolvedVersion</td>
                                 <td>@DisplayFormat.Size(result.Bytes)</td>
                                 <td>@DisplayFormat.Ago(result.StoredUtc, Time.GetUtcNow())</td>
-                                <td><MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" Disabled="_busy" OnClick="() => RemoveResultAsync(result)">Remove</MudButton></td>
+                                <td><WmButton Kind="ButtonKind.Danger" Small="true" Disabled="_busy" OnClick="() => RemoveResultAsync(result)">Remove</WmButton></td>
                             </tr>
                         }
                     </tbody>
@@ -135,4 +129,4 @@
             </div>
         }
     }
-</div>
+</PageFrame>

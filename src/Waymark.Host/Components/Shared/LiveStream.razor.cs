@@ -2,13 +2,13 @@
 using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using Waymark.Core.LiveFeed;
-using Waymark.Host.Components.Shared;
 using Waymark.Host.Ui;
+using Waymark.Host.Components.Ui;
 using Waymark.Logging;
 
-namespace Waymark.Host.Components.Pages;
+namespace Waymark.Host.Components.Shared;
 
-public partial class Live : LiveComponentBase
+public partial class LiveStream : LiveComponentBase
 {
     private const int MaxKept = 200;
     private const string AllTab = "all";
@@ -51,9 +51,12 @@ public partial class Live : LiveComponentBase
     private IJSRuntime Js { get; set; } = default!;
 
     [Inject]
-    private ILogger<Live> Logger { get; set; } = default!;
+    private ILogger<LiveStream> Logger { get; set; } = default!;
 
     private long Dropped => _subscription?.Dropped ?? 0;
+
+    private IReadOnlyList<WmTab> TabList =>
+        [.. Tabs.Select(tab => new WmTab(tab.Id, tab.Name, tab.Id == ErrorsTab ? _problemCount : 0, $"{_problemCount} errors and warnings"))];
 
     protected override void OnInitialized()
     {

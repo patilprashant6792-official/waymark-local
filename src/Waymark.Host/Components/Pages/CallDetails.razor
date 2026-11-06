@@ -2,12 +2,13 @@
 @using Waymark.Host.Components.Shared
 
 @* The full-page form of one call, for a link you want to keep or share. Everywhere else a call opens in the side panel (CallPanel). *@
-<div class="wm-page wide">
-    <p class="wm-muted" style="margin:0 0 8px"><a href="audit">Audit</a> / call <span class="wm-mono">#@Id</span></p>
+<PageFrame Wide="true" Title="@($"Call #{Id}")" Back="@Back">
     <CallView Id="Id" />
-</div>
+</PageFrame>
 
 @code {
+    private static readonly PageFrame.PageBack Back = new("/audit", "Back to the audit");
+
     [Parameter]
     public long Id { get; set; }
 }

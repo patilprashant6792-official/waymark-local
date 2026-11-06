@@ -9,7 +9,7 @@
 }
 <article class="wm-tile wm-ws-card @WorkspaceView.AccentOf(status.State) @(Workspace.Enabled ? string.Empty : "is-off")">
     <header class="wm-ws-card-head">
-        <span class="wm-ico"><MudIcon Icon="@Icons.Material.Filled.Folder" Size="Size.Small" /></span>
+        <span class="wm-ico"><MudIcon Icon="@Icons.Material.Outlined.Folder" Size="Size.Small" /></span>
         <h2 class="wm-ws-name"><a class="wm-ws-link" href="@WorkspaceSections.Overview.Href(Workspace.Id)">@Workspace.Name</a></h2>
         @if (Repo is { } repo)
         {
@@ -20,7 +20,7 @@
     </header>
     <div class="wm-muted wm-mono wm-ellipsis" title="@ShownPath">@ShownPath</div>
     <div class="wm-row">
-        <StateChip State="status.State" Text="@status.Text" />
+        <WmStatus State="status.State" Text="@status.Text" />
         @if (progressText.Length > 0)
         {
             <span class="wm-muted">@progressText</span>
@@ -31,7 +31,7 @@
         <div class="wm-row wm-ws-chips">
             @foreach (var language in languages)
             {
-                <span class="wm-chip info" title="@($"{language.Files} {language.Name} files indexed")">@language.Name @DisplayFormat.Count(language.Files)</span>
+                <WmTag Text="@($"{language.Name} {DisplayFormat.Count(language.Files)}")" Title="@($"{language.Files} {language.Name} files indexed")" />
             }
         </div>
     }

@@ -11,7 +11,7 @@ using Waymark.Host.Ui;
 namespace Waymark.Host.Components.Pages;
 
 /// <summary>
-/// The Feature maps section of a workspace: the maps (flows) Claude saved as steps, whether each step is in the code that is checked out, whether each link still holds, and removing what is wrong.
+/// The Flows section of a workspace: the flows Claude saved as steps, whether each step is in the code that is checked out, whether each link still holds, and removing what is wrong.
 /// It reloads when Claude saves or deletes a map.
 /// </summary>
 public partial class FeatureMapList : LiveComponentBase
@@ -103,8 +103,8 @@ public partial class FeatureMapList : LiveComponentBase
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "The feature maps of workspace {WorkspaceId} could not be loaded or checked", Workspace.Id);
-            _error = "The feature maps could not be loaded or checked.";
+            Logger.LogError(ex, "The flows of workspace {WorkspaceId} could not be loaded or checked", Workspace.Id);
+            _error = "The flows could not be loaded or checked.";
         }
         finally
         {
@@ -117,14 +117,14 @@ public partial class FeatureMapList : LiveComponentBase
     private Task SearchAsync()
     {
         _searchedFor = _query.Trim();
-        return RunBusyAsync(LoadAsync, "The feature maps could not be searched.");
+        return RunBusyAsync(LoadAsync, "The flows could not be searched.");
     }
 
     private Task ShowAllAsync()
     {
         _query = string.Empty;
         _searchedFor = string.Empty;
-        return RunBusyAsync(LoadAsync, "The feature maps could not be loaded.");
+        return RunBusyAsync(LoadAsync, "The flows could not be loaded.");
     }
 
     private async Task OnSearchKey(KeyboardEventArgs args)
@@ -148,7 +148,7 @@ public partial class FeatureMapList : LiveComponentBase
     {
         var confirmed = await ConfirmDialogs.AskAsync(
             Dialogs,
-            "Delete this feature map?",
+            "Delete this flow?",
             $"'{map.Name}' and its {map.Steps.Count} steps are removed. Claude can save it again after exploring the feature.",
             "Delete",
             destructive: true);
@@ -165,7 +165,7 @@ public partial class FeatureMapList : LiveComponentBase
                     Snackbar.Add($"Deleted '{map.Name}'.", Severity.Success);
                 }
             },
-            "The feature map could not be deleted.");
+            "The flow could not be deleted.");
     }
 
     private async Task RemoveStepAsync(FeatureMap map, int index)
@@ -236,8 +236,8 @@ public partial class FeatureMapList : LiveComponentBase
     // The same text memorise takes (indented under the step that calls it), so a flow can be pasted into a note or saved again.
     private static string StepsText(FeatureMap map) => FlowStepText.Format(FlowStepText.FromStored(map.Steps));
 
-    // The steps are paths: they wrap anywhere, so a long path never pushes the actions out of sight.
-    private static string Indent(FeatureMapStep step) => $"padding-left:{step.Depth * 16}px;min-width:260px;overflow-wrap:anywhere";
+    // The steps are paths: they wrap anywhere (see .wm-step), so a long path never pushes the actions out of sight. Depth maps to a fixed set of indent classes.
+    private static string IndentClass(FeatureMapStep step) => $"wm-indent-{Math.Clamp(step.Depth, 0, 8)}";
 
     // What the code says about the link from the step above, in the words of the other states on this page. Never colour alone: each has a word.
     private static (StatusState State, string Text, string? Title)? LinkChip(FeatureComponentStatus? status)

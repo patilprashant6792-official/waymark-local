@@ -1,0 +1,25 @@
+@* A label. Grey unless it states something: only Warn, Error, Ok and Info use colour. *@
+<span class="wm-tag @ClassName" title="@Title">@Text@ChildContent</span>
+
+@code {
+    [Parameter]
+    public Tone Tone { get; set; } = Tone.Neutral;
+
+    [Parameter]
+    public string? Text { get; set; }
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    private string ClassName => Tone switch
+    {
+        Tone.Ok => "ok",
+        Tone.Warn => "warn",
+        Tone.Error => "err",
+        Tone.Info => "info",
+        _ => string.Empty
+    };
+}

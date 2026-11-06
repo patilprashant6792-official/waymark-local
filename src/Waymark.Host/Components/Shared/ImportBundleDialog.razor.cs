@@ -6,6 +6,7 @@ using MudBlazor;
 using Waymark.Core.Transfer;
 using Waymark.Core.Workspaces;
 using Waymark.Host.Transfer;
+using Waymark.Host.Components.Ui;
 
 namespace Waymark.Host.Components.Shared;
 
@@ -21,6 +22,22 @@ public partial class ImportBundleDialog : LiveComponentBase
     private ParsedBundle? _parsed;
     private string? _error;
     private bool _busy;
+
+    // What can be done with one workspace of the file: merging needs an existing workspace to receive it.
+    private IReadOnlyList<WmOption<ImportAction>> ActionOptions => TargetWorkspaceId is null
+        ?
+        [
+            new(ImportAction.MergeIntoExisting, "Merge into a workspace I have", Disabled: _existing.Count == 0),
+            new(ImportAction.CreateWorkspace, "Create it as a new workspace"),
+            new(ImportAction.Skip, "Skip it")
+        ]
+        :
+        [
+            new(ImportAction.MergeIntoExisting, "Merge into this workspace"),
+            new(ImportAction.Skip, "Skip it")
+        ];
+
+    private IReadOnlyList<WmOption<long>> ExistingOptions => _existing.Select(workspace => new WmOption<long>(workspace.Id, workspace.Name)).ToList();
 
     /// <summary>The workspace whose page opened the dialog; null on the Workspaces page. When set, only this workspace can receive.</summary>
     [Parameter]
@@ -53,8 +70,8 @@ public partial class ImportBundleDialog : LiveComponentBase
     private string ContentName => Content switch
     {
         BundleContent.AccessRules => "access rules",
-        BundleContent.FeatureMaps => "feature maps",
-        _ => "access rules and feature maps",
+        BundleContent.FeatureMaps => "flows",
+        _ => "access rules and flows",
     };
 
     private bool CanImport =>
@@ -237,7 +254,7 @@ public partial class ImportBundleDialog : LiveComponentBase
 
         if (Content.HasFlag(BundleContent.FeatureMaps))
         {
-            parts.Add(Count(source.FeatureMaps.Count, "feature map"));
+            parts.Add(Count(source.FeatureMaps.Count, "flow"));
         }
 
         return "In the file: " + string.Join(", ", parts);
@@ -261,9 +278,9 @@ public partial class ImportBundleDialog : LiveComponentBase
 
         if (Content.HasFlag(BundleContent.FeatureMaps))
         {
-            var line = $"Feature maps: {plan.MapsNew} new ({plan.StepsToAdd} steps in all)";
+            var line = $"Flows: {plan.MapsNew} new ({plan.StepsToAdd} steps in all)";
             line += plan.MapsUnchanged > 0 ? $", {plan.MapsUnchanged} here already" : string.Empty;
-            line += plan.MapsConflicting > 0 ? $", {plan.MapsConflicting} not added (a map of that name is here with other steps; yours stays as it is, delete it first to take the one in the file)" : string.Empty;
+            line += plan.MapsConflicting > 0 ? $", {plan.MapsConflicting} not added (a flow of that name is here with other steps; yours stays as it is, delete it first to take the one in the file)" : string.Empty;
             yield return line + ".";
         }
 
@@ -284,7 +301,7 @@ public partial class ImportBundleDialog : LiveComponentBase
         var applied = item.Applied;
         var text = string.Create(
             CultureInfo.InvariantCulture,
-            $"{(item.CreatedWorkspace ? "Workspace created. " : string.Empty)}Added {applied?.RulesAdded ?? 0} access rules and {applied?.MapsAdded ?? 0} new feature maps ({applied?.StepsAdded ?? 0} steps).");
+            $"{(item.CreatedWorkspace ? "Workspace created. " : string.Empty)}Added {applied?.RulesAdded ?? 0} access rules and {applied?.MapsAdded ?? 0} new flows ({applied?.StepsAdded ?? 0} steps).");
         return text;
     }
 

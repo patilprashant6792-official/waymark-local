@@ -4,9 +4,11 @@
 @using Waymark.Core.Transfer
 @using Waymark.Host.Ui
 
-<h2 class="wm-section" style="margin-top:0">Feature maps</h2>
-<p class="wm-lead">When Claude traces a feature of this workspace it saves the path as a flow: the methods from the trigger to the outcome, in call order, under the feature's name, so the next session reads the path in one call and opens only the methods it needs. A map holds names only, never code, and it follows you across branches: a step that is not in the code that is checked out is marked and kept, not deleted. Claude creates and changes the flows; here you read them, check them against the code, and remove what is wrong.</p>
-<BundleToolbar WorkspaceId="Workspace.Id" Content="BundleContent.FeatureMaps" ExportLabel="Export feature maps" Hint="Keep your maps when you move to another computer." />
+<SectionHeader Title="Flows" Lead="When Claude traces a feature of this workspace it saves the path as a flow: the methods from the trigger to the outcome, in call order, under the feature's name, so the next session reads the path in one call and opens only the methods it needs. A flow holds names only, never code, and it follows you across branches: a step that is not in the code that is checked out is marked and kept, not deleted. Claude creates and changes the flows; here you read them, check them against the code, and remove what is wrong.">
+    <Actions>
+        <BundleToolbar WorkspaceId="Workspace.Id" Content="BundleContent.FeatureMaps" ExportLabel="Export flows" Hint="Keep your flows when you move to another computer." />
+    </Actions>
+</SectionHeader>
 
 @if (_error is not null)
 {
@@ -20,22 +22,22 @@
 else
 {
     <section class="wm-card" aria-labelledby="fm-find">
-        <h2 id="fm-find" class="wm-section" style="margin-top:0">Find</h2>
+        <h2 id="fm-find" class="wm-card-title">Find</h2>
         <div class="wm-row">
-            <MudTextField T="string" Label="Search" @bind-Value="_query" Immediate="true" Variant="Variant.Outlined" Margin="Margin.Dense" HelperText="Words in a name, summary, path, method or note" MaxLength="200" Style="min-width:320px" OnKeyUp="OnSearchKey" />
-            <MudButton Variant="Variant.Outlined" OnClick="SearchAsync" Disabled="@(_busy || string.IsNullOrWhiteSpace(_query))">Search</MudButton>
+            <WmTextField Label="Search" @bind-Value="_query" Immediate="true" Width="FieldWidth.Large" HelperText="Words in a name, summary, path, method or note" MaxLength="200" OnKeyUp="OnSearchKey" />
+            <WmButton OnClick="SearchAsync" Disabled="@(_busy || string.IsNullOrWhiteSpace(_query))">Search</WmButton>
             @if (_searchedFor.Length > 0)
             {
-                <MudButton Variant="Variant.Text" OnClick="ShowAllAsync" Disabled="_busy">Show all</MudButton>
+                <WmButton Kind="ButtonKind.Ghost" OnClick="ShowAllAsync" Disabled="_busy">Show all</WmButton>
             }
-            <MudButton Variant="Variant.Outlined" OnClick="CheckAsync" Disabled="@(_busy || _maps.Count == 0)">Check against the code</MudButton>
+            <WmButton OnClick="CheckAsync" Disabled="@(_busy || _maps.Count == 0)">Check against the code</WmButton>
         </div>
-        <p class="wm-muted" aria-live="polite" style="margin:12px 0 0">@Caption()</p>
+        <p class="wm-muted wm-caption" aria-live="polite">@Caption()</p>
     </section>
 
     @if (_maps.Count == 0)
     {
-        <EmptyState Icon="@Icons.Material.Outlined.Bookmarks" Title="@(_searchedFor.Length > 0 ? "No map matches" : "No feature maps yet")" Text="@(_searchedFor.Length > 0 ? "Try other words, or show all." : "After Claude traces a feature it saves one with memorise, and it appears here at once.")" />
+        <EmptyState Icon="@Icons.Material.Outlined.AccountTree" Title="@(_searchedFor.Length > 0 ? "No flow matches" : "No flows yet")" Text="@(_searchedFor.Length > 0 ? "Try other words, or show all." : "After Claude traces a feature it saves one with memorise, and it appears here at once.")" />
     }
     else
     {
@@ -43,22 +45,22 @@ else
         {
             var missing = MissingCount(map);
             var broken = BrokenCount(map);
-            <div style="margin-top:16px">
+            <div @key="map.Id" class="wm-stack-item">
                 <CollapsibleSection Id="@($"fm-{map.Id}")" Title="@map.Name" InitiallyExpanded="@(_maps.Count == 1)">
                     <Summary>
-                        <span class="wm-chip info">@map.Steps.Count @(map.Steps.Count == 1 ? "step" : "steps")</span>
-                        <span class="wm-chip off" title="Goes up every time the flow is saved">v@(map.Version)</span>
+                        <WmTag Text="@($"{map.Steps.Count} {(map.Steps.Count == 1 ? "step" : "steps")}")" />
+                        <WmTag Text="@($"v{map.Version}")" Title="Goes up every time the flow is saved" />
                         @if (!map.Ordered)
                         {
-                            <span class="wm-chip warn" title="Saved before flows existed: a plain list of components. Claude puts the steps in call order the next time it uses the map.">unordered</span>
+                            <WmTag Tone="Tone.Warn" Text="unordered" Title="Saved before flows existed: a plain list of components. Claude puts the steps in call order the next time it uses the flow." />
                         }
                         @if (missing > 0)
                         {
-                            <span class="wm-chip warn" title="Kept in memory, but not in the code that is checked out">@missing not on this branch</span>
+                            <WmTag Tone="Tone.Warn" Text="@($"{missing} not on this branch")" Title="Kept in memory, but not in the code that is checked out" />
                         }
                         @if (broken > 0)
                         {
-                            <span class="wm-chip err" title="Both steps are in the code, and the step above makes no such call">@broken @(broken == 1 ? "link does" : "links do") not call</span>
+                            <WmTag Tone="Tone.Error" Text="@($"{broken} {(broken == 1 ? "link does" : "links do")} not call")" Title="Both steps are in the code, and the step above makes no such call" />
                         }
                         <span class="wm-muted">Updated @DisplayFormat.Ago(map.UpdatedUtc, Time.GetUtcNow())</span>
                     </Summary>
@@ -73,7 +75,7 @@ else
                         }
                         <div class="wm-table-wrap">
                             <table class="wm-table">
-                                <caption class="visually-hidden">Steps of the feature map @map.Name</caption>
+                                <caption class="visually-hidden">Steps of the flow @map.Name</caption>
                                 <thead>
                                     <tr><th scope="col">Step</th><th scope="col">Note</th><th scope="col">In the code now</th><th scope="col">Link from the step above</th><th scope="col">Actions</th></tr>
                                 </thead>
@@ -86,7 +88,7 @@ else
                                         var link = LinkChip(status);
                                         var whyNot = WhyNotRemovable(map, i);
                                         <tr>
-                                            <th scope="row" class="wm-mono" style="@Indent(step)">@step.Spec</th>
+                                            <th scope="row" class="wm-mono wm-step @IndentClass(step)">@step.Spec</th>
                                             <td>@step.Note</td>
                                             <td>
                                                 @if (status is null)
@@ -95,11 +97,11 @@ else
                                                 }
                                                 else if (status.Available)
                                                 {
-                                                    <StateChip State="StatusState.Healthy" Text="Here" />
+                                                    <WmStatus State="StatusState.Healthy" Text="Here" />
                                                 }
                                                 else
                                                 {
-                                                    <StateChip State="StatusState.Attention" Text="Not on this branch" Title="@status.Problem" />
+                                                    <WmStatus State="StatusState.Attention" Text="Not on this branch" Title="@status.Problem" />
                                                     @if (status.MovedTo is not null)
                                                     {
                                                         <span class="wm-muted wm-mono" title="A method of this name is in another file">moved? @status.MovedTo</span>
@@ -109,22 +111,22 @@ else
                                             <td>
                                                 @if (link is { } chip)
                                                 {
-                                                    <StateChip State="chip.State" Text="@chip.Text" Title="@chip.Title" />
+                                                    <WmStatus State="chip.State" Text="@chip.Text" Title="@chip.Title" />
                                                 }
                                                 else if (i == 0 && map.Ordered)
                                                 {
                                                     <span class="wm-muted">Trigger</span>
                                                 }
                                             </td>
-                                            <td><MudButton Size="Size.Small" Variant="Variant.Text" Color="Color.Error" Disabled="@(_busy || whyNot is not null)" title="@whyNot" OnClick="() => RemoveStepAsync(map, index)">Remove</MudButton></td>
+                                            <td><WmButton Kind="ButtonKind.Danger" Small="true" Disabled="@(_busy || whyNot is not null)" title="@whyNot" OnClick="() => RemoveStepAsync(map, index)">Remove</WmButton></td>
                                         </tr>
                                     }
                                 </tbody>
                             </table>
                         </div>
-                        <div class="wm-row" style="margin-top:12px">
+                        <div class="wm-row wm-card-actions">
                             <CopyButton Text="@StepsText(map)" Label="Copy steps" />
-                            <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy" OnClick="() => DeleteMapAsync(map)">Delete map</MudButton>
+                            <WmButton Kind="ButtonKind.Danger" Disabled="_busy" OnClick="() => DeleteMapAsync(map)">Delete flow</WmButton>
                         </div>
                     </ChildContent>
                 </CollapsibleSection>

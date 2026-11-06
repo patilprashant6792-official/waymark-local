@@ -1,0 +1,35 @@
+@* In-page tabs (a tab list that switches content on the same page). Route tabs use a NavLink strip instead. *@
+<div class="wm-tabs" role="tablist" aria-label="@Label">
+    @foreach (var tab in Tabs)
+    {
+        var id = tab.Id;
+        var active = id == Selected;
+        <button type="button" role="tab" class="wm-tab @(active ? "active" : null)" aria-selected="@(active ? "true" : "false")" @onclick="() => Choose(id)">
+            <span>@tab.Name</span>
+            @if (tab.Badge > 0)
+            {
+                <span class="wm-badge" aria-label="@tab.BadgeLabel">@tab.Badge</span>
+            }
+        </button>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Label { get; set; } = string.Empty;
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<WmTab> Tabs { get; set; } = [];
+
+    [Parameter]
+    public string? Selected { get; set; }
+
+    [Parameter]
+    public EventCallback<string> SelectedChanged { get; set; }
+
+    private async Task Choose(string id)
+    {
+        Selected = id;
+        await SelectedChanged.InvokeAsync(id);
+    }
+}

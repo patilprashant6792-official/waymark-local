@@ -1,0 +1,26 @@
+@* A dot and a word. The dot's shape differs per state (round, square, ring), so the state never depends on colour alone. *@
+<span class="wm-status @ClassName" title="@Title">@Text</span>
+
+@code {
+    [Parameter, EditorRequired]
+    public StatusState State { get; set; }
+
+    [Parameter, EditorRequired]
+    public string Text { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Title { get; set; }
+
+    /// <summary>The dot pulses while something is running.</summary>
+    [Parameter]
+    public bool Live { get; set; }
+
+    private string ClassName => Live ? "run" : State switch
+    {
+        StatusState.Healthy => "ok",
+        StatusState.Attention => "warn",
+        StatusState.Failed => "err",
+        StatusState.Working => "info",
+        _ => "off"
+    };
+}

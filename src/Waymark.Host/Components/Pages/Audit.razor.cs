@@ -7,6 +7,7 @@ using Waymark.Core.Audit;
 using Waymark.Host.Components.Shared;
 using Waymark.Host.Mcp;
 using Waymark.Host.Ui;
+using Waymark.Host.Components.Ui;
 
 namespace Waymark.Host.Components.Pages;
 
@@ -54,6 +55,19 @@ public partial class Audit : LiveComponentBase
 
     [Inject]
     private CallPanelState Calls { get; set; } = default!;
+
+    [Inject]
+    private NavigationManager Navigation { get; set; } = default!;
+
+    /// <summary>"live" shows the in-memory live log; anything else shows the stored history.</summary>
+    [SupplyParameterFromQuery(Name = "view")]
+    public string? View { get; set; }
+
+    private bool ShowLive => string.Equals(View, "live", StringComparison.OrdinalIgnoreCase);
+
+    private static readonly IReadOnlyList<WmTab> ViewTabs = [new("history", "History"), new("live", "Live")];
+
+    private void ShowView(string view) => Navigation.NavigateTo(view == "live" ? "audit?view=live" : "audit");
 
     private int FirstShown => _rows.Count == 0 ? 0 : (_page * PageSize) + 1;
 

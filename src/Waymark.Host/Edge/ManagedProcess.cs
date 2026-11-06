@@ -59,13 +59,15 @@ public sealed class ManagedProcess : IDisposable
     /// <summary>The last lines the process wrote, oldest first.</summary>
     public IReadOnlyList<string> RecentLines => [.. _recent];
 
+    /// <param name="workingDirectory">Where the process runs. Leave it empty to inherit Waymark's own folder; a long-running helper should be given a neutral folder, so it never keeps Waymark's app folder in use.</param>
     /// <exception cref="System.ComponentModel.Win32Exception">The file could not be started.</exception>
     public static ManagedProcess Start(
         string fileName,
         IReadOnlyList<string> arguments,
         IReadOnlyDictionary<string, string> environment,
         Func<string, string> scrub,
-        Action<string>? onLine)
+        Action<string>? onLine,
+        string? workingDirectory = null)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(fileName);
         ArgumentNullException.ThrowIfNull(arguments);
@@ -81,6 +83,10 @@ public sealed class ManagedProcess : IDisposable
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8
         };
+        if (!string.IsNullOrWhiteSpace(workingDirectory))
+        {
+            info.WorkingDirectory = workingDirectory;
+        }
         foreach (var argument in arguments)
         {
             info.ArgumentList.Add(argument);

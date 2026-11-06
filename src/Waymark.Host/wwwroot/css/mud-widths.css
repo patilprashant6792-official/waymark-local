@@ -1,0 +1,14 @@
+/* The input width scale used by WmTextField. Pages choose Small, Medium, Large or Full; they never write a pixel width. */
+.wm-w-sm { width: 12rem; max-width: 100%; }
+.wm-w-md { width: 20rem; max-width: 100%; }
+.wm-w-lg { width: 32rem; max-width: 100%; }
+.wm-w-full { width: 100%; }
+
+/* Section heading pattern (Patterns/SectionHeader). */
+.wm-section-head { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; margin: var(--wm-space-6) 0 var(--wm-space-3); }
+.wm-page-head + .wm-section-head, .wm-section-head:first-child { margin-top: 0; }
+.wm-section-title { margin: 0; font-size: var(--wm-text-lg); font-weight: 600; }
+.wm-section-sub { margin: 2px 0 0; color: var(--wm-muted); }
+.wm-card-actions { margin-top: var(--wm-space-3); }
+.wm-page-head + .wm-section { margin-top: 0; }
+.wm-list-status { margin: var(--wm-space-3) 0; }

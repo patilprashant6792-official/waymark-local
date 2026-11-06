@@ -1,0 +1,33 @@
+@* A section heading with optional one-line explanation and actions on the right. Replaces the hand-made row of a heading and a button. *@
+<div class="wm-section-head">
+    <div>
+        <h2 class="wm-section-title">@Title</h2>
+        @if (!string.IsNullOrEmpty(Lead))
+        {
+            <p class="wm-section-sub">@Lead</p>
+        }
+        @if (LeadContent is not null)
+        {
+            <div class="wm-section-sub">@LeadContent</div>
+        }
+    </div>
+    @if (Actions is not null)
+    {
+        <div class="wm-actions">@Actions</div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public string Title { get; set; } = string.Empty;
+
+    [Parameter]
+    public string? Lead { get; set; }
+
+    /// <summary>Richer lead text (with links), when a plain sentence is not enough.</summary>
+    [Parameter]
+    public RenderFragment? LeadContent { get; set; }
+
+    [Parameter]
+    public RenderFragment? Actions { get; set; }
+}

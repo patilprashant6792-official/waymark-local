@@ -88,8 +88,22 @@ uninstall.cmd -RemoveData  removes the data too (database, keys and secrets; ask
 1. Open **Workspaces** and add the folder of a project Claude may read.
 2. Connect Claude:
    - **Claude Code**, on this computer, no tunnel needed: `claude mcp add --transport http waymark http://localhost:47101/mcp`. Waymark shows an approval card on **Approvals**; check the code and approve. See [docs/auth-and-setup.md](docs/auth-and-setup.md).
-   - **claude.ai**: needs a public address. Open **Setup**, enter your ngrok address and authtoken, and use the connector address it shows. See [docs/auth-and-setup.md](docs/auth-and-setup.md).
+   - **claude.ai**: needs a public address, so you set up ngrok first. Follow [Connect claude.ai with ngrok](#connect-claudeai-with-ngrok) below. More detail in [docs/auth-and-setup.md](docs/auth-and-setup.md).
 3. Watch what happens on **Live** and **Console**. **Pause all** in the header stops every tool at once.
+
+### Connect claude.ai with ngrok
+
+claude.ai reaches Waymark through an ngrok tunnel. You need a free ngrok account, one address and one token. Waymark installs and starts ngrok itself, so you do not run any ngrok command.
+
+1. Create a free account at [ngrok.com](https://ngrok.com) and sign in to the dashboard.
+2. **Get your address.** Every account gets a free dev domain automatically. In the dashboard open **Gateway > Domains** and copy it. It looks like `https://your-name.ngrok-free.dev` (older accounts may show `ngrok-free.app`). Keep the `https://` and no trailing slash.
+3. **Get your authtoken.** Open <https://dashboard.ngrok.com/get-started/your-authtoken> and copy only the token, not the `ngrok config add-authtoken` command around it.
+4. In Waymark open **Setup**, paste the address and the authtoken, and choose **Save and start tunnel**. Waymark installs ngrok with `winget` if it is missing, starts the tunnel and checks it. The token is stored encrypted on this computer.
+5. Wait until step **2. Check the tunnel** shows every line as passed. Step **3. Add Waymark to Claude** then shows your **connector address** with a copy button. If a check fails, Setup shows the command to run by hand (`ngrok http 47101`); run it in a terminal and choose **Check again**.
+6. In claude.ai go to **Customize > Connectors**, choose **+ Add > Add custom connector**, give it a name, paste the connector address from step 3 of Setup, and finish the dialog. Custom connectors need a Claude plan that allows them; see [Claude's guide to custom connectors](https://support.claude.com/en/articles/11175166).
+7. Claude opens a pairing page with a code. Open **Approvals** in the Waymark admin page on this computer, check that the code matches, and approve.
+
+The tunnel carries sign-in and tool traffic only; the admin pages are never reachable through it. To stop it, use **Stop tunnel** on the Setup page.
 
 ## Before you connect Claude
 

@@ -1,6 +1,6 @@
 ﻿# Live log
 
-A console-style view of what Waymark is doing, on the admin UI at `/live`. It shows four streams and errors, nothing else. Entries are held in memory only (the last 200 lines): nothing is written to disk, and a restart empties the view.
+A console-style view of what Waymark is doing, on the admin UI at **Audit › Live** (`/audit?view=live`; the old `/live` address still works). It shows four streams and errors, nothing else. Entries are held in memory only (the last 200 lines): nothing is written to disk, and a restart empties the view.
 
 ## What shows up
 

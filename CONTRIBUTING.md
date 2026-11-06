@@ -28,6 +28,7 @@ There is no automated test project in this repository. Check a change by buildin
 - One idea per pull request, with a short description of what changed and why.
 - Follow the style of the code around your change. Prefer plain, readable code over clever code.
 - Update the page in `docs/` if your change alters what users see or what a setting does.
+- UI changes follow [docs/design-system.md](docs/design-system.md): build pages from the `Ui` and `Patterns` components, no inline styles or colours, and run `powershell -ExecutionPolicy Bypass -File scripts/ui-check.ps1` before you push.
 - Do not add secrets, personal paths or machine names to code, docs or screenshots.
 
 ## License

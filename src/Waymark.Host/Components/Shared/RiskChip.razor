@@ -1,9 +1,7 @@
 @using Waymark.Core.Commands
 
-<span class="wm-chip @ClassName" title="@RiskTiers.Hint(Tier)">
-    <MudIcon Icon="@IconName" Size="Size.Small" />
-    <span>@RiskTiers.Label(Tier)</span>
-</span>
+@* What an operation can do to this computer. Only the two that need a second look use colour: reading is quiet green, the rest of the risk is said in words. *@
+<WmTag Tone="ToneOf" Text="@RiskTiers.Label(Tier)" Title="@RiskTiers.Hint(Tier)" />
 
 @code {
     /// <summary>The operation whose risk is shown: what it can do to this computer and the data on it.</summary>
@@ -12,18 +10,10 @@
 
     private RiskTier Tier => RiskTiers.Of(Operation);
 
-    private string ClassName => Tier switch
+    private Tone ToneOf => Tier switch
     {
-        RiskTier.Look => "ok",
-        RiskTier.Change => "info",
-        _ => "warn"
-    };
-
-    private string IconName => Tier switch
-    {
-        RiskTier.Look => Icons.Material.Filled.Visibility,
-        RiskTier.Change => Icons.Material.Filled.Edit,
-        RiskTier.RunsCode => Icons.Material.Filled.Code,
-        _ => Icons.Material.Filled.CloudUpload
+        RiskTier.Look => Tone.Ok,
+        RiskTier.Change => Tone.Neutral,
+        _ => Tone.Warn
     };
 }

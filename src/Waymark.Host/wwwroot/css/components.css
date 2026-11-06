@@ -1,0 +1,259 @@
+/* Shared building blocks. Every class here is owned by a component in Components/Ui or Components/Patterns. */
+
+/* ---------- layout helpers ---------- */
+.wm-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wm-space-2); }
+.wm-row.spread { justify-content: space-between; }
+.wm-stack > * + * { margin-top: var(--wm-space-3); }
+.wm-stack.loose > * + * { margin-top: var(--wm-space-5); }
+.wm-grid-auto { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--wm-space-3); }
+
+/* ---------- card, panel, section ---------- */
+.wm-card { padding: var(--wm-space-5); background: var(--wm-surface); border: 1px solid var(--wm-line); border-radius: var(--wm-r-card); }
+.wm-card + .wm-card { margin-top: var(--wm-space-3); }
+.wm-card.flush { padding: 0; overflow: hidden; }
+.wm-card.quiet { background: transparent; }
+.wm-card-title { margin: 0 0 var(--wm-space-2); font-size: var(--wm-text-lg); font-weight: 600; color: var(--wm-text); }
+.wm-card-sub { margin: 0 0 var(--wm-space-3); color: var(--wm-muted); }
+.wm-big { font-size: 1.35rem; font-weight: 600; }
+.wm-unit { font-size: var(--wm-text-md); font-weight: 500; color: var(--wm-muted); }
+
+.wm-section { margin: var(--wm-space-6) 0 var(--wm-space-3); font-size: var(--wm-text-lg); font-weight: 600; }
+.wm-section:first-child { margin-top: 0; }
+.wm-section-lead { margin: calc(var(--wm-space-2) * -1) 0 var(--wm-space-3); color: var(--wm-muted); }
+
+.wm-panel { overflow: hidden; background: var(--wm-surface); border: 1px solid var(--wm-line); border-radius: var(--wm-r-panel); }
+.wm-panel-head { display: flex; align-items: center; justify-content: space-between; gap: var(--wm-space-3); padding: var(--wm-space-3) var(--wm-space-4); border-bottom: 1px solid var(--wm-line); }
+.wm-panel-head h2 { margin: 0; font-size: var(--wm-text-lg); font-weight: 600; }
+.wm-panel-head a { color: var(--wm-muted); font-weight: 500; text-decoration: none; }
+.wm-panel-head a:hover { color: var(--wm-text); }
+.wm-panel-body { padding: var(--wm-space-4); }
+.wm-panel .wm-table-wrap { border: 0; border-radius: 0; background: transparent; }
+
+.wm-calm { display: flex; align-items: center; gap: var(--wm-space-3); padding: var(--wm-space-5); color: var(--wm-muted); border: 1px dashed var(--wm-line-input); border-radius: var(--wm-r-card); }
+.wm-calm.slim { padding: var(--wm-space-3) var(--wm-space-4); border-style: solid; border-color: var(--wm-line); }
+.wm-calm.slim .mud-icon-root { color: var(--wm-ok); }
+.wm-calm.slim strong { color: var(--wm-text); font-weight: 600; }
+
+/* ---------- status: a dot plus a word, never colour alone ---------- */
+.wm-status { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; color: var(--wm-text); }
+.wm-status::before { content: ""; flex: none; width: 8px; height: 8px; border-radius: 50%; background: var(--wm-hint); }
+.wm-status.ok::before { background: var(--wm-ok); }
+.wm-status.warn::before { background: var(--wm-warn); }
+.wm-status.err::before { background: var(--wm-err); border-radius: 2px; }
+.wm-status.info::before { background: var(--wm-info); }
+.wm-status.off::before { background: transparent; border: 2px solid var(--wm-hint); }
+.wm-status.run::before { background: var(--wm-info); animation: wm-pulse 1.2s ease-in-out infinite; }
+@keyframes wm-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* ---------- chip (header, filters) and tag (labels): hairline pills, grey unless they mean a state ---------- */
+.wm-chip, .wm-tag { display: inline-flex; align-items: center; gap: 6px; padding: 1px 10px; border: 1px solid var(--wm-line); border-radius: var(--wm-r-ctl); font-size: var(--wm-text-sm); font-weight: 500; line-height: 20px; white-space: nowrap; color: var(--wm-muted); text-decoration: none; background: transparent; }
+.wm-chip .mud-icon-root { font-size: 16px; }
+a.wm-chip:hover { color: var(--wm-text); background: var(--wm-hover); }
+.wm-chip:not(:has(.mud-icon-root))::before { content: ""; flex: none; width: 7px; height: 7px; border-radius: 50%; background: var(--wm-hint); }
+.wm-chip.ok::before { background: var(--wm-ok); }
+.wm-chip.warn::before { background: var(--wm-warn); }
+.wm-chip.err::before { background: var(--wm-err); }
+.wm-chip.info::before { background: var(--wm-info); }
+.wm-chip.ok .mud-icon-root { color: var(--wm-ok); }
+.wm-chip.warn .mud-icon-root { color: var(--wm-warn); }
+.wm-chip.err .mud-icon-root { color: var(--wm-err); }
+.wm-chip.info .mud-icon-root { color: var(--wm-info); }
+.wm-chip.warn, .wm-tag.warn { color: var(--wm-warn); border-color: color-mix(in srgb, var(--wm-warn) 45%, var(--wm-line)); }
+.wm-chip.err, .wm-tag.err { color: var(--wm-err); border-color: color-mix(in srgb, var(--wm-err) 45%, var(--wm-line)); }
+.wm-tag.ok { color: var(--wm-ok); border-color: color-mix(in srgb, var(--wm-ok) 40%, var(--wm-line)); }
+.wm-tag.info { color: var(--wm-info); border-color: color-mix(in srgb, var(--wm-info) 40%, var(--wm-line)); }
+
+/* ---------- meter ---------- */
+.wm-meter { height: 6px; overflow: hidden; border-radius: var(--wm-r-ctl); background: var(--wm-selected); }
+.wm-meter-fill { height: 100%; background: var(--wm-text); transition: width 0.2s; }
+.wm-meter-fill.high { background: var(--wm-warn); }
+
+/* ---------- tables ---------- */
+.wm-table-wrap { overflow-x: auto; background: var(--wm-surface); border: 1px solid var(--wm-line); border-radius: var(--wm-r-card); }
+.wm-table { width: 100%; border-collapse: collapse; }
+.wm-table th { padding: 10px var(--wm-space-4); text-align: left; font-size: var(--wm-text-sm); font-weight: 500; color: var(--wm-muted); white-space: nowrap; border-bottom: 1px solid var(--wm-line); }
+.wm-table td { padding: 10px var(--wm-space-4); vertical-align: middle; border-bottom: 1px solid var(--wm-line); }
+.wm-table tr:last-child td, .wm-table tr:last-child th[scope="row"] { border-bottom: none; }
+.wm-table tbody tr:hover td, .wm-table tbody tr:hover th[scope="row"] { background: var(--wm-hover); }
+.wm-table tr.clickable { cursor: pointer; }
+.wm-table tr.clickable:focus-visible { outline: 2px solid var(--wm-primary); outline-offset: -2px; }
+.wm-table tr.cur td, .wm-table tr.cur th { background: var(--wm-selected); }
+.wm-table td.num, .wm-table th.num { text-align: right; white-space: nowrap; }
+/* A name in the first cell keeps its real spelling; only the column headings are quiet grey. */
+.wm-table tbody th[scope="row"] { padding: 10px var(--wm-space-4); text-align: left; font-size: inherit; font-weight: 600; color: var(--wm-text); vertical-align: middle; border-bottom: 1px solid var(--wm-line); }
+.wm-table th.wm-rowhead { min-width: 14rem; white-space: normal; }
+.wm-table th.wm-rowhead .wm-mono { font-size: var(--wm-text-xs); font-weight: 400; overflow-wrap: anywhere; color: var(--wm-muted); }
+.wm-table td.wm-stats { min-width: 13rem; }
+
+/* ---------- code, pairing, steps, definition lists ---------- */
+.wm-code, .wm-pre, .wm-cmd-pre { font-family: var(--wm-mono); font-size: var(--wm-text-sm); padding: var(--wm-space-2) var(--wm-space-3); border-radius: var(--wm-r-sm); background: var(--wm-surface-2); border: 1px solid var(--wm-line); overflow-x: auto; white-space: pre-wrap; word-break: break-word; }
+.wm-pre { margin: 4px 0 12px; }
+.wm-pairing { font-family: var(--wm-mono); font-size: 2.4rem; font-weight: 700; letter-spacing: 0.18em; padding: 4px 0; }
+.pairing-code { font-family: var(--wm-mono); font-weight: 700; letter-spacing: 0.15em; }
+
+.wm-step { display: grid; grid-template-columns: 32px 1fr; gap: var(--wm-space-3); }
+.wm-mark { width: 28px; height: 28px; display: inline-flex; align-items: center; justify-content: center; border-radius: 50%; font-weight: 600; border: 1px solid var(--wm-line-input); color: var(--wm-muted); }
+.wm-mark.done { border-color: var(--wm-ok); color: var(--wm-ok); }
+.wm-mark.current { border-color: var(--wm-primary); background: var(--wm-primary); color: var(--wm-on-primary); }
+
+.wm-dl { display: grid; grid-template-columns: 120px 1fr; gap: 6px var(--wm-space-3); margin: 0; }
+.wm-dl dt { color: var(--wm-muted); }
+.wm-dl dd { margin: 0; word-break: break-word; }
+
+.wm-log { font-family: var(--wm-mono); font-size: var(--wm-text-sm); }
+
+/* ---------- form fields ---------- */
+.wm-input, .wm-select { display: block; min-height: var(--wm-ctl-h); margin-top: 4px; padding: 6px 16px; font: inherit; color: var(--wm-text); background: var(--wm-surface); border: 1px solid var(--wm-line-input); border-radius: var(--wm-r-ctl); }
+textarea.wm-input { border-radius: var(--wm-r-card); }
+.wm-input:hover, .wm-select:hover { border-color: var(--wm-muted); }
+.wm-input:focus-visible, .wm-select:focus-visible { outline: none; border-color: var(--wm-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--wm-primary) 22%, transparent); }
+.wm-input::placeholder { color: var(--wm-hint); }
+.wm-field { display: flex; flex-direction: column; gap: 2px; min-width: 0; font-size: var(--wm-text-sm); color: var(--wm-muted); }
+.wm-field > .wm-input, .wm-field > .wm-select { margin-top: 2px; }
+.wm-field.w-sm { width: 12rem; }
+.wm-field.w-md { width: 20rem; max-width: 100%; }
+.wm-field.w-lg { width: 32rem; max-width: 100%; }
+.wm-field.w-full { width: 100%; }
+.wm-help { color: var(--wm-hint); font-size: var(--wm-text-sm); }
+
+.wm-filter-bar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: var(--wm-space-2) var(--wm-space-3); margin: var(--wm-space-4) 0 0; }
+.wm-filter-search { flex: 1 1 240px; max-width: 360px; margin-top: 0; }
+.wm-filter-field { display: flex; flex-direction: column; font-size: var(--wm-text-sm); color: var(--wm-muted); }
+.wm-filter-field .wm-select { margin-top: 2px; }
+
+/* ---------- one segmented control for every Off/Ask/Auto, profile and view switch ---------- */
+.wm-seg { display: inline-flex; padding: 3px; gap: 2px; background: var(--wm-surface); border: 1px solid var(--wm-line-input); border-radius: var(--wm-r-ctl); }
+.wm-seg button { min-height: 30px; padding: 4px 14px; font: inherit; color: var(--wm-muted); background: transparent; border: 0; border-radius: var(--wm-r-ctl); cursor: pointer; }
+.wm-seg button:hover:not(:disabled):not([aria-pressed="true"]):not([aria-checked="true"]) { color: var(--wm-text); background: var(--wm-hover); }
+.wm-seg button[aria-pressed="true"], .wm-seg button[aria-checked="true"], .wm-seg button.on { color: var(--wm-on-primary); background: var(--wm-primary); font-weight: 600; }
+.wm-seg button:disabled { opacity: 0.45; cursor: not-allowed; }
+.wm-seg button:focus-visible { outline-offset: 1px; }
+.wm-seg .wm-seg-btn.off[aria-pressed="true"] { color: var(--wm-text); background: var(--wm-selected); }
+/* Auto on a tool that starts code is amber: the one state that deserves a second look. */
+.wm-seg .wm-seg-btn.auto.run[aria-pressed="true"] { color: var(--mud-palette-warning-text); background: var(--wm-warn); }
+@media (forced-colors: active) { .wm-seg button[aria-pressed="true"], .wm-seg button[aria-checked="true"], .wm-seg button.on { outline: 2px solid Highlight; outline-offset: -2px; } }
+
+/* a toggle chip (console filters) */
+.wm-toggle { display: inline-flex; align-items: center; gap: 6px; min-height: var(--wm-ctl-h-sm); padding: 4px 14px; font: inherit; color: var(--wm-muted); background: transparent; border: 1px solid var(--wm-line-input); border-radius: var(--wm-r-ctl); cursor: pointer; }
+.wm-toggle:hover { color: var(--wm-text); background: var(--wm-hover); }
+.wm-toggle.on { color: var(--wm-on-primary); font-weight: 600; background: var(--wm-primary); border-color: var(--wm-primary); }
+.wm-toggle .mud-icon-root { font-size: 18px; }
+
+/* ---------- tabs (in-page) and sub navigation (route tabs) ---------- */
+.wm-tabs, .wm-subnav { display: flex; gap: var(--wm-space-1); margin: var(--wm-space-4) 0 var(--wm-space-3); overflow-x: auto; overflow-y: hidden; border-bottom: 1px solid var(--wm-line); }
+.wm-subnav { flex-wrap: wrap; margin-top: 0; margin-bottom: var(--wm-space-5); }
+.wm-tab, .wm-subnav-item { display: inline-flex; align-items: center; gap: var(--wm-space-2); margin-bottom: -1px; padding: 8px var(--wm-space-4); font: inherit; font-weight: 500; white-space: nowrap; color: var(--wm-muted); background: transparent; border: 0; border-bottom: 2px solid transparent; text-decoration: none; cursor: pointer; }
+.wm-tab:hover, .wm-subnav-item:hover { color: var(--wm-text); }
+.wm-tab.active, .wm-subnav-item.active { color: var(--wm-text); font-weight: 600; border-bottom-color: var(--wm-text); }
+.wm-tab:focus-visible { outline-offset: -2px; }
+.wm-tab .wm-badge { margin-left: 0; }
+@media (forced-colors: active) { .wm-subnav-item.active, .wm-tab.active { border-bottom-color: Highlight; } }
+
+/* ---------- key figures ---------- */
+.wm-kpis { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: var(--wm-space-3); margin: var(--wm-space-4) 0; }
+.wm-kpi { padding: var(--wm-space-3) var(--wm-space-4); background: var(--wm-surface); border: 1px solid var(--wm-line); border-radius: var(--wm-r-card); }
+.wm-kpi.bad { border-color: color-mix(in srgb, var(--wm-err) 60%, var(--wm-line)); }
+.wm-kpi-label, .wm-kpi-sub { color: var(--wm-muted); font-size: var(--wm-text-sm); }
+.wm-kpi-value { font-size: 1.6rem; font-weight: 600; line-height: 1.3; font-variant-numeric: tabular-nums; }
+
+.wm-mkpis { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1px; background: var(--wm-line); border-bottom: 1px solid var(--wm-line); }
+.wm-mkpis.three { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.wm-mkpis > div { padding: var(--wm-space-3) var(--wm-space-4); background: var(--wm-surface); }
+.wm-mkpis > div.bad .wm-mk-value { color: var(--wm-err); }
+.wm-mk-value { font-size: 1.4rem; font-weight: 600; line-height: 1.25; font-variant-numeric: tabular-nums; }
+.wm-tok-num { font-variant-numeric: tabular-nums; font-weight: 600; }
+.wm-tok-note { margin: 0; padding: 8px 14px 10px; font-size: var(--wm-text-xs); line-height: 1.4; }
+@media (max-width: 560px) { .wm-mkpis.three { grid-template-columns: minmax(0, 1fr); } }
+
+/* ---------- status tiles ---------- */
+.wm-tiles { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: var(--wm-space-3); align-items: stretch; }
+.wm-tile { --accent: var(--wm-hint); display: flex; flex-direction: column; gap: 4px; padding: var(--wm-space-4); background: var(--wm-surface); border: 1px solid var(--wm-line); border-radius: var(--wm-r-card); transition: border-color 0.15s; }
+.wm-tile:hover { border-color: var(--wm-line-input); }
+.wm-tile.ok { --accent: var(--wm-ok); } .wm-tile.warn { --accent: var(--wm-warn); } .wm-tile.err { --accent: var(--wm-err); } .wm-tile.info { --accent: var(--wm-info); }
+.wm-tile-head { display: flex; align-items: center; gap: 10px; }
+.wm-tile-head .wm-chip { margin-left: auto; }
+.wm-ico { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: var(--wm-r-sm); color: var(--accent); background: color-mix(in srgb, var(--accent) 12%, transparent); }
+.wm-tile-label { margin: 0; font-size: var(--wm-text-sm); font-weight: 500; color: var(--wm-muted); }
+.wm-tile-value { margin-top: 0; font-size: 1.5rem; font-weight: 600; line-height: 1.15; font-variant-numeric: tabular-nums; }
+.wm-tile-sub { flex: 1; margin: 0; line-height: 1.35; color: var(--wm-muted); }
+.wm-tile-link, .wm-panel-head a.wm-tile-link { display: inline-flex; align-items: center; gap: 4px; margin-top: auto; padding-top: var(--wm-space-2); font-weight: 500; color: var(--wm-muted); text-decoration: none; }
+.wm-tile-link:hover { color: var(--wm-text); }
+.wm-tile-link .mud-icon-root, .wm-panel-head a .mud-icon-root { font-size: 16px; transition: transform 0.15s; }
+.wm-tile-link:hover .mud-icon-root { transform: translateX(3px); }
+
+/* ---------- rows ---------- */
+.wm-rows { margin: 0; padding: 0; list-style: none; }
+.wm-rows > li { display: flex; align-items: center; gap: var(--wm-space-3); padding: 10px var(--wm-space-4); }
+.wm-rows > li + li { border-top: 1px solid var(--wm-line); }
+.wm-rows > li:hover { background: var(--wm-hover); }
+.wm-row-main { flex: 1; min-width: 0; line-height: 1.4; }
+.wm-row-main a { color: inherit; text-decoration: none; }
+.wm-row-main a:hover { text-decoration: underline; }
+
+/* ---------- collapsible section ---------- */
+.wm-collapsible { margin-top: var(--wm-space-3); }
+.wm-collapse-head { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: var(--wm-space-2) var(--wm-space-3); }
+.wm-collapse-title { margin: 0; }
+.wm-collapse-btn { display: inline-flex; align-items: center; gap: 4px; margin-left: -4px; padding: 4px 8px 4px 2px; font: inherit; color: inherit; text-align: left; background: none; border: 0; border-radius: var(--wm-r-sm); cursor: pointer; }
+.wm-collapse-btn:hover { background: var(--wm-hover); }
+.wm-collapse-summary { color: var(--wm-muted); font-size: var(--wm-text-md); }
+.wm-collapse-body { margin-top: var(--wm-space-3); }
+.wm-collapse-body[hidden] { display: none; }
+
+/* ---------- risk and safety: the only places that use a red surface ---------- */
+.wm-danger { padding: var(--wm-space-4) var(--wm-space-5); border: 1px solid color-mix(in srgb, var(--wm-err) 55%, var(--wm-line)); border-radius: var(--wm-r-card); background: color-mix(in srgb, var(--wm-err) 6%, transparent); }
+.wm-danger h2 { margin: 0 0 var(--wm-space-2); font-size: var(--wm-text-lg); font-weight: 600; color: var(--wm-err); }
+.wm-danger p { margin: 0; }
+.wm-danger ul { margin: var(--wm-space-2) 0 0; padding-left: 20px; }
+.wm-danger li + li { margin-top: 6px; }
+.wm-tier-row { display: flex; flex-wrap: wrap; align-items: center; gap: var(--wm-space-2); }
+.wm-risk-note { margin-top: 6px; font-size: var(--wm-text-sm); color: var(--wm-err); }
+.wm-risk-note a { color: inherit; text-decoration: underline; }
+.wm-card.wm-risky { border-color: color-mix(in srgb, var(--wm-err) 55%, var(--wm-line)); background: color-mix(in srgb, var(--wm-err) 4%, var(--wm-surface)); }
+.wm-card.wm-risky .mud-alert { margin-bottom: var(--wm-space-3); }
+
+/* ---------- the trust chain: Claude, tunnel, Waymark guard, your code ---------- */
+.wm-chain { display: flex; align-items: stretch; gap: 0; margin: 0; padding: 0; list-style: none; }
+.wm-hop { position: relative; flex: 1 1 0; min-width: 0; padding: var(--wm-space-3) var(--wm-space-4); background: var(--wm-surface); border: 1px solid var(--wm-line); border-radius: var(--wm-r-card); }
+.wm-hop + .wm-hop { margin-left: 28px; }
+.wm-hop + .wm-hop::before { content: ""; position: absolute; top: 50%; right: 100%; width: 28px; border-top: 2px solid var(--wm-ok); }
+.wm-hop.hold + .wm-hop::before, .wm-hop + .wm-hop.hold::before { border-top-style: dashed; border-top-color: var(--wm-warn); }
+.wm-hop.bad + .wm-hop::before, .wm-hop + .wm-hop.bad::before { border-top-style: dashed; border-top-color: var(--wm-err); }
+.wm-hop.off + .wm-hop::before, .wm-hop + .wm-hop.off::before { border-top-color: var(--wm-line-input); }
+.wm-hop-name { font-size: var(--wm-text-sm); color: var(--wm-muted); }
+.wm-hop-state { margin-top: 2px; font-weight: 600; }
+@media (max-width: 900px) {
+    .wm-chain { flex-direction: column; }
+    .wm-hop + .wm-hop { margin: 20px 0 0; }
+    .wm-hop + .wm-hop::before { top: auto; right: auto; bottom: 100%; left: 24px; width: 0; height: 20px; border-top: 0; border-left: 2px solid var(--wm-ok); }
+}
+
+/* ---------- link button: a sentence that offers an action ---------- */
+.wm-link-button { padding: 0; font: inherit; color: var(--wm-text); text-decoration: underline; background: none; border: 0; cursor: pointer; }
+
+/* ---------- loading placeholder ---------- */
+.wm-skeleton { display: block; min-height: 1em; background: var(--wm-selected); border-radius: var(--wm-r-sm); animation: wm-skeleton-pulse 1.4s var(--wm-ease) infinite; }
+@keyframes wm-skeleton-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.45; } }
+@media (prefers-reduced-motion: reduce) { .wm-skeleton { animation: none; } }
+@media (forced-colors: active) { .wm-skeleton { border: 1px solid CanvasText; } }
+
+/* ---------- ping dot and change flash ---------- */
+.wm-ping { position: relative; display: inline-block; flex: none; width: 8px; height: 8px; margin-left: 8px; vertical-align: middle; border-radius: 50%; background: var(--wm-info); }
+.wm-ping::after { content: ""; position: absolute; inset: 0; border-radius: 50%; background: var(--wm-info); animation: wm-ping-ring 1.3s ease-out infinite; }
+@keyframes wm-ping-ring { from { transform: scale(1); opacity: 0.7; } to { transform: scale(3.2); opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .wm-ping::after { animation: none; } }
+@media (forced-colors: active) { .wm-ping { forced-color-adjust: none; background: Highlight; } .wm-ping::after { display: none; } }
+
+/* A row, line or figure that just changed flashes a tint that fades back to normal. data-flash flips between a and b so the browser restarts the animation. */
+:root { --wm-flash-tint: color-mix(in srgb, var(--wm-info) 24%, transparent); }
+.wm-rows > li[data-flash="a"], .wm-table tbody tr[data-flash="a"] > td, .wm-live-line[data-flash="a"], .wm-mkpis > div[data-flash="a"] { animation: wm-flash-a 1.8s ease-out; }
+.wm-rows > li[data-flash="b"], .wm-table tbody tr[data-flash="b"] > td, .wm-live-line[data-flash="b"], .wm-mkpis > div[data-flash="b"] { animation: wm-flash-b 1.8s ease-out; }
+@keyframes wm-flash-a { 0%, 12% { background-color: var(--wm-flash-tint); } 100% { } }
+@keyframes wm-flash-b { 0%, 12% { background-color: var(--wm-flash-tint); } 100% { } }
+@media (prefers-reduced-motion: reduce) { .wm-rows > li[data-flash], .wm-table tbody tr[data-flash] > td, .wm-live-line[data-flash], .wm-mkpis > div[data-flash] { animation-duration: 0.9s; } }
+@media (forced-colors: active) {
+    .wm-rows > li[data-flash="a"], .wm-table tbody tr[data-flash="a"] > td, .wm-live-line[data-flash="a"], .wm-mkpis > div[data-flash="a"] { animation-name: wm-flash-fc-a; }
+    .wm-rows > li[data-flash="b"], .wm-table tbody tr[data-flash="b"] > td, .wm-live-line[data-flash="b"], .wm-mkpis > div[data-flash="b"] { animation-name: wm-flash-fc-b; }
+    @keyframes wm-flash-fc-a { 0%, 12% { outline: 2px solid Highlight; outline-offset: -2px; } 100% { outline: 2px solid transparent; } }
+    @keyframes wm-flash-fc-b { 0%, 12% { outline: 2px solid Highlight; outline-offset: -2px; } 100% { outline: 2px solid transparent; } }
+}

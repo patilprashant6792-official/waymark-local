@@ -4,7 +4,7 @@
     <div class="wm-collapse-head">
         <h2 id="@HeadingId" class="wm-section wm-collapse-title @TitleClass">
             <button type="button" class="wm-collapse-btn" aria-expanded="@(_expanded ? "true" : "false")" aria-controls="@BodyId" @onclick="Toggle">
-                <MudIcon Icon="@(_expanded ? Icons.Material.Filled.ExpandMore : Icons.Material.Filled.ChevronRight)" Size="Size.Small" />
+                <MudIcon Icon="@(_expanded ? Icons.Material.Outlined.ExpandMore : Icons.Material.Outlined.ChevronRight)" Size="Size.Small" />
                 <span>@Title</span>
             </button>
         </h2>

@@ -1,0 +1,55 @@
+/* The only place that touches MudBlazor's internal class names. If a MudBlazor upgrade changes the markup, fix it here. */
+
+/* ---------- buttons: pills, one white primary per view, danger is outlined ---------- */
+.mud-button-root { border-radius: var(--wm-r-ctl); text-transform: none; font-weight: 500; letter-spacing: 0; box-shadow: none; min-height: var(--wm-ctl-h); padding-inline: 18px; }
+.mud-button-root.mud-button-size-small { min-height: var(--wm-ctl-h-sm); padding-inline: 14px; }
+.mud-button-filled:hover, .mud-button-filled:active { box-shadow: none; }
+.mud-button-filled.mud-button-filled-primary:hover { background: color-mix(in srgb, var(--wm-primary) 86%, var(--wm-bg)); }
+.mud-button-outlined { border-color: var(--wm-line-input); }
+.mud-button-outlined.mud-button-outlined-primary { color: var(--wm-text); border-color: var(--wm-line-input); }
+.mud-button-outlined.mud-button-outlined-primary:hover { background: var(--wm-hover); }
+.mud-button-outlined.mud-button-outlined-error { border-color: color-mix(in srgb, var(--wm-err) 70%, transparent); }
+.mud-button-text.mud-button-text-primary { color: var(--wm-text); }
+.mud-button-text.mud-button-text-primary:hover { background: var(--wm-hover); }
+.mud-icon-button { border-radius: var(--wm-r-ctl); color: var(--wm-muted); }
+.mud-icon-button:hover { color: var(--wm-text); background: var(--wm-hover); }
+.mud-icon-button.mud-button-root { min-height: 0; padding: 8px; }
+
+/* ---------- inputs: pills for one line, a 14px box for several ---------- */
+.mud-input-outlined .mud-input-outlined-border { border-radius: var(--wm-r-ctl); border-color: var(--wm-line-input); }
+.mud-input-outlined:has(textarea) .mud-input-outlined-border { border-radius: var(--wm-r-card); }
+.mud-input-outlined:hover:not(.mud-disabled):not(.mud-input-error) .mud-input-outlined-border { border-color: var(--wm-muted); }
+.mud-input-outlined.mud-focused .mud-input-outlined-border { border-color: var(--wm-primary); border-width: 1px; box-shadow: 0 0 0 3px color-mix(in srgb, var(--wm-primary) 22%, transparent); }
+.mud-input > input.mud-input-root-outlined, .mud-input > div.mud-input-slot.mud-input-root-outlined { padding-inline: 18px; }
+.mud-input-control > .mud-input-control-input-container > .mud-input-label-outlined { font-size: var(--wm-text-md); }
+.mud-input-helper-text { color: var(--wm-hint); }
+.mud-select .mud-select-input { cursor: pointer; }
+
+/* ---------- popovers, menus, dialogs, tooltips, snackbars ---------- */
+.mud-popover { border-radius: var(--wm-r-card); border: 1px solid var(--wm-line); box-shadow: var(--wm-elev-2); background: var(--wm-surface); color: var(--wm-text); }
+.mud-list-item { border-radius: var(--wm-r-sm); }
+.mud-list-item.mud-list-item-clickable:hover, .mud-list-item-clickable.mud-selected-item { background: var(--wm-hover); }
+.mud-dialog { border-radius: var(--wm-r-panel); border: 1px solid var(--wm-line); background: var(--wm-surface); box-shadow: var(--wm-elev-2); }
+.mud-dialog .mud-dialog-title { font-size: var(--wm-text-xl); font-weight: 600; }
+.mud-overlay-dialog .mud-overlay-scrim { background: rgba(0, 0, 0, 0.6); }
+.mud-tooltip { border-radius: var(--wm-r-sm); background: var(--wm-surface-2); color: var(--wm-text); border: 1px solid var(--wm-line); font-size: var(--wm-text-sm); }
+.mud-snackbar { border-radius: var(--wm-r-card); box-shadow: var(--wm-elev-2); }
+.mud-alert { border-radius: var(--wm-r-card); box-shadow: none; }
+.mud-alert-text-error, .mud-alert-text-warning, .mud-alert-text-info, .mud-alert-text-success { border: 1px solid var(--wm-line); }
+
+/* ---------- switches and checks ---------- */
+.mud-switch-track { border-radius: var(--wm-r-ctl); }
+.mud-checkbox .mud-icon-root { border-radius: 4px; }
+
+/* ---------- chips from MudBlazor stay quiet: a hairline pill ---------- */
+.mud-chip { border-radius: var(--wm-r-ctl); font-weight: 500; }
+.mud-chip.mud-chip-outlined { border-color: var(--wm-line-input); }
+
+/* ---------- tables from MudBlazor ---------- */
+.mud-table { background: transparent; box-shadow: none; }
+.mud-table-container { border-radius: var(--wm-r-card); }
+.mud-table-root .mud-table-head .mud-table-cell { color: var(--wm-muted); font-weight: 500; font-size: var(--wm-text-sm); }
+.mud-table-root .mud-table-cell { border-bottom-color: var(--wm-line); }
+
+/* ---------- progress ---------- */
+.mud-progress-linear { border-radius: var(--wm-r-ctl); }

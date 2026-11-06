@@ -1,36 +1,21 @@
 ﻿@page "/approvals"
 @inherits LiveComponentBase
-@using Microsoft.AspNetCore.Components.Web
-@using MudBlazor
-@using Waymark.Core.Approvals
-@using Waymark.Host.Components.Shared
 @using Waymark.Host.Ui
 
-<PageTitle>Approvals - Waymark</PageTitle>
-
-<div class="wm-page">
-    <h1 class="wm-title">Approvals</h1>
-    <p class="wm-lead">Apps ask to connect here, and so do commands that are set to Ask. Nothing connects or runs until you say yes.</p>
-
+<PageFrame Title="Approvals" Lead="Apps ask to connect here, and so do commands that are set to Ask. Nothing connects or runs until you say yes.">
     @if (_error is not null)
     {
         <InlineAlert Severity="Severity.Warning">@_error</InlineAlert>
     }
 
-    <h2 class="wm-section" style="margin-top:0">Waiting</h2>
+    <SectionHeader Title="Waiting" />
     @foreach (var waitingCommand in _commandsWaiting)
     {
         <CommandApprovalCard @key="waitingCommand.Id" Run="waitingCommand" OnDecided="LoadAsync" />
     }
     @if (_pending.Count == 0 && _commandsWaiting.Count == 0)
     {
-        <div class="wm-calm">
-            <MudIcon Icon="@Icons.Material.Outlined.CheckCircle" Size="Size.Large" />
-            <div>
-                <div class="wm-big">Nothing is waiting for you.</div>
-                <div>A pairing request stays open for five minutes.</div>
-            </div>
-        </div>
+        <EmptyState Icon="@Icons.Material.Outlined.CheckCircle" Title="Nothing is waiting for you." Text="A pairing request stays open for five minutes." />
     }
     else
     {
@@ -39,7 +24,7 @@
             <section class="wm-card" aria-label="Pairing request @DisplayFormat.PairingCode(approval.PairingCode)">
                 <div class="wm-row spread">
                     <div class="wm-pairing">@DisplayFormat.PairingCode(approval.PairingCode)</div>
-                    <StateChip State="StatusState.Attention" Text="@($"Expires in {SecondsLeft(approval)}")" Icon="@Icons.Material.Filled.Timer" />
+                    <WmStatus State="StatusState.Attention" Text="@($"Expires in {SecondsLeft(approval)}")" />
                 </div>
                 <dl class="wm-dl">
                     <dt>App</dt>
@@ -51,21 +36,22 @@
                     <dt>Asked</dt>
                     <dd>@DisplayFormat.Ago(approval.RequestedUtc, Time.GetUtcNow())</dd>
                 </dl>
-                <div class="wm-row" style="margin-top:12px">
-                    <MudButton Variant="Variant.Outlined" Color="Color.Error" Disabled="_busy" OnClick="() => DecideAsync(approval, false)">Deny</MudButton>
-                    <MudButton Variant="Variant.Outlined" Color="Color.Primary" Disabled="_busy" OnClick="() => DecideAsync(approval, true)">Approve</MudButton>
+                <div class="wm-actions wm-card-actions">
+                    <WmButton Kind="ButtonKind.Danger" Disabled="_busy" OnClick="() => DecideAsync(approval, false)">Deny</WmButton>
+                    <WmButton Kind="ButtonKind.Primary" Disabled="_busy" OnClick="() => DecideAsync(approval, true)">Approve</WmButton>
                 </div>
             </section>
         }
     }
 
-    <div class="wm-row spread">
-        <h2 class="wm-section">Connected apps</h2>
-        @if (HasDisconnected)
-        {
-            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" Disabled="_busy" OnClick="ClearDisconnectedAsync" title="Removes disconnected apps only; active apps stay">Clear disconnected</MudButton>
-        }
-    </div>
+    <SectionHeader Title="Connected apps">
+        <Actions>
+            @if (HasDisconnected)
+            {
+                <WmButton Kind="ButtonKind.Danger" Small="true" Disabled="_busy" OnClick="ClearDisconnectedAsync" title="Removes disconnected apps only; active apps stay">Clear disconnected</WmButton>
+            }
+        </Actions>
+    </SectionHeader>
     @if (_clients.Count == 0)
     {
         <EmptyState Icon="@Icons.Material.Outlined.Link" Title="No apps registered" Text="An app appears here after it has asked to connect once." />
@@ -82,15 +68,15 @@
                     @foreach (var client in _clients)
                     {
                         <tr>
-                            <td><strong>@client.ClientName</strong></td>
+                            <th scope="row">@client.ClientName</th>
                             <td class="wm-mono">@string.Join(", ", client.RedirectUris.Select(u => new Uri(u).Host).Distinct())</td>
                             <td>@DisplayFormat.Ago(client.RegisteredUtc, Time.GetUtcNow())</td>
                             <td>@DisplayFormat.Ago(client.LastUsedUtc, Time.GetUtcNow())</td>
-                            <td><StateChip State="@(client.IsRevoked ? StatusState.Off : StatusState.Healthy)" Text="@(client.IsRevoked ? "Disconnected" : "Active")" /></td>
+                            <td><WmStatus State="@(client.IsRevoked ? StatusState.Off : StatusState.Healthy)" Text="@(client.IsRevoked ? "Disconnected" : "Active")" /></td>
                             <td class="num">
                                 @if (!client.IsRevoked)
                                 {
-                                    <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" Disabled="_busy" OnClick="() => RevokeAsync(client)">Disconnect</MudButton>
+                                    <WmButton Kind="ButtonKind.Ghost" Small="true" Disabled="_busy" OnClick="() => RevokeAsync(client)">Disconnect</WmButton>
                                 }
                             </td>
                         </tr>
@@ -100,13 +86,14 @@
         </div>
     }
 
-    <div class="wm-row spread">
-        <h2 class="wm-section">Recent decisions</h2>
-        @if (HasClearableHistory)
-        {
-            <MudButton Variant="Variant.Text" Color="Color.Error" Size="Size.Small" Disabled="_busy" OnClick="ClearHistoryAsync" title="Keeps waiting requests and approvals of active apps">Clear history</MudButton>
-        }
-    </div>
+    <SectionHeader Title="Recent decisions">
+        <Actions>
+            @if (HasClearableHistory)
+            {
+                <WmButton Kind="ButtonKind.Danger" Small="true" Disabled="_busy" OnClick="ClearHistoryAsync" title="Keeps waiting requests and approvals of active apps">Clear history</WmButton>
+            }
+        </Actions>
+    </SectionHeader>
     @if (_history.Count == 0)
     {
         <EmptyState Icon="@Icons.Material.Outlined.History" Title="No decisions yet" />
@@ -128,11 +115,11 @@
                             <td class="wm-mono">@DisplayFormat.PairingCode(approval.PairingCode)</td>
                             <td>@approval.ClientNameClaimed</td>
                             <td class="wm-mono">@approval.RedirectHost</td>
-                            <td><StateChip State="state.State" Text="@state.Text" /></td>
+                            <td><WmStatus State="state.State" Text="@state.Text" /></td>
                         </tr>
                     }
                 </tbody>
             </table>
         </div>
     }
-</div>
+</PageFrame>

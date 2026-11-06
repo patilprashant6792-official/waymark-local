@@ -1,0 +1,16 @@
+@* An action that reads like a link inside a sentence or a row ("open", "details", "try again"). Anything else (aria-*, title) goes to the button. *@
+<button type="button" class="wm-link-button" disabled="@Disabled" @attributes="Attributes" @onclick="OnClick">@ChildContent</button>
+
+@code {
+    [Parameter]
+    public bool Disabled { get; set; }
+
+    [Parameter]
+    public EventCallback<Microsoft.AspNetCore.Components.Web.MouseEventArgs> OnClick { get; set; }
+
+    [Parameter]
+    public RenderFragment? ChildContent { get; set; }
+
+    [Parameter(CaptureUnmatchedValues = true)]
+    public Dictionary<string, object> Attributes { get; set; } = new();
+}

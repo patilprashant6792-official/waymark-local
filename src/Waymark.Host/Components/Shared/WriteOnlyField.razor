@@ -1,37 +1,36 @@
-﻿@using MudBlazor
+@using MudBlazor
 
 <div class="wm-stack">
     <div class="wm-row">
         <strong>@Label</strong>
         @if (IsSet)
         {
-            <StateChip State="StatusState.Healthy" Text="@StoredText" Icon="@Icons.Material.Filled.Lock" />
+            <WmStatus State="StatusState.Healthy" Text="@StoredText" />
         }
         else
         {
-            <StateChip State="StatusState.Off" Text="Not set" />
+            <WmStatus State="StatusState.Off" Text="Not set" />
         }
     </div>
 
     @if (!_editing && IsSet)
     {
         <div class="wm-row">
-            <MudButton Variant="Variant.Outlined" OnClick="StartEdit">Rotate</MudButton>
+            <WmButton OnClick="StartEdit">Rotate</WmButton>
             @if (OnClear.HasDelegate)
             {
-                <MudButton Variant="Variant.Text" Color="Color.Error" OnClick="ClearAsync">Remove</MudButton>
+                <WmButton Kind="ButtonKind.Danger" OnClick="ClearAsync">Remove</WmButton>
             }
         </div>
     }
     else
     {
-        <MudTextField @bind-Value="_value" Label="@(IsSet ? "New value" : "Value")" InputType="InputType.Password"
-                      Variant="Variant.Outlined" Immediate="true" HelperText="@HelperText" Disabled="_busy" />
+        <WmTextField @bind-Value="_value" Label="@(IsSet ? "New value" : "Value")" InputType="InputType.Password" Immediate="true" HelperText="@HelperText" Disabled="_busy" Width="FieldWidth.Full" />
         <div class="wm-row">
-            <MudButton Variant="Variant.Filled" Color="Color.Primary" Disabled="@(_busy || string.IsNullOrWhiteSpace(_value))" OnClick="SaveAsync">Save</MudButton>
+            <WmButton Kind="ButtonKind.Primary" Disabled="@(_busy || string.IsNullOrWhiteSpace(_value))" OnClick="SaveAsync">Save</WmButton>
             @if (IsSet)
             {
-                <MudButton Variant="Variant.Text" OnClick="Cancel">Cancel</MudButton>
+                <WmButton Kind="ButtonKind.Ghost" OnClick="Cancel">Cancel</WmButton>
             }
         </div>
     }

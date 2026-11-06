@@ -1,28 +1,26 @@
 ﻿@page "/Error"
 @using System.Diagnostics
 
-<PageTitle>Error</PageTitle>
+<PageFrame Title="Something went wrong" Lead="An error occurred while processing your request. It is written to the log.">
+    <InlineAlert Severity="Severity.Error" Title="The request could not be completed">
+        Go back and try again. If it keeps happening, look under Audit, Live, Errors for the details.
+        @if (ShowRequestId)
+        {
+            <div class="wm-note"><strong>Request ID:</strong> <code>@RequestId</code></div>
+        }
+    </InlineAlert>
 
-<h1 class="text-danger">Error.</h1>
-<h2 class="text-danger">An error occurred while processing your request.</h2>
-
-@if (ShowRequestId)
-{
-    <p>
-        <strong>Request ID:</strong> <code>@RequestId</code>
-    </p>
-}
-
-<h3>Development Mode</h3>
-<p>
-    Swapping to <strong>Development</strong> environment will display more detailed information about the error that occurred.
-</p>
-<p>
-    <strong>The Development environment shouldn't be enabled for deployed applications.</strong>
-    It can result in displaying sensitive information from exceptions to end users.
-    For local debugging, enable the <strong>Development</strong> environment by setting the <strong>ASPNETCORE_ENVIRONMENT</strong> environment variable to <strong>Development</strong>
-    and restarting the app.
-</p>
+    <section class="wm-card" aria-labelledby="error-dev">
+        <h2 id="error-dev" class="wm-card-title">Development mode</h2>
+        <p>Swapping to <strong>Development</strong> environment will display more detailed information about the error that occurred.</p>
+        <p class="wm-muted">
+            <strong>The Development environment shouldn't be enabled for deployed applications.</strong>
+            It can result in displaying sensitive information from exceptions to end users.
+            For local debugging, enable the <strong>Development</strong> environment by setting the <strong>ASPNETCORE_ENVIRONMENT</strong> environment variable to <strong>Development</strong>
+            and restarting the app.
+        </p>
+    </section>
+</PageFrame>
 
 @code{
     [CascadingParameter]

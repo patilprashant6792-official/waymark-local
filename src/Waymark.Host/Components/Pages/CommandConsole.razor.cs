@@ -7,12 +7,19 @@ using Waymark.Core.Workspaces;
 using Waymark.Host.Components.Shared;
 using Waymark.Host.Terminal;
 using Waymark.Host.Ui;
+using Waymark.Host.Components.Ui;
 using Waymark.Modules.Commands.Execution;
 
 namespace Waymark.Host.Components.Pages;
 
 public partial class CommandConsole : LiveComponentBase
 {
+    private IReadOnlyList<WmTab> TabList =>
+        [.. Tabs.Select(t => new WmTab(t.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), t.Name, t.Active, $"{t.Active} running or waiting"))];
+
+    private string SelectedTab => _tab.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    private Task OnTabChangedAsync(string id) => SelectTabAsync(long.Parse(id, System.Globalization.CultureInfo.InvariantCulture));
     private const long SystemTab = -1;
     private const int ListLimit = 200;
     private const int TabLimit = 60;
