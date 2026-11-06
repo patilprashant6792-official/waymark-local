@@ -171,3 +171,20 @@
 
 /* A tab strip scrolls sideways only. A one pixel rounding difference must not add a vertical scrollbar. */
 .wm-tabs { overflow-y: hidden; }
+
+/* ---------- feature map steps: a long path wraps inside its cell and never runs into the next column ---------- */
+.wm-table th.wm-step-cell {
+    min-width: 18rem;
+    max-width: 34rem;
+    white-space: normal;
+    overflow-wrap: anywhere;
+    text-transform: none;
+    letter-spacing: normal;
+    vertical-align: middle;
+    border-bottom: 1px solid var(--mud-palette-lines-default);
+}
+.wm-table tr:last-child th.wm-step-cell { border-bottom: none; }
+.wm-step-member { display: block; font-size: 13px; font-weight: 600; color: var(--mud-palette-text-primary); }
+.wm-step-path { display: block; font-size: 11.5px; font-weight: 400; color: var(--mud-palette-text-secondary); }
+.wm-table td.wm-step-note { min-width: 12rem; overflow-wrap: anywhere; }
+.wm-table td.wm-step-state { white-space: nowrap; }

@@ -236,8 +236,24 @@ public partial class FeatureMapList : LiveComponentBase
     // The same text memorise takes (indented under the step that calls it), so a flow can be pasted into a note or saved again.
     private static string StepsText(FeatureMap map) => FlowStepText.Format(FlowStepText.FromStored(map.Steps));
 
-    // The steps are paths: they wrap anywhere, so a long path never pushes the actions out of sight.
-    private static string Indent(FeatureMapStep step) => $"padding-left:{step.Depth * 16}px;min-width:260px;overflow-wrap:anywhere";
+    // Only the nesting depth is inline; wrapping, widths and the two-line path/member layout live in .wm-step-cell (waymark-ux.css).
+    private static string Indent(FeatureMapStep step) => $"padding-left:{(step.Depth * 16) + 12}px";
+
+    // A step spec is 'path:Type.Member', 'path#L10-40' or 'path'. The member is split off so it can be the headline and the long path the small print.
+    private static (string Path, string? Member) SplitSpec(string spec)
+    {
+        var colon = spec.LastIndexOf(':');
+        if (colon > 0 && colon < spec.Length - 1)
+        {
+            var tail = spec[(colon + 1)..];
+            if (tail.IndexOfAny(['/', '\\']) < 0)
+            {
+                return (spec[..colon], tail);
+            }
+        }
+
+        return (spec, null);
+    }
 
     // What the code says about the link from the step above, in the words of the other states on this page. Never colour alone: each has a word.
     private static (StatusState State, string Text, string? Title)? LinkChip(FeatureComponentStatus? status)
