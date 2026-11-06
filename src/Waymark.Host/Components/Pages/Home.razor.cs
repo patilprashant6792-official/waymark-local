@@ -133,8 +133,6 @@ public partial class Home : LiveComponentBase
     private CodeIndexProgress? Indexing =>
         _progress.Values.FirstOrDefault(p => p.Phase is CodeIndexPhase.Started or CodeIndexPhase.Running);
 
-    private int ToolPercent => (int)Math.Clamp(EnabledTokens * 100L / AllTokens, 0, 100);
-
     private (StatusState State, string Text) CodeIndexState =>
         Indexing is { } running ? (StatusState.Working, $"Indexing {DisplayFormat.Count(running.FilesProcessed)} of {DisplayFormat.Count(running.FilesTotal)}")
         : _workspaces.Count == 0 ? (StatusState.Off, "No workspaces")

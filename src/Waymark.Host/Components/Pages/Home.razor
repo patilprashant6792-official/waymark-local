@@ -81,7 +81,7 @@
         }
         else if (_commandsWaiting.Count == 0)
         {
-            <div class="wm-calm slim">
+            <div class="wm-calm slim wm-calm-gap">
                 <MudIcon Icon="@Icons.Material.Outlined.CheckCircle" />
                 <span><strong>Nothing is waiting for you.</strong> New pairing requests and commands show up here and in the header.</span>
             </div>
@@ -240,8 +240,7 @@
             <h2 class="wm-tile-label">What the AI sees<ActivityDot Token="@CardToken(DashboardCards.Tools)" /></h2>
         </div>
         <div class="wm-tile-value">@EnabledTools <span class="wm-unit">of @_tools.Count tools</span></div>
-        <progress class="wm-progress @(ToolPercent >= 80 ? "high" : string.Empty)" max="100" value="@ToolPercent" aria-label="Tool descriptions" aria-valuetext="@($"{DisplayFormat.Count(EnabledTokens)} of {DisplayFormat.Count(AllTokens)} tokens")"></progress>
-        <p class="wm-tile-sub">@DisplayFormat.Count(EnabledTokens) of @DisplayFormat.Count(AllTokens) tokens of tool descriptions</p>
+        <p class="wm-tile-sub">@DisplayFormat.Count(EnabledTokens) tokens of tool descriptions, @DisplayFormat.Count(AllTokens) if every tool were on</p>
         <a class="wm-tile-link" href="tools">View all tools <MudIcon Icon="@Icons.Material.Outlined.ArrowForward" Size="Size.Small" /></a>
     </article>;
 

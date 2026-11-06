@@ -6,6 +6,8 @@
 .wm-home-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 12px 24px; }
 .wm-home-tools { margin-left: auto; }
 .wm-attn { display: flex; flex-wrap: wrap; gap: var(--wm-space-2); margin: 0; padding: 0; list-style: none; }
+/* The "nothing is waiting" banner sits right above the card grid and needs the same breathing room as the cards have between them. */
+.wm-calm.wm-calm-gap { margin-bottom: var(--wm-space-4); }
 .wm-pairing-card { border-color: var(--wm-warn); }
 
 /* the card grid and its Rearrange mode: 12 columns, each card spans its saved columns and rows */
@@ -141,16 +143,22 @@
 .wm-gh-link:hover, .wm-gh-link:focus-visible { color: var(--wm-text); text-decoration: underline; }
 .wm-caption { margin: var(--wm-space-3) 0 0; }
 .wm-stack-item { margin-top: var(--wm-space-4); }
-.wm-step { min-width: 260px; overflow-wrap: anywhere; }
-.wm-indent-0 { padding-left: 16px; }
-.wm-indent-1 { padding-left: 32px; }
-.wm-indent-2 { padding-left: 48px; }
-.wm-indent-3 { padding-left: 64px; }
-.wm-indent-4 { padding-left: 80px; }
-.wm-indent-5 { padding-left: 96px; }
-.wm-indent-6 { padding-left: 112px; }
-.wm-indent-7 { padding-left: 128px; }
-.wm-indent-8 { padding-left: 144px; }
+/* Flow steps. Not .wm-step: that name is the numbered-list grid in components.css, which turned this table cell into a grid and broke the row. */
+.wm-table th.wm-flow-step { min-width: 18rem; max-width: 34rem; white-space: normal; overflow-wrap: anywhere; }
+.wm-flow-member { display: block; font-size: var(--wm-text-sm); font-weight: 600; color: var(--wm-text); }
+.wm-flow-path { display: block; font-size: var(--wm-text-xs); font-weight: 400; color: var(--wm-muted); }
+.wm-table td.wm-flow-note { min-width: 12rem; overflow-wrap: anywhere; }
+.wm-table td.wm-flow-state { white-space: nowrap; }
+/* Nesting depth. The selector is as specific as '.wm-table tbody th[scope=row]' in components.css, which would otherwise reset the padding. */
+.wm-table tbody th.wm-flow-step.wm-indent-0 { padding-left: 16px; }
+.wm-table tbody th.wm-flow-step.wm-indent-1 { padding-left: 32px; }
+.wm-table tbody th.wm-flow-step.wm-indent-2 { padding-left: 48px; }
+.wm-table tbody th.wm-flow-step.wm-indent-3 { padding-left: 64px; }
+.wm-table tbody th.wm-flow-step.wm-indent-4 { padding-left: 80px; }
+.wm-table tbody th.wm-flow-step.wm-indent-5 { padding-left: 96px; }
+.wm-table tbody th.wm-flow-step.wm-indent-6 { padding-left: 112px; }
+.wm-table tbody th.wm-flow-step.wm-indent-7 { padding-left: 128px; }
+.wm-table tbody th.wm-flow-step.wm-indent-8 { padding-left: 144px; }
 
 /* Shared small helpers */
 .wm-note { margin: var(--wm-space-2) 0; }

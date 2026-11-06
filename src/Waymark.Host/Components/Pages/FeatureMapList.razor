@@ -87,10 +87,17 @@ else
                                         var status = StatusOf(map, i);
                                         var link = LinkChip(status);
                                         var whyNot = WhyNotRemovable(map, i);
+                                        var (stepPath, stepMember) = SplitSpec(step.Spec);
                                         <tr>
-                                            <th scope="row" class="wm-mono wm-step @IndentClass(step)">@step.Spec</th>
-                                            <td>@step.Note</td>
-                                            <td>
+                                            <th scope="row" class="wm-flow-step @IndentClass(step)">
+                                                @if (stepMember is not null)
+                                                {
+                                                    <span class="wm-flow-member wm-mono">@stepMember</span>
+                                                }
+                                                <span class="wm-mono @(stepMember is null ? "wm-flow-member" : "wm-flow-path")">@stepPath</span>
+                                            </th>
+                                            <td class="wm-flow-note">@step.Note</td>
+                                            <td class="wm-flow-state">
                                                 @if (status is null)
                                                 {
                                                     <span class="wm-muted">Not checked</span>
@@ -108,7 +115,7 @@ else
                                                     }
                                                 }
                                             </td>
-                                            <td>
+                                            <td class="wm-flow-state">
                                                 @if (link is { } chip)
                                                 {
                                                     <WmStatus State="chip.State" Text="@chip.Text" Title="@chip.Title" />
@@ -118,7 +125,7 @@ else
                                                     <span class="wm-muted">Trigger</span>
                                                 }
                                             </td>
-                                            <td><WmButton Kind="ButtonKind.Danger" Small="true" Disabled="@(_busy || whyNot is not null)" title="@whyNot" OnClick="() => RemoveStepAsync(map, index)">Remove</WmButton></td>
+                                            <td class="wm-flow-state"><WmButton Kind="ButtonKind.Danger" Small="true" Disabled="@(_busy || whyNot is not null)" title="@whyNot" OnClick="() => RemoveStepAsync(map, index)">Remove</WmButton></td>
                                         </tr>
                                     }
                                 </tbody>
