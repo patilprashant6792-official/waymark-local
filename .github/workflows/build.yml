@@ -21,3 +21,6 @@ jobs:
 
       - name: Build
         run: dotnet build Waymark.slnx -c Release --nologo
+
+      - name: Test
+        run: dotnet test --solution Waymark.slnx -c Release --no-build

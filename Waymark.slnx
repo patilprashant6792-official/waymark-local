@@ -11,4 +11,5 @@
   <Project Path="src/Waymark.Modules.Commands/Waymark.Modules.Commands.csproj" />
   <Project Path="src/Waymark.Connectors.Abstractions/Waymark.Connectors.Abstractions.csproj" />
   <Project Path="src/Waymark.Connectors/Waymark.Connectors.csproj" />
+  <Project Path="tests/Waymark.Tests/Waymark.Tests.csproj" />
 </Solution>
