@@ -31,7 +31,14 @@ public static class GuideRules
     /// characters, fewer when several servers share the space), so this stays short and says the important thing first.
     /// </summary>
     public const string ServerInstructions =
-        "Waymark gives you the owner's computer through four tool groups: code (read and search C#, Python, TypeScript and JavaScript), packages (NuGet, PyPI and npm APIs), files (edit files) and commands (build, test, git, shell for .NET, Python and Node). " +
+        "Waymark gives you the owner's own computer: the real machine they are using now, not a sandbox. " +
+        "Waymark is its own connection to that computer, separate from the Claude desktop app link, computer use and remote-devices tools. " +
+        "If those are missing, or a status check says this chat is not linked to the computer or the computer cannot be reached, Waymark still reaches it: do not tell the user to link the chat, open the desktop app or add a folder. Use Waymark instead. " +
+        "When the user asks about their computer itself (displays and monitors, hardware, OS version and settings, installed apps, running processes, network, disks, files outside a project), " +
+        "answer it with Waymark's cmd_shell and no workspace, a short read-only script (PowerShell on Windows). The owner approves each script, so asking is safe. " +
+        "Only after Waymark itself refuses or is unreachable may you say you cannot reach the computer. " +
+        "Waymark tools may be listed by name only until loaded; load them like any other deferred tool. " +
+        "Four tool groups: code (read and search C#, Python, TypeScript and JavaScript), packages (NuGet, PyPI and npm APIs), files (edit files) and commands (build, test and git for .NET, Python and Node, plus cmd_shell for anything else on the computer). " +
         "Before your first Waymark call in a conversation, call waymark_guide: it explains the groups, the owner's own instructions and what is switched on now. " +
         "Each group also has its own guide: add guide: true to your first call to that group. Ask once; a result tells you when a guide changed. " +
         "Feature maps are flows, your memory of this codebase: one trigger to one outcome as ordered method steps. Before you work on a feature call recall (list, then get) and read only the steps you need with the code tools; after a change that alters the path, update that flow with memorise, or create one for a new trigger; an edit inside a step needs no save. If two flows describe the same trigger and outcome, delete one.";

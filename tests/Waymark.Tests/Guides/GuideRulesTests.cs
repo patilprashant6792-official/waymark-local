@@ -24,6 +24,20 @@ public sealed class GuideRulesTests
             < GuideRules.ServerInstructions.IndexOf("recall", StringComparison.Ordinal));
     }
 
+    [Fact]
+    public void ServerInstructionsSendQuestionsAboutTheComputerToTheShellBeforeTheGuide()
+    {
+        // Tool descriptions can be deferred, so the server instructions are the only Waymark text a new session is sure to see.
+        var shellIndex = GuideRules.ServerInstructions.IndexOf("cmd_shell", StringComparison.Ordinal);
+        Assert.True(shellIndex >= 0, "The instructions must name cmd_shell for questions about the computer itself.");
+        Assert.True(shellIndex < GuideRules.ServerInstructions.IndexOf(GuideRules.OverviewTool, StringComparison.Ordinal),
+            "Routing to the computer must come first: clients cut long instructions.");
+        Assert.Contains("monitors", GuideRules.ServerInstructions);
+        // Hosts such as claude.ai check their own desktop-app link first and give up when it is absent; the instructions must say Waymark is separate.
+        var linkIndex = GuideRules.ServerInstructions.IndexOf("not linked", StringComparison.Ordinal);
+        Assert.True(linkIndex >= 0 && linkIndex < shellIndex, "Say that Waymark works when the host's own link is missing, before routing to cmd_shell.");
+    }
+
     [Theory]
     [InlineData("a\r\nb", "a\nb")]
     [InlineData("a\rb", "a\nb")]

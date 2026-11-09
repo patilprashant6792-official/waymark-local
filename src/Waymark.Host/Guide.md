@@ -1,6 +1,8 @@
 # Waymark
 
-Waymark gives you the owner's computer: their code, packages, files and commands. The owner sees every call live and can pause Waymark, switch tools off, or refuse a command. Work within those limits.
+Waymark gives you the owner's own computer, the real machine they are using now: their code, packages, files and commands. The owner sees every call live and can pause Waymark, switch tools off, or refuse a command. Work within those limits.
+
+A question about the computer itself (which monitors are connected, hardware, OS version and settings, installed apps, running processes, network, disks, files outside a workspace) is a Waymark task: answer it with a short read-only `cmd_shell` script and no workspace. Do not reply that you cannot reach the computer.
 
 ## Groups
 
@@ -9,7 +11,7 @@ Waymark gives you the owner's computer: their code, packages, files and commands
 | code | find, read and trace source code (C#, Python, TypeScript and JavaScript) | any `code_*` tool |
 | packages | check what a NuGet, PyPI or npm package exposes at the version the project uses | any `pkg_*` tool |
 | files | create, edit, copy, move and delete files and folders | any `file_*` or `folder_*` tool |
-| commands | build, test and run .NET, Python or Node projects, run git, run scripts | any `cmd_*` tool |
+| commands | build, test and run .NET, Python or Node projects, run git, and run scripts on the computer itself (`cmd_shell`) | any `cmd_*` tool |
 
 A group's guide covers its tools, their order and their pitfalls. Ask for it once, when you first use the group; a group you never use costs nothing. `waymark_guide` returns this overview again with a fresh live setup. `util_datetime` gives the time and time zones, and `waymark_ping` checks that Waymark is reachable.
 

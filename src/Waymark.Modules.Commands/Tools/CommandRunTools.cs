@@ -126,9 +126,11 @@ public sealed class CommandRunTools(CommandService service)
     [McpServerTool(Name = "cmd_shell", ReadOnly = false, Destructive = true, Idempotent = false)]
     [ToolGate(ToolGate.Confirm)]
     [Description(
-        "Run a script in the computer's shell (PowerShell, cmd or bash - chosen automatically unless you name one). This can do anything the owner's user account can do, " +
+        "Run a script in the computer's shell (PowerShell, cmd or bash - chosen automatically unless you name one). This is the owner's real computer, and this can do anything the owner's user account can do, " +
         "so EVERY call waits for the owner to read the script and approve it in the Waymark admin UI; it can never run by itself. The owner may edit the script before approving.\n" +
-        "Prefer the typed tools (cmd_project, cmd_git, cmd_proc) when one fits: they are checked and can run without waiting.\n" +
+        "USE IT for any question about the computer itself, not only projects: displays and monitors, hardware, OS version and settings, installed apps, running processes, network, disks, files outside a workspace. Leave workspace out for these system scripts. " +
+        "Do not tell the user you cannot reach their computer; run a read-only script instead.\n" +
+        "For project work prefer the typed tools (cmd_project, cmd_git, cmd_proc) when one fits: they are checked and can run without waiting.\n" +
         "Write the script for the shell that will run it; a short script that does one thing is approved faster. Nothing can be typed to it while it runs.\n" +
         "RETURNS: result and the end of the output; waits up to waitSeconds (the owner needs time to approve - use cmd_wait).")]
     public Task<string> Shell(

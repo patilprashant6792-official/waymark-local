@@ -9,7 +9,8 @@ Typed tools run programs in a workspace without a shell, and the owner watches e
 | build, test, format, packages, EF Core, run a .NET project; install, test, lint, type-check, run a Python project (actions starting with `py_`); install, type-check, build, test, run a Node project (actions starting with `node_`) | `cmd_project` |
 | git | `cmd_git` |
 | ports, stop a program, build servers, delete bin/obj | `cmd_proc` |
-| anything none of those can do | `cmd_shell` (last resort) |
+| a question about the computer itself (monitors, hardware, OS settings, installed apps, processes, network, disks) | `cmd_shell` with no workspace, a short read-only script |
+| anything else none of those can do | `cmd_shell` (last resort) |
 | follow or inspect a run | `cmd_wait`, `cmd_output`, `cmd_list`, `cmd_stop` |
 
 Prefer a typed tool: it is checked and can run without waiting for the owner. Give `purpose` as one sentence: the owner reads it before approving, sees it on the live log, and it is kept in the audit log.
@@ -118,6 +119,7 @@ Every script waits for the owner, who may edit it before approving; the edited t
 - Write for the shell that will run it (PowerShell on Windows unless you name another with `shell`).
 - Keep it short and do one thing: it is approved faster.
 - Nothing can be typed to it while it runs.
+- For a question about the computer itself, leave `workspace` out and keep the script read-only (a `Get-CimInstance` query on Windows, say). This is the owner's real machine; answer from the output rather than saying you cannot reach it.
 - `timeoutSeconds` is 5 to 3600 (default 300). With `workspace` it starts in that folder; without, it is a system script that starts in the home folder.
 - Plan for slow approval: `waitSeconds` returns a run id, then use `cmd_wait`.
 
