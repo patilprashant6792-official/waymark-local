@@ -109,6 +109,15 @@ The tunnel carries sign-in and tool traffic only; the admin pages are never reac
 
 Waymark lets Claude read your code and, when you allow it, run commands on your computer. Running tests, `dotnet run`, `pytest`, `npm run`, EF commands and the shell can all execute code that can read your files, so they ask for your approval by default. Waymark hides secrets it recognises in tool output, but detection is shape-based and not a guarantee. The **Safety** page in the admin UI lists every risky operation and every redaction. If a secret ever reaches a chat, rotate it and delete the chat. Details: [docs/safety.md](docs/safety.md).
 
+## Get better results: the prompts
+
+Waymark works with any Claude setup, but Claude uses it best when it also has your engineering standards and knows Waymark is how it reaches this computer. The [prompts/](prompts/) folder holds both, ready to copy:
+
+- **[prompts/expert-programmer.md](prompts/expert-programmer.md)**: the main prompt. Paste it into your Claude preferences (claude.ai: Settings > Profile) or your `CLAUDE.md`. Its last section tells Claude to use Waymark for questions about this computer and for package signatures.
+- **[prompts/skills/](prompts/skills/)**: two optional skills, `effort-mirror` (does substantial work the way a senior engineer would) and `prompt-smith` (writes and edits prompts). Upload each as a ZIP in claude.ai, or copy the folder into `~/.claude/skills/` for Claude Code.
+
+Steps and details: [prompts/README.md](prompts/README.md).
+
 ## More
 
 - [docs/install.md](docs/install.md): what the installer does, where things live, ports, the start log, running from source, troubleshooting.
@@ -116,6 +125,7 @@ Waymark lets Claude read your code and, when you allow it, run commands on your 
 - [docs/error-handling.md](docs/error-handling.md) and [docs/live-log.md](docs/live-log.md): what happens when something fails, and what the Live page shows.
 - [docs/safety.md](docs/safety.md) and [docs/commands-policy.md](docs/commands-policy.md): the risks, what Waymark hides, and which operations ask first.
 - [docs/guides.md](docs/guides.md): how Claude learns to use each tool group, and the host prompt where you add your own instructions.
+- [prompts/README.md](prompts/README.md): the main prompt and the two skills that go with Waymark, and how to install them.
 
 ## Try it and tell me what you think
 

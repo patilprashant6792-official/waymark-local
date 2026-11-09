@@ -26,3 +26,5 @@ An agent that never asked is told once, in a tool result, that a guide exists. A
 ## Writing your instructions
 
 Good content: how you like work done, conventions, what to ask before touching, and your own workflows. For example: a script the project ships, how to run it with `cmd_shell`, and when to stop and wait for you.
+
+A ready-made set to start from (a language-neutral engineering prompt and two skills) is in [prompts/](../prompts/README.md). Personal Claude preferences are read before this page, so that is the place for any line that must apply before Claude decides to use Waymark.
