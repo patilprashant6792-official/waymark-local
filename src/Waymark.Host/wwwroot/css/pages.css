@@ -86,12 +86,17 @@
 
 /* ---------- approval card (apps and commands) ---------- */
 .wm-cmd-card { border-color: color-mix(in srgb, var(--wm-warn) 55%, var(--wm-line)); }
+/* Whatever follows an approval card (the status tiles on Home, say) must not touch it. */
+.wm-cmd-card, .wm-pairing-card { margin-bottom: var(--wm-space-5); }
 .wm-cmd-card .wm-card-title { margin: 0; }
 .wm-cmd-pre { max-height: 260px; margin: var(--wm-space-2) 0; }
 .wm-script-edit { display: block; width: 100%; min-height: 96px; margin: var(--wm-space-2) 0; padding: 10px 14px; font-family: var(--wm-mono); font-size: var(--wm-text-sm); line-height: 1.45; tab-size: 4; color: var(--wm-text); background: var(--wm-surface); border: 1px solid var(--wm-line-input); border-radius: var(--wm-r-card); resize: vertical; }
 .wm-risks { display: flex; flex-wrap: wrap; gap: 6px; margin: var(--wm-space-2) 0; padding: 0; list-style: none; }
 .wm-risks .wm-chip { white-space: normal; }
-.wm-cmd-actions { justify-content: flex-end; margin-top: var(--wm-space-2); }
+.wm-cmd-card .wm-dl { margin-top: var(--wm-space-2); }
+.wm-cmd-card .wm-tier-row { margin-top: var(--wm-space-3); }
+.wm-cmd-card .wm-cmd-pre { margin: var(--wm-space-3) 0 0; }
+.wm-cmd-actions { justify-content: flex-end; margin-top: var(--wm-space-4); padding-top: var(--wm-space-3); border-top: 1px solid var(--wm-line); }
 .wm-cmd-actions .wm-input { margin-top: 0; }
 .wm-reason { flex: 1 1 220px; min-width: 0; }
 
