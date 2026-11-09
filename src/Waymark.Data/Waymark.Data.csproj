@@ -6,4 +6,5 @@
 	<PackageReference Include="Dapper" />
   </ItemGroup>
   <ItemGroup><EmbeddedResource Include="Migrations\*.sql" LogicalName="Waymark.Data.Migrations.%(Filename)%(Extension)" /></ItemGroup>
+  <ItemGroup><InternalsVisibleTo Include="Waymark.Tests" /></ItemGroup>
 </Project>

@@ -8,10 +8,15 @@
   <ItemGroup>
     <PackageReference Include="xunit.v3" />
     <Using Include="Xunit" />
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="..\..\src\Waymark.Core\Waymark.Core.csproj" />
     <ProjectReference Include="..\..\src\Waymark.Modules.Files\Waymark.Modules.Files.csproj" />
     <ProjectReference Include="..\..\src\Waymark.Modules.Code\Waymark.Modules.Code.csproj" />
+    <ProjectReference Include="..\..\src\Waymark.Modules.Commands\Waymark.Modules.Commands.csproj" />
+    <ProjectReference Include="..\..\src\Waymark.Data\Waymark.Data.csproj" />
+    <ProjectReference Include="..\..\src\Waymark.Logging\Waymark.Logging.csproj" />
+    <ProjectReference Include="..\..\src\Waymark.Host\Waymark.Host.csproj" />
   </ItemGroup>
 </Project>
