@@ -10,9 +10,13 @@ Local MCP server for developers working in C#, Python and TypeScript/JavaScript:
 
 > **Read this first.** Waymark gives an AI assistant real access to this computer: what it reads can reach your Claude chat, and what it runs acts as you. Changes and commands wait for your approval by default, approvals can only be given on this computer, and secrets in tool results are hidden before they leave. None of that is perfect, so read [docs/safety.md](docs/safety.md) before you install, and see [SECURITY.md](SECURITY.md) to report a problem. This is early software (v0.2), provided as is under the [MIT License](LICENSE).
 >
-> <img width="800" height="754" alt="image" src="https://github.com/user-attachments/assets/fb4312cc-4147-4892-aa36-41e63a7aea57" />
+>
 
-<img width="798" height="217" alt="image" src="https://github.com/user-attachments/assets/f3a9f039-6bac-4fae-9e9c-42412f3b049f" />
+<img width="1479" height="1255" alt="image" src="https://github.com/user-attachments/assets/5e4deb9b-ad6b-4c85-9ccd-1f837ca804f9" />
+
+
+<img width="1234" height="362" alt="image" src="https://github.com/user-attachments/assets/8a625ac0-0022-4953-bca0-68425d34d407" />
+
 
 
 
