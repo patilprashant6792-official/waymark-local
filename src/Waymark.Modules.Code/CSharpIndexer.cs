@@ -3,6 +3,7 @@ using Microsoft.CodeAnalysis;
 using Microsoft.CodeAnalysis.CSharp;
 using Microsoft.CodeAnalysis.Text;
 using Waymark.Core.Code;
+using Waymark.Core.Text;
 using Waymark.Modules.Code.Indexing;
 
 namespace Waymark.Modules.Code;
@@ -73,6 +74,7 @@ public sealed class CSharpIndexer(CodeIndexOptions options) : ILanguageIndexer
             extraction.Types,
             extraction.Members,
             extraction.CallSites);
+        file = MemberTerms.Annotate(file, text.ToString(), options.Limits);
         return new SyntaxIndexResult(SyntaxIndexOutcome.Indexed, file, extraction.Truncated);
     }
 }

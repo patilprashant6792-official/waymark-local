@@ -2,8 +2,23 @@
 
 public interface ICodeSearchService
 {
-    /// <exception cref="ArgumentException">Empty or too long query, unknown memberType, or '*' with no enabled workspace.</exception>
-    Task<string> SearchAsync(string? workspace, string? query, string? memberType, bool caseSensitive, int? pageSize, int? page, CancellationToken ct);
+    /// <param name="terms">Extra words that widen the search (synonyms, other spellings); counted as half a word each in the ranking.</param>
+    /// <param name="matchIn">All (default), Names, Docs or Code.</param>
+    /// <param name="pathGlob">Only hits in files matching this glob.</param>
+    /// <param name="includeTests">False leaves out hits in test folders and reports their number.</param>
+    /// <exception cref="ArgumentException">Empty or too long query, unknown memberType or matchIn, too many words, or '*' with no enabled workspace.</exception>
+    Task<string> SearchAsync(
+        string? workspace,
+        string? query,
+        string? memberType,
+        bool caseSensitive,
+        int? pageSize,
+        int? page,
+        IReadOnlyList<string>? terms,
+        string? matchIn,
+        string? pathGlob,
+        bool includeTests,
+        CancellationToken ct);
 }
 
 public interface ICodeCallersService

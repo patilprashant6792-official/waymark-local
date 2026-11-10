@@ -1,11 +1,16 @@
 ﻿using System.Globalization;
 using Waymark.Core.Code;
 using Waymark.Core.Security;
+using Waymark.Core.Text;
 using Waymark.Core.Tools;
 using Waymark.Core.Workspaces;
 
 namespace Waymark.Modules.Code.Search;
 
+/// <summary>
+/// code_search. Two legs run over the index and are fused by <see cref="SearchRanker"/>: the name leg (a name pre-filter plus <see cref="SymbolScorer"/>,
+/// the first code_search) and the content leg (the full-text index over names, split name words, doc summaries, paths and member body words).
+/// </summary>
 internal sealed class CodeSearchService(
     IPathGuard guard,
     IWorkspaceStore workspaces,
@@ -15,53 +20,214 @@ internal sealed class CodeSearchService(
 {
     private const string AllWorkspaces = "*";
     private const string AttributeSuffix = "Attribute";
+    private const int MaxContentFetch = 2000;
+    private const int PathGlobFetchFactor = 5;
+    private const int MaxCallerNames = 500;
 
-    public async Task<string> SearchAsync(string? workspace, string? query, string? memberType, bool caseSensitive, int? pageSize, int? page, CancellationToken ct)
+    public async Task<string> SearchAsync(
+        string? workspace,
+        string? query,
+        string? memberType,
+        bool caseSensitive,
+        int? pageSize,
+        int? page,
+        IReadOnlyList<string>? terms,
+        string? matchIn,
+        string? pathGlob,
+        bool includeTests,
+        CancellationToken ct)
     {
-        var tokens = Tokenize(query);
+        var parsed = SearchQuery.Parse(query, terms, options.MaxQueryLength, options.MaxTerms);
         if (!SearchScope.TryParse(memberType, out var kind))
         {
             throw new ArgumentException($"Invalid memberType '{memberType}'. Valid values: {string.Join(", ", Enum.GetNames<SearchKind>())}.");
         }
 
+        if (!MatchInParser.TryParse(matchIn, out var mode))
+        {
+            throw new ArgumentException($"Invalid matchIn '{matchIn}'. Valid values: {string.Join(", ", Enum.GetNames<MatchIn>())}.");
+        }
+
+        var notes = new List<string>();
+        if (mode == MatchIn.Code && parsed.Phrases.Count > 0)
+        {
+            parsed = parsed.PhrasesAsRequired();
+            notes.Add("Body words are an unordered bag, so in matchIn=Code a quoted phrase means every word of it must occur; their order is not checked.");
+        }
+
+        if (pathGlob is not null && pathGlob.AsSpan().IndexOfAny("[]{}") >= 0)
+        {
+            throw new ArgumentException("pathGlob supports only '*' (inside a folder), '**' (across folders) and '?' (one character); '[ ] { }' are not patterns. Use '?' for one unknown character, e.g. 'src/?id?/**' for a folder named [id].");
+        }
+
+        var glob = PathGlob.Parse(pathGlob);
+        if (glob is null && !string.IsNullOrWhiteSpace(pathGlob))
+        {
+            throw new ArgumentException($"pathGlob '{pathGlob.Trim()}' selects nothing; give a folder or a pattern such as 'src/**' or '**/*.cs'.");
+        }
         var searched = await ResolveWorkspacesAsync(workspace, ct).ConfigureAwait(false);
         var scope = SearchScope.For(kind);
+        var context = new Context(searched.Select(w => w.Id).ToList(), searched.ToDictionary(w => w.Id, w => w.Name), scope, parsed, caseSensitive, glob);
+
+        var candidates = new Dictionary<string, SearchCandidate>(StringComparer.Ordinal);
+
+        var nameCapped = false;
+        var contentCapped = false;
+        if (mode is MatchIn.All or MatchIn.Names)
+        {
+            nameCapped = await RunNameLegAsync(context, candidates, ct).ConfigureAwait(false);
+        }
+
+        if (mode != MatchIn.Names)
+        {
+            contentCapped = await RunContentLegAsync(context, mode, candidates, notes, ct).ConfigureAwait(false);
+        }
+
+        var kept = candidates.Values.Where(c => glob is null || glob.IsMatch(c.Path)).ToList();
+        var hiddenTests = 0;
+        if (!includeTests)
+        {
+            var production = kept.Where(c => !TestPaths.IsTest(c.Path)).ToList();
+            hiddenTests = kept.Count - production.Count;
+            kept = production;
+        }
+
+        var callers = mode == MatchIn.Names
+            ? new Dictionary<string, int>(StringComparer.Ordinal)
+            : await CountCallersAsync(context, kept, ct).ConfigureAwait(false);
+        var ranked = SearchRanker.Rank(kept, parsed, options.RrfK, callers, legacyOrder: mode == MatchIn.Names);
+
+        return Render(parsed, mode, searched, ranked, nameCapped, contentCapped, notes, hiddenTests, pageSize, page);
+    }
+
+    private async Task<bool> RunNameLegAsync(Context context, Dictionary<string, SearchCandidate> candidates, CancellationToken ct)
+    {
         var result = await store.FindSymbolsAsync(
             new CodeSymbolQuery(
-                searched.Select(w => w.Id).ToList(),
-                tokens,
-                caseSensitive,
-                scope.TypeKinds,
-                scope.MemberKinds,
-                scope.IncludeAttributes,
-                scope.IncludeBaseList,
+                context.WorkspaceIds,
+                context.Query.Words,
+                context.CaseSensitive,
+                context.Scope.TypeKinds,
+                context.Scope.MemberKinds,
+                context.Scope.IncludeAttributes,
+                context.Scope.IncludeBaseList,
                 options.MaxCandidates),
             ct).ConfigureAwait(false);
 
-        var names = searched.ToDictionary(w => w.Id, w => w.Name);
         var hits = result.Rows
-            .SelectMany(row => HitsOf(row, names[row.WorkspaceId], scope, tokens, caseSensitive))
-            .OrderByDescending(h => h.Score)
-            .ThenBy(h => h.Name, StringComparer.Ordinal)
-            .ThenBy(h => h.Path, StringComparer.Ordinal)
-            .ThenBy(h => h.Line)
+            .SelectMany(row => HitsOf(row, context.WorkspaceNames[row.WorkspaceId], context.Scope, context.Query.Words, context.CaseSensitive))
             .ToList();
 
-        return Render(string.Join(' ', tokens), searched, hits, result.Capped, pageSize, page);
-    }
-
-    private List<string> Tokenize(string? query)
-    {
-        var tokens = (query ?? string.Empty).Split((char[]?)null, StringSplitOptions.RemoveEmptyEntries);
-        if (tokens.Length == 0)
+        // A characters-in-order match is noise as soon as a real match exists.
+        if (hits.Any(h => h.Score >= SymbolScorer.FuzzyCeiling))
         {
-            throw new ArgumentException("query is required.");
+            hits = hits.Where(h => h.Score >= SymbolScorer.FuzzyCeiling).ToList();
         }
 
-        var joined = string.Join(' ', tokens);
-        return joined.Length > options.MaxQueryLength
-            ? throw new ArgumentException($"query is longer than {options.MaxQueryLength} characters.")
-            : [.. tokens];
+        var rank = 0;
+        foreach (var hit in hits.OrderByDescending(h => h.Score).ThenBy(h => h.Name, StringComparer.Ordinal).ThenBy(h => h.Path, StringComparer.Ordinal).ThenBy(h => h.Line))
+        {
+            rank++;
+            var candidate = new SearchCandidate(
+                KeyOf(hit.Workspace, hit.Path, hit.Line, hit.Name, hit.Label),
+                hit.Name,
+                hit.Label,
+                hit.Workspace,
+                hit.Path,
+                hit.Line,
+                hit.Detail,
+                hit.Text,
+                hit.IsType,
+                hit.Score,
+                rank,
+                null,
+                string.Empty,
+                hit.Context);
+            candidates.TryAdd(candidate.Key, candidate);
+        }
+
+        return result.Capped;
+    }
+
+    private async Task<bool> RunContentLegAsync(
+        Context context,
+        MatchIn mode,
+        Dictionary<string, SearchCandidate> candidates,
+        List<string> notes,
+        CancellationToken ct)
+    {
+        var columns = FtsQuery.ColumnsFor(mode);
+        var all = FtsQuery.Build(context.Query.Words, columns, all: true);
+        if (all is null)
+        {
+            return false;
+        }
+
+        var any = FtsQuery.Build(context.Query.Words.Concat(context.Query.Terms), columns, all: false);
+        var limit = Math.Min(options.ContentCandidates * (context.Glob is null ? 1 : PathGlobFetchFactor), MaxContentFetch);
+        try
+        {
+            var first = await store.FindByContentAsync(
+                new CodeContentQuery(context.WorkspaceIds, all, context.Scope.TypeKinds, context.Scope.MemberKinds, limit),
+                ct).ConfigureAwait(false);
+            var capped = first.Capped;
+            var ordered = new List<CodeContentHit>(first.Hits);
+            if (any is not null && !string.Equals(any, all, StringComparison.Ordinal))
+            {
+                var second = await store.FindByContentAsync(
+                    new CodeContentQuery(context.WorkspaceIds, any, context.Scope.TypeKinds, context.Scope.MemberKinds, limit),
+                    ct).ConfigureAwait(false);
+                capped |= second.Capped;
+                var known = ordered.Select(h => HitKey(context, h.Row)).ToHashSet(StringComparer.Ordinal);
+                ordered.AddRange(second.Hits.Where(h => !known.Contains(HitKey(context, h.Row))));
+            }
+
+            var rank = 0;
+            foreach (var hit in ordered)
+            {
+                rank++;
+                var workspaceName = context.WorkspaceNames[hit.Row.WorkspaceId];
+                var key = HitKey(context, hit.Row);
+                candidates[key] = candidates.TryGetValue(key, out var existing)
+                    ? existing with { ContentRank = rank, Terms = hit.Terms }
+                    : new SearchCandidate(
+                        key,
+                        hit.Row.Name,
+                        hit.Row.Kind,
+                        workspaceName,
+                        hit.Row.RelativePath,
+                        hit.Row.Line,
+                        DescribeSymbol(hit.Row),
+                        CoreOf(hit.Row),
+                        hit.Row.IsType,
+                        0,
+                        null,
+                        rank,
+                        hit.Terms,
+                        ContextOf(hit.Row));
+            }
+
+            return capped;
+        }
+        catch (ArgumentException ex)
+        {
+            notes.Add($"The content search was skipped ({ex.Message}); only names were searched.");
+            return false;
+        }
+    }
+
+    private async Task<IReadOnlyDictionary<string, int>> CountCallersAsync(Context context, List<SearchCandidate> candidates, CancellationToken ct)
+    {
+        var names = candidates
+            .Where(c => c.Label is "method" or "function" or "constructor")
+            .OrderBy(c => Math.Min(c.NameRank ?? int.MaxValue, c.ContentRank ?? int.MaxValue))
+            .Select(c => c.Name)
+            .Distinct(StringComparer.Ordinal)
+            .Take(Math.Min(options.CallerBoostTop, MaxCallerNames))
+            .ToList();
+        return names.Count == 0
+            ? new Dictionary<string, int>(StringComparer.Ordinal)
+            : await store.CountCallersAsync(context.WorkspaceIds, names, ct).ConfigureAwait(false);
     }
 
     private async Task<IReadOnlyList<Workspace>> ResolveWorkspacesAsync(string? workspace, CancellationToken ct)
@@ -77,6 +243,8 @@ internal sealed class CodeSearchService(
 
     private static IEnumerable<Hit> HitsOf(CodeSymbolRow row, string workspace, SearchScope scope, IReadOnlyList<string> tokens, bool caseSensitive)
     {
+        var text = CoreOf(row);
+        var context = ContextOf(row);
         var inKindSet = row.IsType
             ? scope.TypeKinds.Contains(Enum.Parse<CodeTypeKind>(row.Kind, ignoreCase: true))
             : scope.MemberKinds.Contains(Enum.Parse<CodeMemberKind>(row.Kind, ignoreCase: true));
@@ -85,7 +253,7 @@ internal sealed class CodeSearchService(
             var score = SymbolScorer.Score(row.Name, tokens, caseSensitive);
             if (score > 0)
             {
-                yield return new Hit(score, row.Name, row.Kind, workspace, row.RelativePath, row.Line, DescribeSymbol(row));
+                yield return new Hit(score, row.Name, row.Kind, workspace, row.RelativePath, row.Line, DescribeSymbol(row), row.IsType, text, context);
             }
         }
 
@@ -97,7 +265,7 @@ internal sealed class CodeSearchService(
                 var score = SymbolScorer.Score(name, tokens, caseSensitive);
                 if (score > 0)
                 {
-                    yield return new Hit(score, name, "attribute", workspace, row.RelativePath, row.Line, $"On {(row.IsType ? "type " : string.Empty)}{Qualified(row)}");
+                    yield return new Hit(score, name, "attribute", workspace, row.RelativePath, row.Line, $"On {(row.IsType ? "type " : string.Empty)}{Qualified(row)}", false, name + FieldBreak + text, context);
                 }
             }
         }
@@ -109,11 +277,26 @@ internal sealed class CodeSearchService(
                 var score = SymbolScorer.Score(baseType, tokens, caseSensitive);
                 if (score > 0)
                 {
-                    yield return new Hit(score, baseType, "base type", workspace, row.RelativePath, row.Line, $"Listed in the base list of {row.Name}");
+                    yield return new Hit(score, baseType, "base type", workspace, row.RelativePath, row.Line, $"Listed in the base list of {row.Name}", false, baseType + FieldBreak + text, context);
                 }
             }
         }
     }
+
+    private static string KeyOf(string workspace, string path, int line, string name, string label) =>
+        string.Create(CultureInfo.InvariantCulture, $"{workspace}|{path}|{line}|{name}|{label}");
+
+    private static string HitKey(Context context, CodeSymbolRow row) =>
+        KeyOf(context.WorkspaceNames[row.WorkspaceId], row.RelativePath, row.Line, row.Name, row.Kind);
+
+    // A symbol's own words are its name, signature and doc summary; the owner and the path are its context. U+0002 separates the fields so a phrase never runs across two.
+    private const char FieldBreak = '\u0002';
+
+    private static string CoreOf(CodeSymbolRow row) =>
+        string.Join(FieldBreak, new[] { row.Name, row.Signature, row.Doc }.Where(part => !string.IsNullOrEmpty(part)));
+
+    private static string ContextOf(CodeSymbolRow row) =>
+        string.Join(FieldBreak, new[] { row.Owner, row.RelativePath }.Where(part => !string.IsNullOrEmpty(part)));
 
     private static string Qualified(CodeSymbolRow row) => row.Owner is null ? row.Name : row.Owner + "." + row.Name;
 
@@ -142,10 +325,14 @@ internal sealed class CodeSearchService(
     }
 
     private string Render(
-        string query,
+        SearchQuery query,
+        MatchIn mode,
         IReadOnlyList<Workspace> searched,
-        List<Hit> hits,
-        bool capped,
+        IReadOnlyList<RankedHit> hits,
+        bool nameCapped,
+        bool contentCapped,
+        IReadOnlyList<string> notes,
+        int hiddenTests,
         int? requestedPageSize,
         int? requestedPage)
     {
@@ -155,36 +342,63 @@ internal sealed class CodeSearchService(
         var showWorkspace = searched.Count > 1;
 
         var output = new OutputBudget(pipeline.MaxOutputChars);
-        output.TryAppendLine($"# Code search: \"{query}\"");
+        output.TryAppendLine(query.Display.Contains('"', StringComparison.Ordinal) ? $"# Code search: `{query.Display}`" : $"# Code search: \"{query.Display}\"");
         output.TryAppendLine();
         output.TryAppendLine(
-            string.Create(CultureInfo.InvariantCulture, $"**Workspaces searched:** {string.Join(", ", searched.Select(w => w.Name))} | **Matches:** {hits.Count} | **Page:** {page} of {pages} ({size} per page)"));
+            string.Create(CultureInfo.InvariantCulture, $"**Workspaces searched:** {string.Join(", ", searched.Select(w => w.Name))} | **Matches:** {hits.Count}{(nameCapped || contentCapped ? "+" : string.Empty)} | **Page:** {page} of {pages} ({size} per page)"));
         output.TryAppendLine();
-        output.TryAppendLine("_Names are matched in the syntax index (no symbol resolution), best match first._");
+        output.TryAppendLine(mode switch
+        {
+            MatchIn.Names => "_Names are matched in the syntax index (no symbol resolution), best match first._",
+            MatchIn.Docs => "_Doc comments are matched in the syntax index (no symbol resolution), best match first._",
+            MatchIn.Code => "_The words of member bodies are matched in the syntax index (no symbol resolution), best match first._",
+            _ => "_Names, doc comments, paths and the words of member bodies are matched in the syntax index (no symbol resolution), best match first._"
+        });
         foreach (var notIndexed in searched.Where(w => w.LastIndexedUtc is null))
         {
             output.TryAppendLine($"_Workspace '{notIndexed.Name}' has not finished its first index; results may be incomplete._");
         }
 
-        if (capped)
+        if (nameCapped)
         {
             output.TryAppendLine($"_The index returned more than {options.MaxCandidates} candidates; use a longer or more specific query to be sure nothing was left out._");
+        }
+
+        if (contentCapped)
+        {
+            output.TryAppendLine($"_The full-text index found more than {options.ContentCandidates} candidates and ranked only the best; add words, +required words or a pathGlob to narrow it._");
+        }
+
+        foreach (var note in notes)
+        {
+            output.TryAppendLine($"_{note}_");
         }
 
         output.TryAppendLine();
         if (hits.Count == 0)
         {
             output.TryAppendLine("No matches.");
+            if (mode != MatchIn.Names)
+            {
+                output.TryAppendLine("Try fewer or different words, or pass terms with synonyms or other spellings.");
+            }
+
+            AppendHiddenTests(output, hiddenTests);
             return output.Build().TrimEnd();
         }
 
         var number = (page - 1) * size;
-        foreach (var hit in hits.Skip(number).Take(size))
+        foreach (var ranked in hits.Skip(number).Take(size))
         {
             number++;
+            var hit = ranked.Candidate;
             var where = showWorkspace ? $"{hit.Workspace}: {hit.Path}:{hit.Line}" : $"{hit.Path}:{hit.Line}";
             output.TryAppendLine($"{number}. **{hit.Name}** ({hit.Label}) `{where}`");
             output.TryAppendLine($"   {hit.Detail}");
+            if (!query.IsIdentifier && ranked.Matched.Count > 0)
+            {
+                output.TryAppendLine($"   matched: {string.Join(", ", ranked.Matched)}");
+            }
         }
 
         if (page < pages)
@@ -193,8 +407,26 @@ internal sealed class CodeSearchService(
             output.TryAppendLine($"More results: call again with page={page + 1}.");
         }
 
+        AppendHiddenTests(output, hiddenTests);
         return output.Build().TrimEnd();
     }
 
-    private sealed record Hit(double Score, string Name, string Label, string Workspace, string Path, int Line, string Detail);
+    private static void AppendHiddenTests(OutputBudget output, int hiddenTests)
+    {
+        if (hiddenTests > 0)
+        {
+            output.TryAppendLine();
+            output.TryAppendLine($"_{hiddenTests} match(es) in test folders were left out; pass includeTests=true to see them._");
+        }
+    }
+
+    private sealed record Context(
+        IReadOnlyList<long> WorkspaceIds,
+        IReadOnlyDictionary<long, string> WorkspaceNames,
+        SearchScope Scope,
+        SearchQuery Query,
+        bool CaseSensitive,
+        PathGlob? Glob);
+
+    private sealed record Hit(double Score, string Name, string Label, string Workspace, string Path, int Line, string Detail, bool IsType, string Text, string Context);
 }

@@ -62,6 +62,7 @@ public sealed record CodeTypeEntry(
     int EndLine);
 
 /// <param name="TypeIndex">Position of the owning type in <see cref="CodeFileIndex.Types"/>; null for a member outside any type.</param>
+/// <param name="Terms">The words of the member's body, space-separated, for content search; null when none were taken or body terms are off.</param>
 public sealed record CodeMemberEntry(
     int? TypeIndex,
     CodeMemberKind Kind,
@@ -72,7 +73,8 @@ public sealed record CodeMemberEntry(
     string? Attributes,
     string? DocSummary,
     int StartLine,
-    int EndLine);
+    int EndLine,
+    string? Terms = null);
 
 /// <summary>
 /// An invocation found by name; the callee is not resolved to a symbol. <paramref name="ReceiverType"/> is the simple name

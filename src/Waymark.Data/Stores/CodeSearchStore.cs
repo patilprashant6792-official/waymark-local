@@ -1,6 +1,7 @@
 ﻿using System.Globalization;
 using System.Text;
 using Dapper;
+using Microsoft.Data.Sqlite;
 using Waymark.Core.Code;
 using Waymark.Data.Sqlite;
 
@@ -15,13 +16,13 @@ public sealed class CodeSearchStore(ISqliteConnectionFactory connections) : ICod
         "f.rel_path AS RelativePath, t.start_line AS Line FROM code_types t JOIN code_files f ON f.id = t.file_id ";
 
     private const string TypeSelect =
-        "SELECT f.workspace_id AS WorkspaceId, f.rel_path AS RelativePath, 1 AS IsType, t.kind AS Kind, t.name AS Name, " +
-        "NULL AS Owner, NULL AS Signature, t.modifiers AS Modifiers, t.attributes AS Attributes, t.base_list AS BaseList, t.start_line AS Line " +
+        "SELECT t.id AS Id, f.workspace_id AS WorkspaceId, f.rel_path AS RelativePath, 1 AS IsType, t.kind AS Kind, t.name AS Name, " +
+        "NULL AS Owner, NULL AS Signature, t.modifiers AS Modifiers, t.attributes AS Attributes, t.base_list AS BaseList, t.doc_summary AS Doc, t.start_line AS Line " +
         "FROM code_types t JOIN code_files f ON f.id = t.file_id ";
 
     private const string MemberSelect =
-        "SELECT f.workspace_id AS WorkspaceId, f.rel_path AS RelativePath, 0 AS IsType, m.kind AS Kind, m.name AS Name, " +
-        "o.name AS Owner, m.signature AS Signature, m.modifiers AS Modifiers, m.attributes AS Attributes, NULL AS BaseList, m.start_line AS Line " +
+        "SELECT m.id AS Id, f.workspace_id AS WorkspaceId, f.rel_path AS RelativePath, 0 AS IsType, m.kind AS Kind, m.name AS Name, " +
+        "o.name AS Owner, m.signature AS Signature, m.modifiers AS Modifiers, m.attributes AS Attributes, NULL AS BaseList, m.doc_summary AS Doc, m.start_line AS Line " +
         "FROM code_members m JOIN code_files f ON f.id = m.file_id LEFT JOIN code_types o ON o.id = m.type_id ";
 
     public async Task<CodeSymbolResult> FindSymbolsAsync(CodeSymbolQuery query, CancellationToken ct)
@@ -146,6 +147,89 @@ public sealed class CodeSearchStore(ISqliteConnectionFactory connections) : ICod
         return found.Where(wanted.Contains).ToHashSet(StringComparer.Ordinal);
     }
 
+    public async Task<CodeContentResult> FindByContentAsync(CodeContentQuery query, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(query);
+        if (string.IsNullOrWhiteSpace(query.MatchExpression))
+        {
+            throw new ArgumentException("A content search needs a match expression.", nameof(query));
+        }
+
+        ArgumentOutOfRangeException.ThrowIfLessThan(query.Limit, 1);
+        if (query.WorkspaceIds.Count == 0 || (query.TypeKinds.Count == 0 && query.MemberKinds.Count == 0))
+        {
+            return new CodeContentResult([], false);
+        }
+
+        var workspaces = string.Join(',', query.WorkspaceIds.Select(id => id.ToString(CultureInfo.InvariantCulture)));
+        var kinds = query.TypeKinds.Select(k => EnumText.ToDb(k)).Concat(query.MemberKinds.Select(k => EnumText.ToDb(k)));
+        var kindList = string.Join(',', kinds.Select(k => "'" + k + "'"));
+
+        await using var connection = await connections.OpenAsync(ct);
+        List<FtsRow> found;
+        try
+        {
+            found = (await connection.QueryAsync<FtsRow>(new CommandDefinition(
+                "SELECT rowid AS RowId, bm25(code_fts, 10.0, 6.0, 6.0, 3.0, 2.0, 1.0) AS Rank, " +
+                "COALESCE(terms, '') AS Terms " +
+                "FROM code_fts WHERE code_fts MATCH @match AND kind IN (" + kindList + ") " +
+                "AND file_id IN (SELECT id FROM code_files WHERE workspace_id IN (" + workspaces + ")) " +
+                "ORDER BY Rank LIMIT @fetch",
+                new { match = query.MatchExpression, fetch = query.Limit + 1 },
+                cancellationToken: ct))).ToList();
+        }
+        catch (SqliteException ex)
+        {
+            throw new ArgumentException("The search expression was rejected by the full-text index: " + ex.Message, nameof(query), ex);
+        }
+
+        var capped = found.Count > query.Limit;
+        found = found.Take(query.Limit).ToList();
+
+        var typeIds = found.Where(r => r.RowId % 2 == 0).Select(r => r.RowId / 2).ToArray();
+        var memberIds = found.Where(r => r.RowId % 2 != 0).Select(r => (r.RowId - 1) / 2).ToArray();
+        var types = typeIds.Length == 0
+            ? new Dictionary<long, Row>()
+            : (await connection.QueryAsync<Row>(new CommandDefinition(TypeSelect + "WHERE t.id IN @ids", new { ids = typeIds }, cancellationToken: ct))).ToDictionary(r => r.Id);
+        var members = memberIds.Length == 0
+            ? new Dictionary<long, Row>()
+            : (await connection.QueryAsync<Row>(new CommandDefinition(MemberSelect + "WHERE m.id IN @ids", new { ids = memberIds }, cancellationToken: ct))).ToDictionary(r => r.Id);
+
+        var hits = new List<CodeContentHit>(found.Count);
+        foreach (var item in found)
+        {
+            var table = item.RowId % 2 == 0 ? types : members;
+            var id = item.RowId % 2 == 0 ? item.RowId / 2 : (item.RowId - 1) / 2;
+            if (table.TryGetValue(id, out var row))
+            {
+                hits.Add(new CodeContentHit(ToRow(row), -item.Rank, item.Terms));
+            }
+        }
+
+        return new CodeContentResult(hits, capped);
+    }
+
+    public async Task<IReadOnlyDictionary<string, int>> CountCallersAsync(IReadOnlyList<long> workspaceIds, IReadOnlyCollection<string> names, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(workspaceIds);
+        ArgumentNullException.ThrowIfNull(names);
+        ArgumentOutOfRangeException.ThrowIfGreaterThan(names.Count, MaxNames);
+        if (workspaceIds.Count == 0 || names.Count == 0)
+        {
+            return new Dictionary<string, int>(StringComparer.Ordinal);
+        }
+
+        var workspaces = string.Join(',', workspaceIds.Select(id => id.ToString(CultureInfo.InvariantCulture)));
+        await using var connection = await connections.OpenAsync(ct);
+        var found = await connection.QueryAsync<CountRow>(new CommandDefinition(
+            "SELECT c.callee_name AS Name, COUNT(*) AS Total FROM code_call_sites c JOIN code_files f ON f.id = c.file_id " +
+            "WHERE f.workspace_id IN (" + workspaces + ") AND c.callee_name COLLATE NOCASE IN @names " +
+            "GROUP BY c.callee_name COLLATE BINARY",
+            new { names = names.ToArray() },
+            cancellationToken: ct));
+        var wanted = new HashSet<string>(names, StringComparer.Ordinal);
+        return found.Where(r => wanted.Contains(r.Name)).ToDictionary(r => r.Name, r => (int)r.Total, StringComparer.Ordinal);
+    }
     private static CodeTypeRow ToTypeRow(TypeRow row) =>
         new(row.Name, row.FullName, row.Kind, row.Namespace, row.BaseList, row.RelativePath, (int)row.Line);
 
@@ -184,8 +268,15 @@ public sealed class CodeSearchStore(ISqliteConnectionFactory connections) : ICod
         }
 
         parameters.Add("fetch", query.Limit + 1);
+        var exactFirst = string.Empty;
+        if (query.Tokens.Count == 1)
+        {
+            parameters.Add("exact", query.Tokens[0]);
+            exactFirst = $"CASE WHEN {alias}.name = @exact{(query.CaseSensitive ? " COLLATE BINARY" : " COLLATE NOCASE")} THEN 0 ELSE 1 END, ";
+        }
+
         return $"{select}WHERE {fileAlias}.workspace_id IN ({workspaces}) AND ({string.Join(" OR ", conditions)}) " +
-               $"ORDER BY length({alias}.name), {alias}.name, {fileAlias}.rel_path LIMIT @fetch";
+               $"ORDER BY {exactFirst}length({alias}.name), {alias}.name, {fileAlias}.rel_path LIMIT @fetch";
     }
 
     private static string NamePredicate(string column, CodeSymbolQuery query, DynamicParameters parameters)
@@ -236,7 +327,7 @@ public sealed class CodeSearchStore(ISqliteConnectionFactory connections) : ICod
     private static string EscapeGlob(char c) => c is '*' or '?' or '[' ? "[" + c + "]" : c.ToString();
 
     private static CodeSymbolRow ToRow(Row row) =>
-        new(row.WorkspaceId, row.RelativePath, row.IsType != 0, row.Kind, row.Name, row.Owner, row.Signature, row.Modifiers, row.Attributes, row.BaseList, (int)row.Line);
+        new(row.WorkspaceId, row.RelativePath, row.IsType != 0, row.Kind, row.Name, row.Owner, row.Signature, row.Modifiers, row.Attributes, row.BaseList, (int)row.Line, row.Doc);
 
     private sealed class Row
     {
@@ -259,6 +350,10 @@ public sealed class CodeSearchStore(ISqliteConnectionFactory connections) : ICod
         public string? Attributes { get; set; }
 
         public string? BaseList { get; set; }
+
+        public string? Doc { get; set; }
+
+        public long Id { get; set; }
 
         public long Line { get; set; }
     }
@@ -308,5 +403,21 @@ public sealed class CodeSearchStore(ISqliteConnectionFactory connections) : ICod
         public string RelativePath { get; set; } = string.Empty;
 
         public long Line { get; set; }
+    }
+
+    private sealed class FtsRow
+    {
+        public long RowId { get; set; }
+
+        public double Rank { get; set; }
+
+        public string Terms { get; set; } = string.Empty;
+    }
+
+    private sealed class CountRow
+    {
+        public string Name { get; set; } = string.Empty;
+
+        public long Total { get; set; }
     }
 }

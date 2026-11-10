@@ -22,6 +22,7 @@ public sealed record CodeSymbolQuery(
 
 /// <param name="Kind">Lower-case name of a <see cref="CodeTypeKind"/> or <see cref="CodeMemberKind"/>, depending on <paramref name="IsType"/>.</param>
 /// <param name="Owner">Name of the declaring type for a member; null for a type or a member outside any type.</param>
+/// <param name="Doc">The doc summary of the symbol, when the lookup returns it.</param>
 public sealed record CodeSymbolRow(
     long WorkspaceId,
     string RelativePath,
@@ -33,10 +34,33 @@ public sealed record CodeSymbolRow(
     string? Modifiers,
     string? Attributes,
     string? BaseList,
-    int Line);
+    int Line,
+    string? Doc = null);
 
 /// <param name="Capped">True when a table had more candidates than <see cref="CodeSymbolQuery.Limit"/>.</param>
 public sealed record CodeSymbolResult(IReadOnlyList<CodeSymbolRow> Rows, bool Capped);
+
+/// <summary>
+/// A content lookup over the full-text index (names, split name words, doc summaries, paths and body words).
+/// <paramref name="MatchExpression"/> is a ready FTS5 expression built by the caller from sanitized words only.
+/// </summary>
+/// <param name="TypeKinds">Type kinds that may be returned; empty returns no type.</param>
+/// <param name="MemberKinds">Member kinds that may be returned; empty returns no member.</param>
+/// <param name="Limit">Most hits returned.</param>
+public sealed record CodeContentQuery(
+    IReadOnlyList<long> WorkspaceIds,
+    string MatchExpression,
+    IReadOnlySet<CodeTypeKind> TypeKinds,
+    IReadOnlySet<CodeMemberKind> MemberKinds,
+    int Limit);
+
+/// <param name="Relevance">bm25 turned positive: higher is a better match.</param>
+/// <param name="Terms">The indexed body words of the symbol (an unordered bag, in order of first use); used to see which query words matched.</param>
+public sealed record CodeContentHit(CodeSymbolRow Row, double Relevance, string Terms);
+
+/// <param name="Hits">Best first.</param>
+/// <param name="Capped">True when more hits existed than the limit.</param>
+public sealed record CodeContentResult(IReadOnlyList<CodeContentHit> Hits, bool Capped);
 
 /// <summary>
 /// An invocation by name. The receiver is the leftmost name of the receiver chain, null for an unqualified call;

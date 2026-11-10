@@ -6,6 +6,12 @@ public interface ICodeSearchStore
     /// <exception cref="ArgumentException">The query has no tokens.</exception>
     Task<CodeSymbolResult> FindSymbolsAsync(CodeSymbolQuery query, CancellationToken ct);
 
+    /// <summary>Symbols found through the full-text index, best first. Fails with <see cref="ArgumentException"/> when the expression is empty or SQLite rejects it.</summary>
+    Task<CodeContentResult> FindByContentAsync(CodeContentQuery query, CancellationToken ct);
+
+    /// <summary>How many call sites call each of <paramref name="names"/> (exact spelling) in the given workspaces; names with none are left out.</summary>
+    Task<IReadOnlyDictionary<string, int>> CountCallersAsync(IReadOnlyList<long> workspaceIds, IReadOnlyCollection<string> names, CancellationToken ct);
+
     /// <summary>Call sites whose callee name equals <paramref name="calleeName"/> exactly (case-sensitive), ordered by path and line.</summary>
     Task<CodeCallSiteResult> FindCallSitesAsync(long workspaceId, string calleeName, int limit, CancellationToken ct);
 

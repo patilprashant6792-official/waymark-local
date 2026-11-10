@@ -66,7 +66,7 @@ Rules that prevent known failures:
 2. A preview without a `planId` cannot be applied: the scan was partial (too slow, too many files, over 200 changed files or 5,000 matches), a named path was refused, or nothing matched. Narrow the scope.
 3. Ask the user to save files open in an editor first: an unsaved buffer saved later would overwrite the change.
 4. A replacement that would add a secret is refused. `find` and `with` are one line each.
-5. Build or test afterwards. For a rename, `code_search` the old name to confirm nothing is left, then build: a clean build is the proof.
+5. Build or test afterwards. For a rename, `code_search` the old name (`matchIn='Names'`) to confirm nothing is left, then build: a clean build is the proof.
 6. Undo is git: the result lists the paths for `cmd_git` restore.
 
 ## Copy, don't retype
@@ -139,7 +139,7 @@ Moves leave C# namespaces and usings alone, and renaming a file does not rename 
 
 Copies made with `from` / `fromFolder` can rename namespaces and types as they are copied (`csharp`, C# files only; use `replace` for Python and other text), so prefer a copy to a move plus manual fixes when the namespace changes. `file_move` itself never changes file content.
 
-1. `code_search` the old namespace or type name, and `code_grep` it for references outside C# (.csproj, .razor, json, docs).
+1. `code_search` the old namespace or type name (`matchIn='Names'`, so only declarations match), and `code_grep` it for references outside C# (.csproj, .razor, json, docs).
 2. Fix the references: for a name used in many files, `file_replace` (`mode: "csharp"` for C#, literal with `wholeWord` for other text) in one previewed step; otherwise `file_edit_lines` (one call per file), including the type and its references for a rename.
 3. Build with `cmd_project`: CS0246 and CS0234 errors show what is left. For Python, run the tests (`py_test`) and the type check (`py_typecheck`): an `ImportError` shows a moved module.
 
