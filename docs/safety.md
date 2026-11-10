@@ -20,6 +20,13 @@ A Confirm tool (file writes, commands) whose input contains a finished marker is
 ## Copies and secrets
 
 `from` / `fromFolder` in `file_edit_lines` and `file_write` move real bytes on the server without the agent reading them, so the result guard never sees that text. `IContentInspector` (`Waymark.Core/Security`, implemented by `ContentInspector` in `Waymark.Host/Vault`) runs the same checks on the copied text: Vault values, then the credential shapes, and a finished marker. Any finding refuses that copy and names only the kinds. Both workspaces' access rules apply to the source and the target, links are refused, and blocked folders and secret-bearing files cannot be copied from or to. The result names where text came from (workspace, file, lines), never the text.
+
+## Words from member bodies in the code index
+
+`code_search` can find code by what it does because the code index keeps, per member, a bag of lower-case words taken from its body (identifier parts, comment words and string words; at most 64 per member, 3 to 32 letters, keywords and filler words left out). The text is passed through `SensitiveDataScanner.Redact` first. A second mask then removes the value after a secret-like name: a quoted value after `password`, `passwd`, `passphrase`, `pwd`, `secret`, `token`, `apiKey`, `credential` or `privateKey` followed by `=`, `:` or `=>` (also inside an escaped JSON string), and a bare value after `password`, `pwd`, `secret` or `apiKey` followed by `=` or `:`. The name itself stays. Runs of more than 80 letters and digits (keys, hashes, encoded blobs) are skipped.
+
+Only single words are stored, never lines or sentences, kept in the order of first use; the search does not look at adjacency in them. A word from a comment or a string is still source-derived text on disk in `waymark.db`. The masks are patterns, not proof: a credential written without one of these names (a bare literal, an unusual variable name) can still be stored as a word, so keep credentials out of source. The owner can switch the feature off: `Waymark:Code:IndexBodyTerms=false` stores only names, signatures and doc summaries; `Waymark:Code:MaxTermsPerMember` lowers the number kept. A change takes effect for a file when it is indexed again (delete the index or touch the files). Package indexes (NuGet, PyPI, npm) never store body words.
+
 ## Settings
 
 | Key | Default | Meaning |

@@ -8,6 +8,8 @@ namespace Waymark.Modules.Code;
 /// <param name="IndexParallelism">Files read and parsed at the same time. 0 means one less than the number of processors, at least 1.</param>
 /// <param name="WriteBatchFiles">Most files stored in one database transaction.</param>
 /// <param name="WriteBatchMs">Longest a parsed file waits for its batch to fill before the batch is stored anyway.</param>
+/// <param name="MaxTermsPerMember">Most body words kept per member for content search.</param>
+/// <param name="IndexBodyTerms">False keeps the words of member bodies out of the index; only names, signatures and doc summaries are stored then. Changing it needs a re-index (delete the index or touch the files) to take effect.</param>
 public sealed record CodeIndexOptions(
     int MaxFileBytes,
     int MaxMembersPerFile,
@@ -18,10 +20,12 @@ public sealed record CodeIndexOptions(
     int ProgressEveryFiles,
     int IndexParallelism = 0,
     int WriteBatchFiles = CodeIndexOptions.DefaultWriteBatchFiles,
-    int WriteBatchMs = CodeIndexOptions.DefaultWriteBatchMs)
+    int WriteBatchMs = CodeIndexOptions.DefaultWriteBatchMs,
+    int MaxTermsPerMember = CodeIndexOptions.DefaultMaxTermsPerMember,
+    bool IndexBodyTerms = true)
 {
     /// <summary>The limits every language indexer keeps to.</summary>
-    public CodeIndexLimits Limits => new(MaxFileBytes, MaxMembersPerFile, MaxCallSitesPerFile);
+    public CodeIndexLimits Limits => new(MaxFileBytes, MaxMembersPerFile, MaxCallSitesPerFile, MaxTermsPerMember, IndexBodyTerms);
 
     /// <summary>The number of files indexed at the same time, leaving one processor for the rest of the computer.</summary>
     public int EffectiveParallelism => IndexParallelism > 0 ? IndexParallelism : Math.Max(1, Environment.ProcessorCount - 1);
@@ -35,6 +39,7 @@ public sealed record CodeIndexOptions(
     public const int DefaultProgressEveryFiles = 50;
     public const int DefaultWriteBatchFiles = 200;
     public const int DefaultWriteBatchMs = 250;
+    public const int DefaultMaxTermsPerMember = 64;
 
     public static CodeIndexOptions FromConfiguration(IConfiguration configuration)
     {
@@ -49,7 +54,26 @@ public sealed record CodeIndexOptions(
             ReadPositive(configuration, "ProgressEveryFiles", DefaultProgressEveryFiles),
             ReadPositive(configuration, "IndexParallelism", 0),
             ReadPositive(configuration, "WriteBatchFiles", DefaultWriteBatchFiles),
-            ReadPositive(configuration, "WriteBatchMs", DefaultWriteBatchMs));
+            ReadPositive(configuration, "WriteBatchMs", DefaultWriteBatchMs),
+            ReadPositive(configuration, "MaxTermsPerMember", DefaultMaxTermsPerMember),
+            ReadBool(configuration, "IndexBodyTerms", true));
+    }
+
+    private static bool ReadBool(IConfiguration configuration, string key, bool fallback)
+    {
+        var name = $"Waymark:Code:{key}";
+        var value = configuration[name];
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return fallback;
+        }
+
+        if (!bool.TryParse(value, out var flag))
+        {
+            throw new InvalidOperationException($"{name} must be true or false.");
+        }
+
+        return flag;
     }
 
     private static int ReadPositive(IConfiguration configuration, string key, int fallback)

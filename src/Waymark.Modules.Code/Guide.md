@@ -12,7 +12,7 @@ Find before you read, and read only what the task needs: a full read of a large 
 | An exact number of levels (a large depth shows the whole tree) | `code_skeleton(ws, path?, depth=3)` |
 | Folder shows 'N files collapsed'; does file X exist | `code_folder_files(ws, folder, searchPattern, page)` |
 | What changed since a point in time (resuming, reviewing edits) | `code_changes_since(ws, ISO 8601 or unix seconds)` |
-| Type, member or attribute by name | `code_search(query, ws or '*', memberType)` |
+| Type, member or attribute by name, or code found by what it does (a few words) | `code_search(query, ws or '*', memberType?, terms?, pathGlob?)` |
 | Text in any file (config keys, routes, log messages, SQL, Razor) | `code_grep(ws or '*', text, pathGlob?)` |
 | Structure of C# or Python files, no bodies | `code_outline(ws, 'A.cs,b.py')` |
 | Member bodies with real line numbers | `code_method(ws, file, 'M1,M2', className?)` |
@@ -74,8 +74,16 @@ Numbers from `code_method`, `code_read` and `code_outline` are real file lines a
 
 ## Search
 
-- `code_search` is forgiving and ranked best first: exact, prefix, camel-case initials ('PSS'), word start ('Skeleton'), several words ('search global' finds SearchGloballyAsync), substring, then characters in order. Narrow with `memberType`; `Interface` also finds implementers, `Attribute` finds attribute and decorator use.
-- Hundreds of hits mean a more specific name or `memberType`, not more pages.
+- `code_search` has two uses, both in the one call.
+  - **By name** (one identifier): exact, prefix, camel-case initials ('PSS'), word start ('Skeleton'), several words in one name ('search global' finds SearchGloballyAsync), substring, then characters in order (three characters or more, and only when nothing better matched). An exact name is always first. Narrow with `memberType`; `Interface` also finds implementers, `Attribute` finds attribute and decorator use.
+  - **By description** (several words): the search also reads the split words of names, doc comments, paths and the words used inside member bodies (identifiers, comments, string words), with stemming ('creating' finds Create). Hits are ranked by how many of your words they cover, then by kind (types first, constructors folded into their type), callers (often-called methods first) and tests last; each hit lists the words it `matched:`.
+  - **Words, not sentences.** Give 2 to 5 content words in the vocabulary the code probably uses ('refresh token rotate'), not a question. Filler words ('how', 'the') are dropped.
+  - **Syntax.** `"two words"` must be adjacent; `+word` must match; `-word` must not match. `terms=['jwt','bearer']` adds synonyms or other spellings (each counts half a word); use it when the first try finds nothing, instead of rewording the query again.
+  - **Narrow.** `pathGlob` ('src/Billing/**'), `matchIn` (`Names` = symbol names only, `Docs`, `Code` = body words), `includeTests=false` (hidden hits are counted).
+  - A `+required` word must appear in a name, signature, doc comment or path, or among the body words; body words are single words (an unordered bag), never lines of code, so open a hit with `code_method` to read it.
+  - **Phrases and path words.** A `"quoted phrase"` must be adjacent in a name, signature or doc comment; body words have no order, so with `matchIn=Code` a phrase means 'all these words'. A word found only in the owner or the file path counts about a third, and a one-word query ignores content hits that match only that way.
+  - **Limits.** A query is at most 200 characters and 16 words with `terms`; a query of only filler words, and a `pathGlob` with `[ ] { }`, are rejected. `Matches: N+` means the full-text index found more candidates than it ranks, so narrow the query.
+- Hundreds of hits mean a more specific name, `memberType`, `pathGlob` or a `+required` word, not more pages.
 - `ws='*'` searches every enabled workspace, so a .NET backend and a Python service in two workspaces are found together; the other code tools need one workspace.
 - Names follow each language's habit: a C# `TotalAmount` is `totalAmount` in JSON and `total_amount` in Python. Search for each spelling when a name crosses a boundary.
 - `code_grep(ws or '*', text, pathGlob?)` finds literal text in any readable file (config keys, routes, log messages, SQL, JSON, YAML, TOML, Razor, markdown), not only code. It reads the files from disk on every call, so it is never stale and its line numbers are real lines. Use `code_search` for names and `code_grep` when the text is not a name.

@@ -3,7 +3,7 @@
 /// <summary>
 /// Visual Studio style ranking of a name against a query, ported from the old code search:
 /// exact 1000, prefix 500, camel-case initials 300, word start 200, all words contained 150, substring 100,
-/// characters in order 1 to 50. Zero means no match.
+/// characters in order 1 to 50 (only for queries of three characters or more). Zero means no match.
 /// </summary>
 internal static class SymbolScorer
 {
@@ -15,6 +15,12 @@ internal static class SymbolScorer
     private const double SubstringScore = 100;
     private const int MaxFuzzyScore = 50;
     private const int FuzzyGapPenalty = 5;
+
+    /// <summary>Characters in order only count for a query of this many characters or more: two letters match almost every name.</summary>
+    public const int MinFuzzyQueryLength = 3;
+
+    /// <summary>Scores below this are characters-in-order matches; a search that has a better match drops them.</summary>
+    public const double FuzzyCeiling = SubstringScore;
 
     public static double Score(string name, IReadOnlyList<string> tokens, bool caseSensitive)
     {
@@ -55,7 +61,7 @@ internal static class SymbolScorer
             return SubstringScore;
         }
 
-        return FuzzyScore(name, query, comparison);
+        return query.Length < MinFuzzyQueryLength ? 0 : FuzzyScore(name, query, comparison);
     }
 
     private static string UpperCaseInitials(string name) => string.Concat(name.Where(char.IsUpper));

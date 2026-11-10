@@ -2,6 +2,7 @@ using System.Security.Cryptography;
 using System.Text;
 using Microsoft.Extensions.Logging;
 using Waymark.Core.Code;
+using Waymark.Core.Text;
 
 namespace Waymark.Languages.Python;
 
@@ -87,6 +88,7 @@ public sealed class PythonIndexer(CodeIndexLimits limits, ILogger<PythonIndexer>
             extraction.Members,
             extraction.CallSites,
             CodeLanguage.Python);
+        file = MemberTerms.Annotate(file, text, limits);
         return new SyntaxIndexResult(SyntaxIndexOutcome.Indexed, file, extraction.Truncated);
     }
 

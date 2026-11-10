@@ -109,4 +109,14 @@ public sealed class MigratorTests
             "INSERT INTO settings (scope_kind, scope_id, key, value_json, version, updated_utc) VALUES ('global', '7', 'k', '1', 1, '2026-01-01T00:00:00.000Z')",
             _ct));
     }
+
+    [Fact]
+    public async Task TheCodeSearchTableHasTheNameWordAndBodyWordColumns()
+    {
+        await using var db = await TestDatabase.CreateAsync(_ct);
+
+        var found = await db.ScalarLongAsync("SELECT COUNT(*) FROM pragma_table_info('code_fts') WHERE name IN ('tokens', 'terms')", _ct);
+
+        Assert.Equal(2, found);
+    }
 }

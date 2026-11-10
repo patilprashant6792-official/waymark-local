@@ -11,28 +11,39 @@ public sealed class CodeSearchTools(ICodeSearchService search, ICodeCallersServi
 {
     [McpServerTool(Name = "code_search", ReadOnly = true, Destructive = false, Idempotent = true)]
     [Description(
-        "Global code search across workspace(s) - finds types (classes, interfaces, records, structs, enums, delegates, type aliases), members (methods, constructors, properties, fields, events, functions, variables) and attributes (decorators) by name or keyword, in C# and Python files. " +
-        "WILDCARD SUPPORT: pass workspace='*' to search ALL enabled workspaces at once. " +
-        "Matching is forgiving and ranked best first: exact, prefix, camel-case initials ('PSS' finds ProjectSkeletonService), word start ('Skeleton'), several words ('search global' finds SearchGloballyAsync), substring, then characters in order. " +
-        "Interface also finds the base-list entries of types ('IUserService' finds its implementers); Attribute finds attribute use ('HttpPost'). " +
-        "Examples: code_search('MyApi', 'Redis') | code_search('*', 'Authorize', memberType='Attribute') | code_search('*', 'IUserService', memberType='Interface'). " +
-        "Use cases: security audits, dependency analysis, finding usages before a rename. " +
-        "Results come from the syntax index (no symbol resolution).")]
+        "Global code search across workspace(s): finds types (classes, interfaces, records, structs, enums, delegates, type aliases), members (methods, constructors, properties, fields, events, functions, variables) and attributes (decorators) in C#, Python, TypeScript and JavaScript files. " +
+        "Two ways to ask. (1) By name: 'UserService', 'PSS' (camel-case initials find ProjectSkeletonService), 'Skeleton' (word start), 'search global' (several words in one name). An exact name always comes first. " +
+        "(2) By description: 'refresh token rotation', 'retry failed upload'. Besides names, the search reads the split words of names, doc comments, file paths and the words used inside member bodies (identifiers, comments, string words), so code is found even when its name says none of the query. Stemming applies (creating finds Create). " +
+        "Results are ranked best first (words covered, kind of symbol, how often a method is called, tests last); each hit of a multi-word query lists the words it matched. " +
+        "Query syntax: plain words all help and more matches rank higher; \"two words\" in quotes must be adjacent; +word must match; -word must not match. " +
+        "Pass terms with synonyms or other spellings you expect in the code (terms=['jwt','bearer']) to widen the search; they count half as much as query words. " +
+        "Narrow with memberType, pathGlob ('src/Billing/**'), matchIn (Names = symbol names only, Docs, Code = body words) and includeTests=false. " +
+        "Workspace '*' searches ALL enabled workspaces. Interface also finds the base-list entries of types ('IUserService' finds its implementers); Attribute finds attribute use ('HttpPost'). " +
+        "Examples: code_search('MyApi', 'Redis') | code_search('MyApi', 'refresh token rotate', terms=['jwt']) | code_search('*', 'Authorize', memberType='Attribute') | code_search('MyApi', 'retry -test', pathGlob='src/**'). " +
+        "Results come from the syntax index (no symbol resolution). Body words are stored as single words in order of first use, never as lines of code, with secrets redacted first (values after names such as password, secret, token or apiKey are masked as well, but a secret written in another way can remain: keep credentials out of source). The match count shows '+' when the full-text index found more candidates than it ranks.")]
     public Task<string> Search(
-        [Description("Search text: a type or member name, a keyword, camel-case initials, or several words (e.g. 'Redis', 'UserService', 'Authorize')")]
+        [Description("What to find: a type or member name, camel-case initials, or a description in a few words ('Redis', 'UserService', 'refresh token rotation'). Syntax: \"phrase\", +required, -excluded. At most 200 characters and 16 words (terms included); a query of only filler words (how, does, the) is rejected. Quoted phrases need adjacent words in a name, signature or doc; with matchIn=Code they mean 'all these words'.")]
         string query,
         [Description("Workspace name as shown in Waymark, or '*' for ALL enabled workspaces")]
         string workspace,
         [Description("Optional: All (default), Class, Interface, Struct, Record, RecordStruct, Enum, Delegate, TypeAlias, Method, Constructor, Property, Field, Event, Indexer, Operator, EnumMember, Function, Variable, Attribute")]
         string memberType = "All",
-        [Description("Optional: case-sensitive search (default false, for broader matches)")]
+        [Description("Optional: case-sensitive name matching (default false). Doc and body words are always matched ignoring case.")]
         bool caseSensitive = false,
         [Description("Optional: results per page (default 20, max 200). Use with 'page' to paginate large result sets.")]
         int? pageSize = null,
         [Description("Optional: page number, 1-based (default 1). Increment to retrieve subsequent pages.")]
         int? page = null,
+        [Description("Optional: extra words that widen the search - synonyms, other spellings, the vocabulary the code probably uses (['jwt','bearer']). Up to 16 words together with the query.")]
+        string[]? terms = null,
+        [Description("Optional: where to look. All (default) = names, doc comments, paths and body words; Names = symbol names only; Docs = doc comments only; Code = the words used in member bodies only")]
+        string matchIn = "All",
+        [Description("Optional: only files matching this glob, e.g. 'src/Billing/**', '**/*.py' or 'Program.cs' (a pattern without '/' matches the file name in any folder). Only '*', '**' and '?' are patterns; '[ ] { }' are rejected.")]
+        string? pathGlob = null,
+        [Description("Optional: include hits in test folders (default true; false leaves them out and reports how many)")]
+        bool includeTests = true,
         CancellationToken cancellationToken = default) =>
-        RunAsync(() => search.SearchAsync(workspace, query, memberType, caseSensitive, pageSize, page, cancellationToken));
+        RunAsync(() => search.SearchAsync(workspace, query, memberType, caseSensitive, pageSize, page, terms, matchIn, pathGlob, includeTests, cancellationToken));
 
     [McpServerTool(Name = "code_callers", ReadOnly = true, Destructive = false, Idempotent = true)]
     [Description(

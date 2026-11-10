@@ -24,7 +24,14 @@ public enum SyntaxIndexOutcome
 public sealed record SyntaxIndexResult(SyntaxIndexOutcome Outcome, CodeFileIndex? File, bool Truncated);
 
 /// <summary>The limits every indexer keeps to. Set by the code module from <c>Waymark:Code:*</c>.</summary>
-public sealed record CodeIndexLimits(int MaxFileBytes, int MaxMembersPerFile, int MaxCallSitesPerFile);
+/// <param name="MaxTermsPerMember">Most body words kept per member for content search.</param>
+/// <param name="IndexBodyTerms">False keeps body words out of the index entirely (only names, signatures and doc summaries are stored).</param>
+public sealed record CodeIndexLimits(
+    int MaxFileBytes,
+    int MaxMembersPerFile,
+    int MaxCallSitesPerFile,
+    int MaxTermsPerMember = 64,
+    bool IndexBodyTerms = true);
 
 /// <summary>
 /// Reads one source file of one language into the shape the code index stores. A language is added by writing an indexer and registering it;

@@ -43,7 +43,7 @@ public sealed class PackagesModule : IMcpModule
         services.TryAddSingleton<PypiPackageLoader>();
         services.TryAddSingleton<PypiPackageSearch>();
         services.TryAddSingleton(provider => new PythonIndexer(
-            new CodeIndexLimits((int)provider.GetRequiredService<PypiOptions>().MaxFileBytes, MaxMembersPerPackageFile, 1),
+            new CodeIndexLimits((int)provider.GetRequiredService<PypiOptions>().MaxFileBytes, MaxMembersPerPackageFile, 1, IndexBodyTerms: false),
             provider.GetRequiredService<ILogger<PythonIndexer>>()));
         services.TryAddSingleton<PypiPackageIndexer>();
         services.TryAddSingleton(NpmOptions.FromConfiguration(configuration));
@@ -51,7 +51,7 @@ public sealed class PackagesModule : IMcpModule
         services.TryAddSingleton<NpmPackageLoader>();
         services.TryAddSingleton<NpmPackageSearch>();
         services.TryAddSingleton(provider => new TypeScriptIndexer(
-            new CodeIndexLimits((int)provider.GetRequiredService<NpmOptions>().MaxFileBytes, MaxMembersPerPackageFile, 1),
+            new CodeIndexLimits((int)provider.GetRequiredService<NpmOptions>().MaxFileBytes, MaxMembersPerPackageFile, 1, IndexBodyTerms: false),
             provider.GetRequiredService<ILogger<TypeScriptIndexer>>()));
         services.TryAddSingleton<NpmPackageIndexer>();
         services.TryAddSingleton<IPackageIndexer, EcosystemPackageIndexer>();

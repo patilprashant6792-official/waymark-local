@@ -1,6 +1,7 @@
 using System.Security.Cryptography;
 using Microsoft.Extensions.Logging;
 using Waymark.Core.Code;
+using Waymark.Core.Text;
 
 namespace Waymark.Languages.TypeScript;
 
@@ -99,6 +100,7 @@ public sealed class TypeScriptIndexer(CodeIndexLimits limits, ILogger<TypeScript
             extraction.Members,
             extraction.CallSites,
             isJavaScript ? CodeLanguage.JavaScript : CodeLanguage.TypeScript);
+        file = MemberTerms.Annotate(file, text, limits);
         return new SyntaxIndexResult(SyntaxIndexOutcome.Indexed, file, extraction.Truncated);
     }
 

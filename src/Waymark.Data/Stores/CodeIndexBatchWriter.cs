@@ -1,6 +1,7 @@
 using System.Globalization;
 using Microsoft.Data.Sqlite;
 using Waymark.Core.Code;
+using Waymark.Core.Text;
 using Waymark.Data.Sqlite;
 
 namespace Waymark.Data.Stores;
@@ -103,12 +104,14 @@ internal sealed class CodeIndexBatchWriter : IDisposable
         _insertSearch = new Statement(
             connection,
             transaction,
-            "INSERT INTO code_fts (rowid, name, full_name, doc, path, file_id, kind) VALUES ($rowId, $name, $fullName, $doc, $path, $fileId, $kind)",
+            "INSERT INTO code_fts (rowid, name, full_name, tokens, doc, path, terms, file_id, kind) VALUES ($rowId, $name, $fullName, $tokens, $doc, $path, $terms, $fileId, $kind)",
             "$rowId",
             "$name",
             "$fullName",
+            "$tokens",
             "$doc",
             "$path",
+            "$terms",
             "$fileId",
             "$kind");
     }
@@ -254,7 +257,7 @@ internal sealed class CodeIndexBatchWriter : IDisposable
         _insertType.Bind(11, type.EndLine);
         var typeId = _insertType.Insert();
 
-        InsertSearchRow(typeId * 2, type.Name, type.FullName, type.DocSummary, path, fileId, kind);
+        InsertSearchRow(typeId * 2, type.Name, type.FullName, Words(type.Name, null), type.DocSummary, path, null, fileId, kind);
         return typeId;
     }
 
@@ -274,20 +277,26 @@ internal sealed class CodeIndexBatchWriter : IDisposable
         _insertMember.Bind(10, member.EndLine);
         var memberId = _insertMember.Insert();
 
-        var owner = member.TypeIndex is { } index ? file.Types[index].FullName : null;
-        var fullName = owner is null ? member.Name : owner + "." + member.Name;
-        InsertSearchRow(memberId * 2 + 1, member.Name, fullName, member.DocSummary, path, fileId, kind);
+        var owner = member.TypeIndex is { } index ? file.Types[index] : null;
+        var fullName = owner is null ? member.Name : owner.FullName + "." + member.Name;
+        InsertSearchRow(memberId * 2 + 1, member.Name, fullName, Words(member.Name, owner?.Name), member.DocSummary, path, member.Terms, fileId, kind);
     }
 
-    private void InsertSearchRow(long rowId, string name, string fullName, string? doc, string path, long fileId, string kind)
+    /// <summary>The split words of a name and of the type that declares it ("RefreshTokenService" gives refreshtokenservice refresh token service).</summary>
+    private static string Words(string name, string? ownerName) =>
+        string.Join(' ', IdentifierWords.Tokenize(ownerName is null ? name : name + " " + ownerName));
+
+    private void InsertSearchRow(long rowId, string name, string fullName, string tokens, string? doc, string path, string? terms, long fileId, string kind)
     {
         _insertSearch.Bind(0, rowId);
         _insertSearch.Bind(1, name);
         _insertSearch.Bind(2, fullName);
-        _insertSearch.Bind(3, doc ?? string.Empty);
-        _insertSearch.Bind(4, path);
-        _insertSearch.Bind(5, fileId);
-        _insertSearch.Bind(6, kind);
+        _insertSearch.Bind(3, tokens);
+        _insertSearch.Bind(4, doc ?? string.Empty);
+        _insertSearch.Bind(5, path);
+        _insertSearch.Bind(6, terms ?? string.Empty);
+        _insertSearch.Bind(7, fileId);
+        _insertSearch.Bind(8, kind);
         _insertSearch.Run();
     }
 
