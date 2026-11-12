@@ -73,6 +73,30 @@ public partial class Setup : LiveComponentBase
         }
         """;
 
+    /// <summary>Claude Desktop reads only stdio servers, so mcp-remote bridges to the HTTP address and sends the access key as a Bearer header. The key is a placeholder here and is never stored in this page.</summary>
+    private string ClaudeDesktopConfigJson => $$"""
+        {
+          "mcpServers": {
+            "waymark": {
+              "command": "npx",
+              "args": [
+                "-y",
+                "mcp-remote",
+                "{{LocalMcpUrl}}",
+                "--allow-http",
+                "--transport",
+                "http-only",
+                "--header",
+                "Authorization:${WAYMARK_AUTH}"
+              ],
+              "env": {
+                "WAYMARK_AUTH": "Bearer YOUR_ACCESS_KEY"
+              }
+            }
+          }
+        }
+        """;
+
     private TunnelStatus TunnelNow => Tunnel.Status;
 
     private bool ConnectorUnlocked => _verified && ConnectorUrl is not null;

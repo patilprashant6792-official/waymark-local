@@ -111,7 +111,13 @@
                 <CopyButton Text="@McpConfigJson" Label="Copy entry" />
             </div>
 
-            <p class="wm-muted wm-note">Signing in: an agent that opens a browser sign-in and returns to localhost, as Claude Code does, pairs as usual, and you approve it on the <a href="approvals">Approvals</a> page. Any other agent needs an <a href="access-keys">access key</a>, sent as an Authorization: Bearer header.</p>
+            <p class="wm-muted wm-sublabel">Claude Desktop: add this under mcpServers in claude_desktop_config.json. Claude Desktop cannot load an HTTP entry directly, so mcp-remote (needs Node.js) bridges to Waymark. Create an <a href="access-keys">access key</a>, replace YOUR_ACCESS_KEY, then quit and reopen Claude Desktop.</p>
+            <div class="wm-row wm-align-start">
+                <div class="wm-code">@ClaudeDesktopConfigJson</div>
+                <CopyButton Text="@ClaudeDesktopConfigJson" Label="Copy entry" />
+            </div>
+
+            <p class="wm-muted wm-note">Signing in: an agent that opens a browser sign-in and returns to localhost, as Claude Code does, pairs as usual, and you approve it on the <a href="approvals">Approvals</a> page. Any other agent, including Claude Desktop through mcp-remote, needs an <a href="access-keys">access key</a>, sent as an Authorization: Bearer header. mcp-remote's own browser sign-in does not work, because Waymark accepts only a /callback path for loopback sign-ins.</p>
         </section>
 
         <section class="wm-card" aria-labelledby="setup-4">
