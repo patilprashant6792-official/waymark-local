@@ -19,8 +19,7 @@ internal sealed class ProjectFileSummarizer(FileAccessPolicy policy, SkeletonOpt
     private const string Unknown = "Unknown";
     private const int MaxXmlChars = 2_000_000;
 
-    private static readonly StringComparison PathComparison =
-        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+    private static readonly StringComparison PathComparison = Waymark.Core.Platform.PathComparisons.Comparison;
 
     private static readonly XmlReaderSettings ReaderSettings = new()
     {

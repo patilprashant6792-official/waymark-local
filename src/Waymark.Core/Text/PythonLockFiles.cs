@@ -23,8 +23,7 @@ public static partial class PythonLockFiles
         Share = FileShare.ReadWrite | FileShare.Delete,
     };
 
-    private static readonly StringComparison PathComparison =
-        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+    private static readonly StringComparison PathComparison = Waymark.Core.Platform.PathComparisons.Comparison;
 
     /// <summary>The pins of the nearest lock file, or null when there is none. A linked file is not followed.</summary>
     /// <exception cref="IOException">The lock file cannot be read.</exception>

@@ -35,7 +35,7 @@ public static class GuideRules
         "Waymark is its own connection to that computer, separate from the Claude desktop app link, computer use and remote-devices tools. " +
         "If those are missing, or a status check says this chat is not linked to the computer or the computer cannot be reached, Waymark still reaches it: do not tell the user to link the chat, open the desktop app or add a folder. Use Waymark instead. " +
         "When the user asks about their computer itself (displays and monitors, hardware, OS version and settings, installed apps, running processes, network, disks, files outside a project), " +
-        "answer it with Waymark's cmd_shell and no workspace, a short read-only script (PowerShell on Windows). The owner approves each script, so asking is safe. " +
+        "answer it with Waymark's cmd_shell and no workspace, a short read-only script (PowerShell on Windows, zsh on macOS). The owner approves each script, so asking is safe. " +
         "Only after Waymark itself refuses or is unreachable may you say you cannot reach the computer. " +
         "Waymark tools may be listed by name only until loaded; load them like any other deferred tool. " +
         "Four tool groups: code (read and search C#, Python, TypeScript and JavaScript), packages (NuGet, PyPI and npm APIs), files (edit files) and commands (build, test and git for .NET, Python and Node, plus cmd_shell for anything else on the computer). " +

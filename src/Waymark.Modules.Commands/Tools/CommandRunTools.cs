@@ -126,7 +126,7 @@ public sealed class CommandRunTools(CommandService service)
     [McpServerTool(Name = "cmd_shell", ReadOnly = false, Destructive = true, Idempotent = false)]
     [ToolGate(ToolGate.Confirm)]
     [Description(
-        "Run a script in the computer's shell (PowerShell, cmd or bash - chosen automatically unless you name one). This is the owner's real computer, and this can do anything the owner's user account can do, " +
+        "Run a script in the computer's shell (PowerShell or cmd on Windows, zsh or bash on macOS - chosen automatically unless you name one). This is the owner's real computer, and this can do anything the owner's user account can do, " +
         "so EVERY call waits for the owner to read the script and approve it in the Waymark admin UI; it can never run by itself. The owner may edit the script before approving.\n" +
         "USE IT for any question about the computer itself, not only projects: displays and monitors, hardware, OS version and settings, installed apps, running processes, network, disks, files outside a workspace. Leave workspace out for these system scripts. " +
         "Do not tell the user you cannot reach their computer; run a read-only script instead.\n" +
@@ -138,7 +138,7 @@ public sealed class CommandRunTools(CommandService service)
         [Description(PurposeHelp)] string purpose,
         [Description("Optional workspace name. With it the script starts in the workspace folder; without it the script is a system script and starts in the home folder.")]
         string? workspace = null,
-        [Description("Optional shell: pwsh, powershell, cmd, bash or sh. Leave empty to let Waymark pick the best one installed.")]
+        [Description("Optional shell: pwsh, powershell, cmd, zsh, bash or sh. Leave empty to let Waymark pick the best one installed.")]
         string? shell = null,
         [Description("Optional start folder: relative to the workspace, or a full path when no workspace is given.")]
         string? cwd = null,

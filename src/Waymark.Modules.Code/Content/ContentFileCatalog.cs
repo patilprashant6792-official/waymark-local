@@ -33,7 +33,7 @@ internal sealed class ContentFileCatalog(IPathGuard guard, IAccessRuleCache rule
 
         var files = new List<CatalogFile>();
         var refused = new List<CatalogRefusal>();
-        var seen = new HashSet<string>(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        var seen = new HashSet<string>(Waymark.Core.Platform.PathComparisons.Comparer);
         foreach (var requested in relativePaths)
         {
             ct.ThrowIfCancellationRequested();

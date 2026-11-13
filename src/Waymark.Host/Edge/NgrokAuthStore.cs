@@ -7,8 +7,8 @@ using Waymark.Core.Settings;
 namespace Waymark.Host.Edge;
 
 /// <summary>
-/// Saves the ngrok authtoken in the settings table, encrypted with ASP.NET Data Protection. The keys live next to
-/// the database and are protected by Windows DPAPI, so a copied database file cannot be read on another account.
+/// Saves the ngrok authtoken in the settings table, encrypted with ASP.NET Data Protection. The keys are protected by Windows DPAPI, or on
+/// macOS by a master key in the login Keychain, so a copied database file cannot be read on another account.
 /// </summary>
 public sealed class NgrokAuthStore(IConfigStore config, IDataProtectionProvider protection, ILogger<NgrokAuthStore> logger) : INgrokAuthStore
 {

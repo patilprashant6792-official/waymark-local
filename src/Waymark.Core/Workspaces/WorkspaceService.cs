@@ -23,6 +23,9 @@ public sealed class WorkspaceService(
             return WorkspaceValidation.Invalid($"Folder does not exist: {normalized}");
         }
 
+        // Off Windows the stored spelling, with links resolved, so the root matches every path the system reports later.
+        normalized = Waymark.Core.Platform.RealPath.OfDirectory(normalized);
+
         try
         {
             var metadata = await WorkspaceScanner.ScanAsync(normalized, options, ct).ConfigureAwait(false);

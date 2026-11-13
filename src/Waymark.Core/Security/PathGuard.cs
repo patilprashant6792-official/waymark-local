@@ -5,6 +5,8 @@ namespace Waymark.Core.Security;
 
 internal sealed partial class PathGuard(IWorkspaceStore workspaces, FileAccessPolicy policy, IAccessRuleCache accessRules) : IPathGuard
 {
+    // Case-exact off Windows on purpose, see PathComparisons: workspace roots are stored with their real spelling, so a path built
+    // from a root always matches it, and only a '..' that comes back in another case is refused.
     private static readonly StringComparison PathComparison =
         OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
 
@@ -37,6 +39,14 @@ internal sealed partial class PathGuard(IWorkspaceStore workspaces, FileAccessPo
     {
         ArgumentNullException.ThrowIfNull(workspace);
         var input = relativePath?.Trim() ?? string.Empty;
+
+        // Agents often write Windows separators (src\Foo.cs). Off Windows a backslash is an ordinary file-name character, so such a path
+        // would name one odd file instead of a nested one: it is read as a separator, and a file whose name holds a backslash cannot be addressed.
+        if (!OperatingSystem.IsWindows())
+        {
+            input = input.Replace('\\', '/');
+        }
+
         if (input.Contains('\0'))
         {
             throw new FileAccessDeniedException(input, "The path contains invalid characters.");
@@ -81,7 +91,7 @@ internal sealed partial class PathGuard(IWorkspaceStore workspaces, FileAccessPo
         absolute.Length == root.Length ? string.Empty : absolute[(root.Length + 1)..].Replace('\\', '/');
 
     // 'name.ext:stream' (NTFS alternate data stream) and 'LONGNA~1.EXT' (8.3 short name) reach a file under a different name
-    // than the one the policy judged, so both are refused outright.
+    // than the one the policy judged, so both are refused outright. Short names exist only on Windows; ':' is refused everywhere.
     private static void RejectAlternateNames(string relative)
     {
         if (relative.Contains(':'))
@@ -89,7 +99,7 @@ internal sealed partial class PathGuard(IWorkspaceStore workspaces, FileAccessPo
             throw new FileAccessDeniedException(relative, "A ':' is not allowed in a path.");
         }
 
-        if (ShortNameRegex().IsMatch(relative))
+        if (OperatingSystem.IsWindows() && ShortNameRegex().IsMatch(relative))
         {
             throw new FileAccessDeniedException(relative, "Short (8.3) names are not accepted; use the full file or folder name.");
         }

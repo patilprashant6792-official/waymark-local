@@ -57,7 +57,7 @@ internal static class ReplaceExclusions
             return (files, 0);
         }
 
-        var comparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        var comparer = Waymark.Core.Platform.PathComparisons.Comparer;
         var byPath = files.ToDictionary(file => file.RelativePath, comparer);
         var wholeFiles = new HashSet<string>(comparer);
         var lines = new Dictionary<string, HashSet<int>>(comparer);

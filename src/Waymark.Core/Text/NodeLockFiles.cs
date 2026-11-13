@@ -18,8 +18,7 @@ public static partial class NodeLockFiles
 
     public static readonly IReadOnlyList<string> Names = ["package-lock.json", "npm-shrinkwrap.json", "pnpm-lock.yaml", "yarn.lock"];
 
-    private static readonly StringComparison PathComparison =
-        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+    private static readonly StringComparison PathComparison = Waymark.Core.Platform.PathComparisons.Comparison;
 
     /// <summary>The pins of the nearest lock file, or null when there is none. A linked file is not followed.</summary>
     /// <exception cref="IOException">The lock file cannot be read.</exception>

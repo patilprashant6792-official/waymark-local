@@ -4,9 +4,9 @@
 
 <h1 align="center">Waymark</h1>
 
-![License: MIT](https://img.shields.io/badge/license-MIT-blue) ![Platform: Windows](https://img.shields.io/badge/platform-Windows-0078D4) ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4) ![MCP server](https://img.shields.io/badge/MCP-server-black) ![Status: v0.2](https://img.shields.io/badge/status-v0.2-orange)
+![License: MIT](https://img.shields.io/badge/license-MIT-blue) ![Platform: Windows | macOS](https://img.shields.io/badge/platform-Windows%20%7C%20macOS-0078D4) ![.NET 10](https://img.shields.io/badge/.NET-10-512BD4) ![MCP server](https://img.shields.io/badge/MCP-server-black) ![Status: v0.2](https://img.shields.io/badge/status-v0.2-orange)
 
-Local MCP server for developers working in C#, Python and TypeScript/JavaScript: token-efficient code, package and project context for claude.ai and Claude Code, over your own tunnel. Windows, SQLite, secrets stay on your machine.
+Local MCP server for developers working in C#, Python and TypeScript/JavaScript: token-efficient code, package and project context for claude.ai and Claude Code, over your own tunnel. Windows and macOS, SQLite, secrets stay on your machine.
 
 > **Read this first.** Waymark gives an AI assistant real access to this computer: what it reads can reach your Claude chat, and what it runs acts as you. Changes and commands wait for your approval by default, approvals can only be given on this computer, and secrets in tool results are hidden before they leave. None of that is perfect, so read [docs/safety.md](docs/safety.md) before you install, and see [SECURITY.md](SECURITY.md) to report a problem. This is early software (v0.2), provided as is under the [MIT License](LICENSE).
 >
@@ -36,13 +36,13 @@ Local MCP server for developers working in C#, Python and TypeScript/JavaScript:
 
 ### Before you start
 
-- Windows 10 or 11 (Windows only; macOS and Linux are not supported).
+- Windows 10 or 11, or macOS 14 (Sonoma) or later on Apple silicon or Intel. Linux is not supported.
 - git, to get the code and to update it later.
 - An internet connection for the first build.
-- Nothing else for Waymark itself: the installer adds the .NET 10 SDK if you do not have it, using `winget` (included in current Windows 10 and 11). Without winget it tells you where to download the SDK by hand. Windows may ask for permission once while it installs. For claude.ai you also need an ngrok account (see "Use it").
+- Nothing else for Waymark itself: the installer adds the .NET 10 SDK if you do not have it. On Windows it uses `winget` (included in current Windows 10 and 11; without winget it tells you where to download the SDK by hand, and Windows may ask for permission once). On macOS it uses Microsoft's `dotnet-install.sh` into `~/.dotnet`, with no administrator rights. For claude.ai you also need an ngrok account (see "Use it").
 - Ports 47100 and 47101 free on this computer (they are the defaults; see [docs/install.md](docs/install.md) to change them).
 
-### Steps
+### Steps on Windows
 
 1. Open a terminal and get the code:
 
@@ -60,32 +60,53 @@ Local MCP server for developers working in C#, Python and TypeScript/JavaScript:
 3. Wait. The first run takes a minute or two (longer if the SDK has to be installed). It prints each step as it goes.
 4. When it finishes, your browser opens the Waymark admin page at <http://localhost:47100>. If it does not, open that address yourself.
 
+### Steps on macOS
+
+1. Open Terminal and get the code. Keep it outside Documents, Desktop and Downloads (see the note below):
+
+   ```bash
+   mkdir -p ~/source && cd ~/source
+   git clone https://github.com/patilprashant6792-official/waymark-local.git
+   cd waymark-local
+   ```
+
+2. Run the installer:
+
+   ```bash
+   bash install.sh
+   ```
+
+3. Wait, as on Windows. When it finishes, your browser opens <http://localhost:47100>.
+
+macOS asks before any program reads Documents, Desktop, Downloads or iCloud Drive, and a program started at sign-in cannot show that question. Keep the projects you add as workspaces elsewhere (`~/source`, say), or give `Waymark.Host` Full Disk Access in **System Settings > Privacy & Security**.
+
 What the installer did for you:
 
-| | |
-|---|---|
-| Program | built into `%LOCALAPPDATA%\Waymark\app` |
-| Start | Waymark starts by itself, hidden, every time you sign in to Windows |
-| Start menu | a **Waymark** shortcut that starts it if needed and opens the admin page |
-| Your data | database, keys and secrets in `%LOCALAPPDATA%\Waymark`, separate from the program |
+| | Windows | macOS |
+|---|---|---|
+| Program | built into `%LOCALAPPDATA%\Waymark\app` | built into `~/Library/Application Support/Waymark/app` |
+| Start | starts by itself, hidden, every time you sign in (a scheduled task) | starts by itself every time you sign in (a LaunchAgent, `com.waymark.host`) |
+| Shortcut | a **Waymark** Start menu shortcut that starts it if needed and opens the admin page | a **Waymark** app in `~/Applications` that does the same |
+| Your data | database, keys and secrets in `%LOCALAPPDATA%\Waymark`, separate from the program | database, encrypted key ring and secrets in `~/Library/Application Support/Waymark`; the key that opens them is in your login Keychain |
 
 If the build fails, nothing is changed and an earlier install keeps working. If the page does not open, see [Troubleshooting](docs/install.md#troubleshooting) and look at the last lines of the log the installer prints.
 
 ### Day to day
 
-- Waymark is already running after you sign in. Use the Start menu shortcut **Waymark** to open the admin page at any time.
-- To stop it, in PowerShell: `& "$env:LOCALAPPDATA\Waymark\waymark.ps1" stop` (in Command Prompt: `powershell -File "%LOCALAPPDATA%\Waymark\waymark.ps1" stop`). To start it again, use the Start menu shortcut.
+- Waymark is already running after you sign in. Use the **Waymark** shortcut (Start menu on Windows, `~/Applications` or Spotlight on macOS) to open the admin page at any time.
+- To stop it on Windows, in PowerShell: `& "$env:LOCALAPPDATA\Waymark\waymark.ps1" stop` (in Command Prompt: `powershell -File "%LOCALAPPDATA%\Waymark\waymark.ps1" stop`). On macOS: `bash ~/Library/Application\ Support/Waymark/waymark.sh stop`. To start it again, use the shortcut.
 - Admin page: <http://localhost:47100> (this computer only).
 
 ### Update and remove
 
 ```text
-update.cmd                 gets the latest version and installs it; your data is not touched
-uninstall.cmd              removes Waymark; your data stays
-uninstall.cmd -RemoveData  removes the data too (database, keys and secrets; asks you to type DELETE)
+Windows                    macOS
+update.cmd                 bash update.sh                     gets the latest version and installs it; your data is not touched
+uninstall.cmd              bash uninstall.sh                  removes Waymark; your data stays
+uninstall.cmd -RemoveData  bash uninstall.sh --remove-data    removes the data too (asks you to type DELETE)
 ```
 
-`update.cmd` runs `git pull --ff-only` in your clone, so keep the clone where it is. If you changed files in it, commit or stash them first or the pull is refused. To reinstall the current code without pulling, run `install.cmd` again.
+The update runs `git pull --ff-only` in your clone, so keep the clone where it is. If you changed files in it, commit or stash them first or the pull is refused. To reinstall the current code without pulling, run the installer again.
 
 ## Use it
 
@@ -102,7 +123,7 @@ claude.ai reaches Waymark through an ngrok tunnel. You need a free ngrok account
 1. Create a free account at [ngrok.com](https://ngrok.com) and sign in to the dashboard.
 2. **Get your address.** Every account gets a free dev domain automatically. In the dashboard open **Gateway > Domains** and copy it. It looks like `https://your-name.ngrok-free.dev` (older accounts may show `ngrok-free.app`). Keep the `https://` and no trailing slash.
 3. **Get your authtoken.** Open <https://dashboard.ngrok.com/get-started/your-authtoken> and copy only the token, not the `ngrok config add-authtoken` command around it.
-4. In Waymark open **Setup**, paste the address and the authtoken, and choose **Save and start tunnel**. Waymark installs ngrok with `winget` if it is missing, starts the tunnel and checks it. The token is stored encrypted on this computer.
+4. In Waymark open **Setup**, paste the address and the authtoken, and choose **Save and start tunnel**. Waymark installs ngrok if it is missing (with `winget` on Windows, with Homebrew on macOS), starts the tunnel and checks it. The token is stored encrypted on this computer.
 5. Wait until step **2. Check the tunnel** shows every line as passed. Step **3. Add Waymark to Claude** then shows your **connector address** with a copy button. If a check fails, Setup shows the command to run by hand (`ngrok http 47101`); run it in a terminal and choose **Check again**.
 6. In claude.ai go to **Customize > Connectors**, choose **+ Add > Add custom connector**, give it a name, paste the connector address from step 3 of Setup, and finish the dialog. Custom connectors need a Claude plan that allows them; see [Claude's guide to custom connectors](https://support.claude.com/en/articles/11175166).
 7. Claude opens a pairing page with a code. Open **Approvals** in the Waymark admin page on this computer, check that the code matches, and approve.

@@ -9,7 +9,7 @@ Thanks for taking a look. Waymark is a small project, so keep changes small and 
 
 ## Build
 
-You need Windows 10 or 11, git and the .NET 10 SDK (the installer adds the SDK for you).
+You need Windows 10 or 11 or macOS 14 or later, git and the .NET 10 SDK (the installer adds the SDK for you). CI builds and tests on both systems; a test that only applies to one system returns early on the other.
 
 ```powershell
 git clone https://github.com/patilprashant6792-official/waymark-local.git

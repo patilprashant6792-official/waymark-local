@@ -82,7 +82,7 @@ public sealed class CommandMaintenanceService(
     {
         try
         {
-            var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+            var comparison = Waymark.Core.Platform.PathComparisons.Comparison;
             if (Path.GetFullPath(file).StartsWith(runsRoot, comparison) && File.Exists(file))
             {
                 File.Delete(file);

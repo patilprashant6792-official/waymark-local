@@ -7,10 +7,14 @@ public enum ShellKind
     Bash
 }
 
-/// <param name="Id">The name Claude and the admin page use: pwsh, powershell, cmd, bash or sh.</param>
+/// <param name="Id">The name Claude and the admin page use: pwsh, powershell, cmd, zsh, bash or sh.</param>
 public sealed record ShellInfo(string Id, string DisplayName, string FileName, ShellKind Kind, string FileExtension);
 
-/// <summary>Finds the shells installed on this computer. The first one found is the automatic choice: PowerShell 7, Windows PowerShell, then cmd on Windows; bash, sh, then PowerShell elsewhere.</summary>
+/// <summary>
+/// Finds the shells installed on this computer. The first one found is the automatic choice: PowerShell 7, Windows PowerShell, then cmd
+/// on Windows; zsh (the macOS default since Catalina; its /bin/bash is 3.2 from 2007), bash, sh, then PowerShell on macOS; bash, sh, then
+/// PowerShell elsewhere. zsh runs a script file the way bash does, so it shares the Bash kind.
+/// </summary>
 public sealed class ShellLocator
 {
     private readonly Lazy<IReadOnlyList<ShellInfo>> _available;
@@ -70,6 +74,15 @@ public sealed class ShellLocator
             }
 
             return shells;
+        }
+
+        if (OperatingSystem.IsMacOS())
+        {
+            var zsh = executables.Find("zsh") ?? ExistingFile("/bin/zsh");
+            if (zsh is not null)
+            {
+                shells.Add(new ShellInfo("zsh", "zsh", zsh, ShellKind.Bash, ".zsh"));
+            }
         }
 
         var unixBash = executables.Find("bash");

@@ -55,7 +55,8 @@ public sealed class WorkspacePathRulesTests
         var (normalized, error) = WorkspacePathRules.NormalizePath(new string('a', WorkspacePathRules.MaxPathLength + 1));
 
         Assert.Null(normalized);
-        Assert.Contains("longer than 260", error);
+        Assert.Contains("longer than " + WorkspacePathRules.MaxPathLength.ToString(System.Globalization.CultureInfo.InvariantCulture), error);
+        Assert.Equal(OperatingSystem.IsWindows() ? 260 : 1024, WorkspacePathRules.MaxPathLength);
     }
 
     [Theory]
@@ -138,4 +139,46 @@ public sealed class WorkspacePathRulesTests
     [InlineData("docs")]
     public void SourceFoldersAreNotExcluded(string folder) =>
         Assert.DoesNotContain(folder, WorkspacePathRules.ExcludedDirectories);
+
+    [Theory]
+    [InlineData("/Users/you/app/", "/Users/you/app")]
+    [InlineData("  /Users/you/app  ", "/Users/you/app")]
+    [InlineData("/Users/you/a/../b", "/Users/you/b")]
+    [InlineData("/Users/Zoë (work)/my app [v2]", "/Users/Zoë (work)/my app [v2]")]
+    public void AMacPathIsCanonicalisedWithoutATrailingSeparator(string path, string expected)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var (normalized, error) = WorkspacePathRules.NormalizePath(path);
+
+        Assert.Null(error);
+        Assert.Equal(expected, normalized);
+    }
+
+    [Theory]
+    [InlineData("/")]
+    [InlineData("/Users/..")]
+    public void TheWholeDiskIsRefusedOnMac(string path)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var (normalized, error) = WorkspacePathRules.NormalizePath(path);
+
+        Assert.Null(normalized);
+        Assert.Contains("not a whole drive", error);
+    }
+
+    [Fact]
+    public void TheFullPathExampleMatchesTheSystem()
+    {
+        var (_, error) = WorkspacePathRules.NormalizePath("src/app");
+
+        Assert.Contains(OperatingSystem.IsWindows() ? @"C:\Users\you" : "/Users/you", error);
+    }
 }

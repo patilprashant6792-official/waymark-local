@@ -16,8 +16,7 @@ internal sealed class FileManager(
     // as a folder, and a folder called 'Waymark.Core' is not mistaken for a file with a disallowed extension.
     private const string FolderProbeName = "waymark-folder-probe";
 
-    private static readonly StringComparison PathComparison =
-        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+    private static readonly StringComparison PathComparison = Waymark.Core.Platform.PathComparisons.Comparison;
 
     private sealed record MovePlan(string Label, GuardedPath Source, GuardedPath Destination);
 
@@ -362,6 +361,5 @@ internal sealed class FileManager(
         }
     }
 
-    private static StringComparer PathComparer() =>
-        OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+    private static StringComparer PathComparer() => Waymark.Core.Platform.PathComparisons.Comparer;
 }
