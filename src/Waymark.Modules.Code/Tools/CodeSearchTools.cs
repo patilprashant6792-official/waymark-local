@@ -51,15 +51,16 @@ public sealed class CodeSearchTools(ICodeSearchService search, ICodeCallersServi
         "CRITICAL for impact analysis. Returns caller locations (file, line, calling type and member, receiver) and the calls made inside the method. " +
         "Use this BEFORE: changing a method signature (prevents breaking callers), modifying behavior, deleting a method, or renaming a method (find all references). " +
         "Example: before changing GetUser(), verify which services depend on its parameter order. " +
-        "Callers are found by method NAME in the syntax index, then sorted by the declared type of their receiver: calls on an unrelated type are left out and counted (includeUnrelated=true lists them), and '?' marks a call whose receiver type is unknown. All overloads share one result.")]
+        "Callers are found by method NAME in the syntax index, then sorted by the declared type of their receiver: calls on an unrelated type are left out and counted (includeUnrelated=true lists them), and '?' marks a call whose receiver type is unknown. All overloads share one result. " +
+        "In TypeScript and JavaScript a local function (a handler or useCallback inside a React component) works too, and the calls inside it are reported under its own name, not its component's.")]
     public Task<string> Callers(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
         string workspace,
-        [Description("Path of the source file (.cs or .py) that defines the method or function, relative to the workspace root (e.g. 'Services/UserService.cs')")]
+        [Description("Path of the source file (.cs, .py, .ts, .tsx, .js, .jsx and the like) that defines the method or function, relative to the workspace root (e.g. 'Services/UserService.cs')")]
         string relativeFilePath,
         [Description("Method or function name to analyze (e.g. 'GetUser', 'ProcessOrder'). A Python class name, or '__init__', finds the calls that create the class.")]
         string methodName,
-        [Description("Optional: class name when the file has several classes with this method")]
+        [Description("Optional: class name when the file has several classes with this method; in TypeScript and JavaScript also the function (component, hook) that declares a local function")]
         string? className = null,
         [Description("Optional: include callers in test folders (default false, production code only; their number is reported)")]
         bool includeTests = false,

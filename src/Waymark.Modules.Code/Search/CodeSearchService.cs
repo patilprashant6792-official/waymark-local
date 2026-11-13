@@ -305,7 +305,10 @@ internal sealed class CodeSearchService(
         if (!row.IsType)
         {
             var owner = row.Owner is null ? string.Empty : $"{row.Owner}: ";
-            return owner + (row.Signature ?? row.Name);
+
+            // A local member has no type; say so, because its name may also be a module-level function or a local of another component.
+            var local = row.Owner is null && row.Modifiers is not null && row.Modifiers.Split(' ').Contains(LocalMembers.Modifier, StringComparer.Ordinal) ? "local member: " : string.Empty;
+            return owner + local + (row.Signature ?? row.Name);
         }
 
         var modifiers = string.IsNullOrEmpty(row.Modifiers) ? string.Empty : row.Modifiers + " ";

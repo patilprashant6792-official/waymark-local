@@ -64,10 +64,17 @@ internal sealed class CodeReadService(
         var (file, _) = await ParseAsync(found, relativeFilePath, ct).ConfigureAwait(false);
         var source = await LoadMatchingAsync(found, file, ct).ConfigureAwait(false);
 
+        // className names a type, or, when no type has that name, a function whose local members are wanted (a React component, a hook).
         var wantedClass = string.IsNullOrWhiteSpace(className) ? null : className.Trim();
-        var candidates = file.Members
-            .Where(m => wantedClass is null
-                || (m.TypeIndex is { } owner && TypeMatches(file.Types[owner], wantedClass)))
+        var members = file.Members;
+        var classIsType = wantedClass is not null && file.Types.Any(t => TypeMatches(t, wantedClass));
+        var owners = wantedClass is not null && !classIsType ? LocalMembers.OwnerIndexes(members) : null;
+        var candidates = Enumerable.Range(0, members.Count)
+            .Where(i => wantedClass is null
+                || (classIsType
+                    ? members[i].TypeIndex is { } owner && TypeMatches(file.Types[owner], wantedClass)
+                    : LocalMembers.IsInside(members, i, wantedClass, owners)))
+            .Select(i => members[i])
             .ToList();
 
         var selected = new List<CodeMemberEntry>();
@@ -85,16 +92,25 @@ internal sealed class CodeReadService(
             selected.AddRange(matches.Where(m => !selected.Contains(m)));
         }
 
-        var available = candidates.Select(m => m.Name).Distinct(StringComparer.Ordinal).Take(MaxListedMemberNames).ToList();
+        // Callable members first: they are what is usually asked for, and a component's handlers would otherwise be crowded out by property names.
+        var available = candidates
+            .OrderBy(m => m.Kind is CodeMemberKind.Method or CodeMemberKind.Function or CodeMemberKind.Constructor ? 0 : 1)
+            .ThenBy(m => m.StartLine)
+            .Select(m => m.Name)
+            .Distinct(StringComparer.Ordinal)
+            .Take(MaxListedMemberNames)
+            .ToList();
         if (selected.Count == 0)
         {
-            var scope = wantedClass is null ? "the file" : $"class '{wantedClass}'";
+            var scope = wantedClass is null
+                ? "the file"
+                : classIsType ? $"class '{wantedClass}'" : $"'{wantedClass}' (no type has that name, so the members declared inside a function of that name were searched)";
             throw new ArgumentException(
                 $"Not found in {scope}: {string.Join(", ", notFound)}. Members available: {(available.Count == 0 ? "(none)" : string.Join(", ", available))}.");
         }
 
         var output = new OutputBudget(pipeline.MaxOutputChars);
-        MethodRenderer.Render(output, found.Name, file, source, selected, notFound, available);
+        MethodRenderer.Render(output, found.Name, file, source, selected, notFound, available, pipeline.MaxOutputChars);
         return output.Build().TrimEnd();
     }
 
@@ -157,7 +173,7 @@ internal sealed class CodeReadService(
         {
             var file = parsed[i].File;
             var methods = file.Members.Count(m => m.Kind is CodeMemberKind.Method or CodeMemberKind.Constructor);
-            var functions = file.Members.Count(m => m.Kind == CodeMemberKind.Function);
+            var functions = file.Members.Count(m => m.Kind == CodeMemberKind.Function && !LocalMembers.IsLocal(m));
             var functionText = functions == 0 ? string.Empty : $", {functions} function(s)";
             output.TryAppendLine($"{i + 1}. **{Path.GetFileName(file.Stamp.RelativePath)}** → {file.Types.Count} type(s), {methods} method(s){functionText}");
         }

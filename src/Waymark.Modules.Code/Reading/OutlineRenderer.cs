@@ -3,7 +3,10 @@ using Waymark.Core.Tools;
 
 namespace Waymark.Modules.Code.Reading;
 
-/// <summary>Renders the structure of one parsed source file as markdown: types, then their members with line ranges, then the functions and variables outside any type.</summary>
+/// <summary>
+/// Renders the structure of one parsed source file as markdown: types, then their members with line ranges, then the functions and variables outside any type.
+/// Local members (functions declared inside another function, such as the handlers of a React component) are listed indented under the function that declares them.
+/// </summary>
 internal static class OutlineRenderer
 {
     private static readonly CodeMemberKind[] MemberOrder =
@@ -76,9 +79,15 @@ internal static class OutlineRenderer
             output.TryAppendLine("_The file hit the indexing limits; the last members are not listed._");
         }
 
+        var tree = new LocalTree(file);
+        if (tree.LocalCount > 0)
+        {
+            output.TryAppendLine($"_{tree.LocalCount} local member(s) (handlers, callbacks, inner helpers) are indented under the function that declares them; fetch one by name with code_method._");
+        }
+
         output.TryAppendLine();
         AppendUsings(output, file);
-        var moduleMembers = ModuleMembers(file, includePrivate);
+        var moduleMembers = ModuleMembers(file, tree, includePrivate);
         if (file.Types.Count == 0 && moduleMembers.Count == 0)
         {
             output.TryAppendLine(language == CodeLanguage.CSharp ? "*No types found*" : "*No classes, functions or variables found*");
@@ -91,15 +100,16 @@ internal static class OutlineRenderer
             output.TryAppendLine();
             for (var i = 0; i < file.Types.Count; i++)
             {
-                AppendType(output, file, i, includePrivate);
+                AppendType(output, file, tree, i, includePrivate);
             }
         }
 
-        AppendModuleMembers(output, file, moduleMembers);
+        AppendModuleMembers(output, file, tree, moduleMembers);
     }
 
-    private static List<CodeMemberEntry> ModuleMembers(CodeFileIndex file, bool includePrivate) =>
-        [.. file.Members.Where(m => m.TypeIndex is null && (includePrivate || IsPublic(m.Modifiers))).OrderBy(m => m.StartLine)];
+    // A local member that has an owner is shown under it, whatever its own visibility; the rest follow the visibility rule.
+    private static List<CodeMemberEntry> ModuleMembers(CodeFileIndex file, LocalTree tree, bool includePrivate) =>
+        [.. file.Members.Where(m => m.TypeIndex is null && !tree.HasOwner(m) && (includePrivate || IsPublic(m.Modifiers))).OrderBy(m => m.StartLine)];
 
     private static void AppendUsings(OutputBudget output, CodeFileIndex file)
     {
@@ -123,7 +133,7 @@ internal static class OutlineRenderer
         output.TryAppendLine();
     }
 
-    private static void AppendType(OutputBudget output, CodeFileIndex file, int index, bool includePrivate)
+    private static void AppendType(OutputBudget output, CodeFileIndex file, LocalTree tree, int index, bool includePrivate)
     {
         var type = file.Types[index];
         var language = file.Language;
@@ -155,19 +165,19 @@ internal static class OutlineRenderer
 
         foreach (var kind in MemberOrder)
         {
-            AppendGroup(output, language, kind, members.Where(m => m.Kind == kind).ToList(), "####");
+            AppendGroup(output, language, tree, kind, members.Where(m => m.Kind == kind).ToList(), "####");
         }
     }
 
-    private static void AppendModuleMembers(OutputBudget output, CodeFileIndex file, List<CodeMemberEntry> members)
+    private static void AppendModuleMembers(OutputBudget output, CodeFileIndex file, LocalTree tree, List<CodeMemberEntry> members)
     {
         foreach (var kind in ModuleOrder)
         {
-            AppendGroup(output, file.Language, kind, members.Where(m => m.Kind == kind).ToList(), "##");
+            AppendGroup(output, file.Language, tree, kind, members.Where(m => m.Kind == kind).ToList(), "##");
         }
     }
 
-    private static void AppendGroup(OutputBudget output, CodeLanguage language, CodeMemberKind kind, List<CodeMemberEntry> group, string heading)
+    private static void AppendGroup(OutputBudget output, CodeLanguage language, LocalTree tree, CodeMemberKind kind, List<CodeMemberEntry> group, string heading)
     {
         if (group.Count == 0)
         {
@@ -185,11 +195,53 @@ internal static class OutlineRenderer
 
             // C# shows the modifiers as written; for Python they only say public or private, which the listing already reflects.
             var memberModifiers = csharp && !string.IsNullOrEmpty(member.Modifiers) ? member.Modifiers + " " : string.Empty;
-            output.TryAppendLine($"{memberModifiers}{member.Signature} {LineRange(member.StartLine, member.EndLine, comment)}");
+            var (exportPrefix, exportSuffix) = ExportMarker(language, member);
+            output.TryAppendLine($"{memberModifiers}{exportPrefix}{member.Signature} {LineRange(member.StartLine, member.EndLine, comment)}{exportSuffix}");
+            AppendLocals(output, tree, member, 1, comment);
         }
 
         output.TryAppendLine("```");
         output.TryAppendLine();
+    }
+
+    // A TypeScript or JavaScript module-level member that other files can import is marked, since the signature alone does not say so.
+    // The marker goes in front only where the line stays valid code: `export default` cannot precede `const`, `let` or `var`,
+    // so a default-exported constant (`const A = ...; export default A;`) gets a trailing "(export default)" instead.
+    private static (string Prefix, string Suffix) ExportMarker(CodeLanguage language, CodeMemberEntry member)
+    {
+        if (!IsScript(language) || member.TypeIndex is not null || !IsPublic(member.Modifiers))
+        {
+            return (string.Empty, string.Empty);
+        }
+
+        if (!member.Modifiers!.Split(' ').Contains("default", StringComparer.Ordinal))
+        {
+            return ("export ", string.Empty);
+        }
+
+        return DeclaresVariable(member.Signature) ? (string.Empty, " (export default)") : ("export default ", string.Empty);
+    }
+
+    private static bool DeclaresVariable(string? signature) =>
+        signature is not null
+        && (signature.StartsWith("const ", StringComparison.Ordinal)
+            || signature.StartsWith("let ", StringComparison.Ordinal)
+            || signature.StartsWith("var ", StringComparison.Ordinal));
+
+    /// <summary>The local members of <paramref name="owner"/>, two spaces deeper per level, each followed by its own locals.</summary>
+    private static void AppendLocals(OutputBudget output, LocalTree tree, CodeMemberEntry owner, int depth, string comment)
+    {
+        if (depth > LocalTree.MaxRenderDepth)
+        {
+            return;
+        }
+
+        foreach (var child in tree.ChildrenOf(owner))
+        {
+            var value = child.Kind == CodeMemberKind.Variable ? " (value)" : string.Empty;
+            output.TryAppendLine($"{new string(' ', depth * 2)}{child.Signature} {LineRange(child.StartLine, child.EndLine, comment)}{value}");
+            AppendLocals(output, tree, child, depth + 1, comment);
+        }
     }
 
     private static string TypeHeader(CodeTypeEntry type, CodeLanguage language)
@@ -251,4 +303,44 @@ internal static class OutlineRenderer
         CodeTypeKind.Namespace => "namespace",
         _ => "class",
     };
+
+    /// <summary>Which local member belongs to which owner in one file, worked out once from the line ranges.</summary>
+    internal sealed class LocalTree
+    {
+        /// <summary>A guard against a runaway nesting; the extractor itself stops well before.</summary>
+        public const int MaxRenderDepth = 16;
+
+        private readonly IReadOnlyList<CodeMemberEntry> _members;
+        private readonly int[] _owners;
+        private readonly Dictionary<int, List<int>> _children;
+        private readonly Dictionary<CodeMemberEntry, int> _indexes = new(ReferenceEqualityComparer.Instance);
+
+        public LocalTree(CodeFileIndex file)
+        {
+            ArgumentNullException.ThrowIfNull(file);
+            _members = file.Members;
+            _owners = LocalMembers.OwnerIndexes(_members);
+            _children = LocalMembers.ChildrenByOwner(_members, _owners);
+            for (var i = 0; i < _members.Count; i++)
+            {
+                _indexes[_members[i]] = i;
+            }
+
+            LocalCount = _owners.Count(o => o >= 0);
+        }
+
+        /// <summary>How many local members have an owner in this file.</summary>
+        public int LocalCount { get; }
+
+        public bool HasOwner(CodeMemberEntry member) => _indexes.TryGetValue(member, out var index) && _owners[index] >= 0;
+
+        public IEnumerable<CodeMemberEntry> ChildrenOf(CodeMemberEntry member) =>
+            _indexes.TryGetValue(member, out var index) && _children.TryGetValue(index, out var list)
+                ? list.Select(i => _members[i])
+                : [];
+
+        /// <summary>The names of the members that declare <paramref name="member"/>, outermost first; empty when it is not local.</summary>
+        public IReadOnlyList<string> OwnerChain(CodeMemberEntry member) =>
+            _indexes.TryGetValue(member, out var index) ? LocalMembers.OwnerChain(_members, index, _owners) : [];
+    }
 }
