@@ -264,7 +264,7 @@ EOF
 # A small app in ~/Applications that opens the admin page, so Waymark can be found in Spotlight and Launchpad. Best effort.
 write_app_bundle() {
     local source
-    source="do shell script \"/bin/bash " & quoted form of \"${INSTALLED_SCRIPT}\" & \" open > /dev/null 2>&1 &\""
+    source="do shell script \"/bin/bash \" & quoted form of \"${INSTALLED_SCRIPT}\" & \" open > /dev/null 2>&1 &\""
     mkdir -p "$(dirname "${APP_BUNDLE}")"
     rm -rf "${APP_BUNDLE}"
     if osacompile -o "${APP_BUNDLE}" -e "${source}" >/dev/null 2>&1; then
