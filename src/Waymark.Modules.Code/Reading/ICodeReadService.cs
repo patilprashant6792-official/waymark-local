@@ -3,7 +3,7 @@
 /// <summary>Reads code on behalf of code_outline, code_method and code_read. Every path goes through the path guard.</summary>
 public interface ICodeReadService
 {
-    /// <summary>Structure of one or more source files (comma separated paths, C# and Python), parsed from the disk so it is never stale.</summary>
+    /// <summary>Structure of one or more source files (comma separated paths, any indexed language), parsed from the disk so it is never stale.</summary>
     /// <exception cref="ArgumentException">No path, too many paths, or no file could be analyzed.</exception>
     Task<string> OutlineAsync(string? workspace, string? relativeFilePaths, bool includePrivateMembers, CancellationToken ct);
 

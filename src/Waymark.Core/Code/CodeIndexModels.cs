@@ -6,10 +6,10 @@ public enum CodeLanguage
     CSharp,
     Python,
 
-    /// <summary>Reserved: the schema accepts it, no indexer exists yet.</summary>
+    /// <summary>A .ts, .tsx, .mts or .cts file, read by the TypeScript indexer.</summary>
     TypeScript,
 
-    /// <summary>Reserved: the schema accepts it, no indexer exists yet.</summary>
+    /// <summary>A .js, .jsx, .mjs or .cjs file, read by the TypeScript indexer.</summary>
     JavaScript
 }
 
@@ -62,6 +62,7 @@ public sealed record CodeTypeEntry(
     int EndLine);
 
 /// <param name="TypeIndex">Position of the owning type in <see cref="CodeFileIndex.Types"/>; null for a member outside any type.</param>
+/// <param name="Modifiers">Space-separated modifier words; <see cref="LocalMembers.Modifier"/> marks a member declared inside another member's body.</param>
 /// <param name="Terms">The words of the member's body, space-separated, for content search; null when none were taken or body terms are off.</param>
 public sealed record CodeMemberEntry(
     int? TypeIndex,

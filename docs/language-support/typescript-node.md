@@ -182,3 +182,21 @@ Each phase ends with: clean `rebuild`, the owner's reinstall task, owner confirm
 - Renames (D1, D2) break agent prompts and the owner's preferences that name `nuget_*` / `cmd_dotnet`.
 - Dropping the NuGet cache in 014 makes the first lookup of each package slow again.
 - The build fingerprint grows, so the first command after the upgrade asks the owner once.
+
+## Follow-up: local members (React components, hooks)
+
+Found in use on a React/TypeScript frontend: the extractor recorded only module-level declarations, but a React component keeps its logic in closures, so a 1,900-line `forwardRef` component showed as one line `const TradeTable = ...`, `code_method` on it was cut off at the output limit, its handlers (`useCallback`) were not members (`code_method`, `code_callers` said not found), body-word search missed them (64 words per member), and `export default TradeTable;` left the component `internal`, hidden from the default outline.
+
+What changed:
+
+| Area | Change |
+|---|---|
+| `TypeScriptExtractor` | A const whose value wraps a function (`forwardRef(fn)`, `memo(forwardRef(fn))`, any call whose argument is a function) is a Function with the wrapper text in its signature. Inside a module-level function, nested `function` declarations and const/let holding or wrapping a function are local Functions (`useMemo`, `useState`, `useRef`, `useReducer`, `computed` values are local Variables), down to 4 levels, modifier `local`, `TypeIndex` null. Calls inside a local belong to the local (the owner's scan skips the local's function node); the wrapper call itself (`useCallback`) stays with the owner. `export default a;`, `export default memo(a);`, `export { a as default }` mark `a` public and `default`. |
+| `Waymark.Core/Code/LocalMembers` | The owner of a local is the closest member whose lines enclose it, worked out by one sweep; no schema change (option 2, a component as a type, needed a new type kind and a table rebuild). |
+| `OutlineRenderer` | Locals indented under their owner, whatever their visibility; a note says how many. |
+| `MethodRenderer` | "Declared in" row and `Owner › local` title; a member whose body would not fit is shown as a map (locals with line ranges, opening lines up to the first local). |
+| `CodeReadService`, `CodeCallersService` | `className` that matches no type names the declaring function; the not-found list puts callable members first. |
+| Tool descriptions, `Guide.md` | TypeScript and JavaScript named where they said C# and Python only; local members explained. |
+| Tests | `tests/Waymark.Tests/Code/TypeScriptLocalMembersTests.cs`. |
+
+Limits: locals are read only in module-level functions, not in class methods or namespace functions; two locals with the same name in one file share one `code_callers` result (calls are stored by caller name); handlers passed as JSX props are not calls.

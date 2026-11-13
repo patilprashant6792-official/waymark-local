@@ -1,3 +1,4 @@
+using System.Text;
 using TreeSitter;
 using Waymark.Core.Code;
 
@@ -16,9 +17,14 @@ internal sealed record TypeScriptExtraction(
 /// </summary>
 /// <remarks>
 /// Mapping: a class is a Class, an interface an Interface, an enum an Enum, a type alias a TypeAlias, a namespace or <c>declare module</c> a Namespace (its members belong to it).
-/// A function declaration, a function signature and a const or let that holds an arrow or function expression are Functions; any other top-level const, let or var is a Variable.
+/// A function declaration, a function signature and a const or let that holds an arrow or function expression are Functions; so is a const whose value is a
+/// call that wraps a function (<c>forwardRef(fn)</c>, <c>memo(forwardRef(fn))</c>, <c>createAsyncThunk("x", fn)</c>). Any other top-level const, let or var is a Variable.
 /// In a class: a method, a constructor, a get accessor (Property), a field (a field that holds a function is a Method), a constructor parameter with an access modifier (Field).
-/// A top-level name is public when it is exported; in a file with no import or export (a script, CommonJS, a .d.ts) everything is public.
+/// Inside the body of a module-level function (a React component, a custom hook) the nested function declarations and the const/let that hold a function
+/// or wrap one (<c>useCallback(fn)</c>, <c>debounce(fn)</c>) are local Functions, and <c>useMemo(fn)</c> values are local Variables, down to <see cref="MaxLocalDepth"/>
+/// levels. They carry the <see cref="LocalMembers.Modifier"/> modifier, no type, and the lines of their own statement; the calls in their bodies belong to them.
+/// A top-level name is public when it is exported, also through <c>export { a }</c> or <c>export default a</c> (or <c>export default memo(a)</c>);
+/// in a file with no import or export (a script, CommonJS, a .d.ts) everything is public.
 /// </remarks>
 internal sealed class TypeScriptExtractor(string moduleName, int lineCount, CodeIndexLimits limits, CancellationToken ct)
 {
@@ -33,7 +39,16 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
     private const int MaxChainDepth = 64;
     private const string Elided = "...";
 
+    /// <summary>How deep local declarations are read: a component (0), its handlers (1), functions inside those (2) and so on.</summary>
+    private const int MaxLocalDepth = 4;
+
+    /// <summary>How many wrapper calls are looked through to find a function: <c>memo(forwardRef(fn))</c> is two.</summary>
+    private const int MaxWrapperDepth = 4;
+
     private static readonly HashSet<string> FunctionValues = new(StringComparer.Ordinal) { "arrow_function", "function_expression", "function", "generator_function" };
+
+    /// <summary>Wrapper calls whose result is a value computed by the function, not a function: these locals are Variables.</summary>
+    private static readonly HashSet<string> ValueWrappers = new(StringComparer.Ordinal) { "useMemo", "useState", "useRef", "useReducer", "computed" };
 
     private readonly List<string> _imports = [];
     private readonly HashSet<string> _seenImports = new(StringComparer.Ordinal);
@@ -42,6 +57,7 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
     private readonly List<CodeCallSiteEntry> _calls = [];
     private bool _topLevelPublic;
     private readonly HashSet<string> _namedExports = new(StringComparer.Ordinal);
+    private readonly HashSet<string> _defaultExports = new(StringComparer.Ordinal);
     private bool _membersFull;
     private bool _callsFull;
 
@@ -49,12 +65,16 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
 
     private sealed record Context(TypeScope? Scope, bool Exported, bool IsDefault, string? Doc, IReadOnlyList<string> Decorators);
 
+    /// <summary>Identifies a syntax node by its type and span; node objects are not reused between reads, so they cannot be compared by reference.</summary>
+    private readonly record struct NodeKey(string Type, int StartRow, int StartColumn, int EndRow, int EndColumn);
+
     public TypeScriptExtraction Extract(Node root)
     {
         ArgumentNullException.ThrowIfNull(root);
         _topLevelPublic = !root.NamedChildren.Any(n => n.Type is "export_statement" or "import_statement");
 
         // export { A, B as C };  names a local declaration as exported without the export keyword on it.
+        // export default A;  export default memo(A);  does the same for the default export.
         foreach (var statement in root.NamedChildren.Where(n => n.Type == "export_statement" && n.GetChildForField("source") is null))
         {
             foreach (var clause in statement.NamedChildren.Where(c => c.Type == "export_clause"))
@@ -65,7 +85,21 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
                     if (!string.IsNullOrEmpty(local))
                     {
                         _namedExports.Add(local);
+                        if (specifier.GetChildForField("alias")?.Text == "default")
+                        {
+                            _defaultExports.Add(local);
+                        }
                     }
+                }
+            }
+
+            if (statement.GetChildForField("declaration") is null && statement.Children.Any(c => c.Type == "default"))
+            {
+                var value = statement.GetChildForField("value")
+                    ?? statement.NamedChildren.FirstOrDefault(c => c.Type is not ("comment" or "decorator" or "export_clause"));
+                if (value is not null)
+                {
+                    MarkDefaultExport(value);
                 }
             }
         }
@@ -633,48 +667,46 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
         }
     }
 
-    private void AddFunction(Node node, Node span, Context context)
+    /// <returns>True when the function was recorded as a member.</returns>
+    private bool AddFunction(Node node, Node span, Context context, int localDepth = 0)
     {
         var name = NameOf(node) ?? (context.IsDefault ? "default" : null);
         if (name is null)
         {
-            return;
+            return false;
         }
 
         var keywords = Keywords(node);
         var returnType = ReturnTypeText(node);
         var star = keywords.Contains("*") || node.Type == "generator_function_declaration" ? "*" : string.Empty;
         var signature = $"{(keywords.Contains("async") ? "async " : string.Empty)}function{star} {name}{TypeParametersText(node)}{ParametersText(node.GetChildForField("parameters"))}{(returnType is null ? string.Empty : ": " + returnType)}";
-        var (start, end) = Lines(span);
-        var modifiers = TopLevelVisibility(context, name) + (context.IsDefault ? " default" : string.Empty);
-        var added = AddMemberEntry(new CodeMemberEntry(
-            context.Scope?.Index,
-            CodeMemberKind.Function,
-            name,
-            TypeScriptText.Squash(signature, MaxSignatureChars),
-            returnType,
-            modifiers,
-            JoinLines(context.Decorators),
-            context.Doc,
-            start,
-            end));
-        var body = node.GetChildForField("body");
-        if (added && body is not null)
-        {
-            AddCalls(body, context.Scope?.Name, name);
-        }
+        var modifiers = localDepth > 0 ? LocalModifiers(keywords) : TopLevelModifiers(context, name);
+        return AddFunctionMember(name, CodeMemberKind.Function, signature, returnType, modifiers, context, span, node, node, localDepth);
     }
 
-    private void AddVariables(Node node, Node span, Context context)
+    /// <summary>
+    /// Records the declarators of a const, let or var statement. At module level every named declarator is a member (Function when it holds or wraps a
+    /// function, Variable otherwise). Inside a function body (<paramref name="localDepth"/> above 0) only declarators that hold or wrap a function are
+    /// recorded; state, refs and plain values stay part of the owner.
+    /// </summary>
+    /// <returns>The function nodes now owned by a recorded local member, so the owner's call scan can leave them out.</returns>
+    private List<Node> AddVariables(Node node, Node span, Context context, int localDepth = 0)
     {
+        var claimed = new List<Node>();
+        var local = localDepth > 0;
         var keyword = node.Children.FirstOrDefault(c => c.Type is "const" or "let" or "var")?.Type ?? "const";
         foreach (var declarator in node.NamedChildren.Where(c => c.Type == "variable_declarator"))
         {
             var nameNode = declarator.GetChildForField("name");
             if (nameNode is null || nameNode.Type != "identifier")
             {
-                // const { a, b } = require("x"): no symbol, but the right side may call things.
-                AddCalls(declarator, context.Scope?.Name, null);
+                // const { a, b } = require("x"), const [value, setValue] = useState(): no symbol, but the right side may call things.
+                // Inside a function body the owner's own call scan already covers it.
+                if (!local)
+                {
+                    AddCalls(declarator, context.Scope?.Name, null);
+                }
+
                 continue;
             }
 
@@ -682,34 +714,296 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
             var value = declarator.GetChildForField("value");
             var typeNode = declarator.GetChildForField("type");
             var typeText = typeNode is null ? null : TrimTypeAnnotation(typeNode.Text);
-            var (start, end) = Lines(span);
-            var modifiers = TopLevelVisibility(context, name);
-            if (value is not null && FunctionValues.Contains(value.Type))
+            Node? functionNode = null;
+            var wrapperText = string.Empty;
+            string? wrapperName = null;
+            if (value is not null)
             {
-                var returnType = ReturnTypeText(value);
-                var keywords = Keywords(value);
-                var parameters = value.GetChildForField("parameters") ?? value.GetChildForField("parameter");
-                var signature = $"{keyword} {name} = {(keywords.Contains("async") ? "async " : string.Empty)}{TypeParametersText(value)}{ParametersText(parameters)}{(returnType is null ? string.Empty : ": " + returnType)} =>";
-                if (value.Type != "arrow_function")
-                {
-                    signature = $"{keyword} {name} = {(keywords.Contains("async") ? "async " : string.Empty)}function{TypeParametersText(value)}{ParametersText(parameters)}{(returnType is null ? string.Empty : ": " + returnType)}";
-                }
+                functionNode = UnwrapFunction(value, out wrapperText, out wrapperName);
+            }
 
-                if (AddMemberEntry(new CodeMemberEntry(
-                    context.Scope?.Index, CodeMemberKind.Function, name, TypeScriptText.Squash(signature, MaxSignatureChars), returnType, modifiers, JoinLines(context.Decorators), context.Doc, start, end)))
+            if (value is not null && functionNode is not null)
+            {
+                var keywords = Keywords(functionNode);
+                var returnType = ReturnTypeText(functionNode);
+                var isValue = wrapperName is not null && ValueWrappers.Contains(wrapperName);
+                var signature = $"{keyword} {name}{(typeText is null ? string.Empty : ": " + typeText)} = {wrapperText}{FunctionText(functionNode, keywords, returnType)}";
+                var modifiers = local ? LocalModifiers(keywords) : TopLevelModifiers(context, name);
+
+                // A local's calls start at its function, so the wrapper call itself (useCallback, useMemo) stays with the owner that makes it.
+                var scanNode = local ? functionNode : value;
+                if (AddFunctionMember(
+                    name,
+                    isValue ? CodeMemberKind.Variable : CodeMemberKind.Function,
+                    signature,
+                    isValue ? typeText : returnType,
+                    modifiers,
+                    context,
+                    span,
+                    scanNode,
+                    functionNode,
+                    localDepth))
                 {
-                    AddCalls(value, context.Scope?.Name, name);
+                    claimed.Add(functionNode);
                 }
 
                 continue;
             }
 
+            if (local)
+            {
+                continue;
+            }
+
+            var (start, end) = Lines(span);
             var text = $"{keyword} {name}{(typeText is null ? string.Empty : ": " + typeText)}{(value is null ? string.Empty : " = " + ValueText(value))}";
             if (AddMemberEntry(new CodeMemberEntry(
-                context.Scope?.Index, CodeMemberKind.Variable, name, TypeScriptText.Squash(text, MaxSignatureChars), typeText, modifiers, JoinLines(context.Decorators), context.Doc, start, end))
+                context.Scope?.Index, CodeMemberKind.Variable, name, TypeScriptText.Squash(text, MaxSignatureChars), typeText, TopLevelModifiers(context, name), JoinLines(context.Decorators), context.Doc, start, end))
                 && value is not null)
             {
                 AddCalls(value, context.Scope?.Name, name);
+            }
+        }
+
+        return claimed;
+    }
+
+    /// <summary>
+    /// Records a function-like member, then the local declarations of its body (one level deeper), then the calls it makes. A call made inside a
+    /// local that was recorded belongs to that local, so this member's scan leaves the local's function out.
+    /// </summary>
+    /// <param name="scanNode">The node whose calls belong to this member: the declaration, or the whole value with its wrapper calls.</param>
+    /// <param name="function">The function node whose body may hold local declarations.</param>
+    private bool AddFunctionMember(
+        string name,
+        CodeMemberKind kind,
+        string signature,
+        string? returnType,
+        string modifiers,
+        Context context,
+        Node span,
+        Node scanNode,
+        Node function,
+        int localDepth)
+    {
+        var (start, end) = Lines(span);
+        if (!AddMemberEntry(new CodeMemberEntry(
+            context.Scope?.Index,
+            kind,
+            name,
+            TypeScriptText.Squash(signature, MaxSignatureChars),
+            returnType,
+            modifiers,
+            JoinLines(context.Decorators),
+            context.Doc,
+            start,
+            end)))
+        {
+            return false;
+        }
+
+        HashSet<NodeKey>? claimed = null;
+        var body = function.GetChildForField("body");
+
+        // Locals are read for module-level functions only: inside a class or namespace the owner is already a type member.
+        if (context.Scope is null && localDepth < MaxLocalDepth && body is not null && body.Type == "statement_block")
+        {
+            claimed = WalkLocals(body, localDepth + 1);
+        }
+
+        AddCalls(scanNode, context.Scope?.Name, name, claimed);
+        return true;
+    }
+
+    /// <summary>
+    /// The declarations directly in a function body that deserve a name: nested function declarations, and const/let/var that hold a function or wrap one
+    /// (<c>useCallback(fn, deps)</c>, <c>useMemo(fn, deps)</c>, <c>debounce(fn)</c>). JSDoc right above one is its summary.
+    /// </summary>
+    /// <returns>The nodes now owned by a local member.</returns>
+    private HashSet<NodeKey> WalkLocals(Node body, int localDepth)
+    {
+        var claimed = new HashSet<NodeKey>();
+        string? doc = null;
+        var docEndRow = -10;
+        foreach (var statement in body.NamedChildren)
+        {
+            ct.ThrowIfCancellationRequested();
+            if (_membersFull)
+            {
+                break;
+            }
+
+            if (statement.Type == "comment")
+            {
+                var summary = TypeScriptText.JsDocSummary(statement.Text, MaxSummaryChars);
+                if (summary is not null)
+                {
+                    doc = summary;
+                    docEndRow = statement.EndPosition.Row;
+                }
+
+                continue;
+            }
+
+            var attached = doc is not null && statement.StartPosition.Row - docEndRow <= 1 ? doc : null;
+            doc = null;
+            var context = new Context(null, false, false, attached, []);
+            switch (statement.Type)
+            {
+                case "function_declaration":
+                case "generator_function_declaration":
+                    if (AddFunction(statement, statement, context, localDepth))
+                    {
+                        claimed.Add(KeyOf(statement));
+                    }
+
+                    break;
+                case "lexical_declaration":
+                case "variable_declaration":
+                    foreach (var owned in AddVariables(statement, statement, context, localDepth))
+                    {
+                        claimed.Add(KeyOf(owned));
+                    }
+
+                    break;
+            }
+        }
+
+        return claimed;
+    }
+
+    /// <summary>
+    /// Calls that take a callback but give back data, a timer or a subscription, never the callback itself:
+    /// <c>const row = rows.find(cb)</c> declares a value, not a function, so it is not a member.
+    /// </summary>
+    private static readonly HashSet<string> NotWrappers = new(StringComparer.Ordinal)
+    {
+        "find", "findIndex", "findLast", "findLastIndex", "filter", "map", "flatMap", "reduce", "reduceRight", "some", "every",
+        "forEach", "sort", "toSorted", "then", "catch", "finally", "addEventListener", "removeEventListener", "on", "once", "off",
+        "subscribe", "setTimeout", "setInterval", "setImmediate", "requestAnimationFrame", "requestIdleCallback", "queueMicrotask",
+        "startTransition", "fromEntries", "from",
+    };
+    /// <summary>
+    /// The function a value stands for: the value itself when it is an arrow function or a function expression, or the function passed to a wrapper call,
+    /// looked through up to <see cref="MaxWrapperDepth"/> calls: <c>forwardRef(fn)</c>, <c>memo(forwardRef(fn))</c>, <c>React.memo(fn)</c>,
+    /// <c>useCallback(fn, deps)</c>, <c>observer(fn)</c>, <c>debounce(fn, ms)</c>. A function argument is preferred to a call argument.
+    /// </summary>
+    /// <param name="wrappers">The text written before the function, outermost first, such as <c>memo(forwardRef&lt;Ref, Props&gt;(</c>; empty for a plain function.</param>
+    /// <param name="outerWrapper">The simple name of the outermost wrapper call (<c>memo</c> for <c>React.memo</c>); null for a plain function.</param>
+    /// <returns>Null when the value is not a function and wraps none.</returns>
+    private static Node? UnwrapFunction(Node value, out string wrappers, out string? outerWrapper)
+    {
+        var prefix = new StringBuilder();
+        wrappers = string.Empty;
+        outerWrapper = null;
+        var current = value;
+        var calls = 0;
+        for (var step = 0; step < MaxWrapperDepth * 4; step++)
+        {
+            if (current.Type == "parenthesized_expression" && current.NamedChildren.Count == 1)
+            {
+                current = current.NamedChildren[0];
+                continue;
+            }
+
+            if (FunctionValues.Contains(current.Type))
+            {
+                wrappers = prefix.ToString();
+                return current;
+            }
+
+            if (current.Type != "call_expression" || calls >= MaxWrapperDepth)
+            {
+                return null;
+            }
+
+            var callee = current.GetChildForField("function");
+            var arguments = current.GetChildForField("arguments");
+            if (callee is null || arguments is null || callee.Type is not ("identifier" or "member_expression") || NotWrappers.Contains(SimpleName(callee) ?? string.Empty))
+            {
+                return null;
+            }
+
+            var candidates = arguments.NamedChildren;
+            var next = candidates.FirstOrDefault(a => FunctionValues.Contains(a.Type))
+                ?? candidates.FirstOrDefault(a => a.Type is "call_expression" or "parenthesized_expression");
+            if (next is null)
+            {
+                return null;
+            }
+
+            outerWrapper ??= SimpleName(callee);
+            prefix.Append(TypeScriptText.Squash(callee.Text, 200));
+            var typeArguments = current.GetChildForField("type_arguments");
+            if (typeArguments is not null)
+            {
+                prefix.Append(TypeScriptText.Squash(typeArguments.Text, 300));
+            }
+
+            prefix.Append('(');
+
+            // createAsyncThunk("user/fetch", async () => ...): the arguments before the function are shown as "...".
+            if (candidates.Any(a => a.Type != "comment" && a.StartPosition.Row * 100_000L + a.StartPosition.Column < next.StartPosition.Row * 100_000L + next.StartPosition.Column))
+            {
+                prefix.Append(Elided).Append(", ");
+            }
+            current = next;
+            calls++;
+        }
+
+        return null;
+    }
+
+    /// <summary>The function part of a signature: <c>async (a: A): R =&gt;</c> for an arrow function, <c>function(a: A): R</c> otherwise.</summary>
+    private static string FunctionText(Node function, HashSet<string> keywords, string? returnType)
+    {
+        var asyncText = keywords.Contains("async") ? "async " : string.Empty;
+        var parameters = function.GetChildForField("parameters") ?? function.GetChildForField("parameter");
+        var returns = returnType is null ? string.Empty : ": " + returnType;
+        return function.Type == "arrow_function"
+            ? $"{asyncText}{TypeParametersText(function)}{ParametersText(parameters)}{returns} =>"
+            : $"{asyncText}function{(keywords.Contains("*") ? "*" : string.Empty)}{TypeParametersText(function)}{ParametersText(parameters)}{returns}";
+    }
+
+    /// <summary>The last name of a callee: <c>memo</c> for <c>memo</c> and for <c>React.memo</c>.</summary>
+    private static string? SimpleName(Node callee) =>
+        callee.Type == "member_expression" ? callee.GetChildForField("property")?.Text : callee.Text;
+
+    /// <summary>
+    /// <c>export default Foo;</c>, <c>export default memo(Foo);</c> and <c>export default connect(map)(Foo);</c>: the names passed to the default export
+    /// are exported. Only the arguments of calls are followed, never the callee, so <c>map</c> in <c>connect(map)</c> stays internal.
+    /// </summary>
+    private void MarkDefaultExport(Node value)
+    {
+        var pending = new Stack<(Node Node, int Depth)>();
+        pending.Push((value, 0));
+        while (pending.Count > 0)
+        {
+            var (node, depth) = pending.Pop();
+            switch (node.Type)
+            {
+                case "identifier":
+                    _namedExports.Add(node.Text);
+                    _defaultExports.Add(node.Text);
+                    break;
+                case "parenthesized_expression":
+                    foreach (var child in node.NamedChildren)
+                    {
+                        pending.Push((child, depth));
+                    }
+
+                    break;
+                case "call_expression" when depth < MaxWrapperDepth:
+                    var arguments = node.GetChildForField("arguments");
+                    if (arguments is not null)
+                    {
+                        foreach (var argument in arguments.NamedChildren)
+                        {
+                            pending.Push((argument, depth + 1));
+                        }
+                    }
+
+                    break;
             }
         }
     }
@@ -738,19 +1032,31 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
     }
 
     /// <summary>Every call and construction under <paramref name="scopeNode"/>, found with an explicit stack so the depth of an expression does not matter.</summary>
-    private void AddCalls(Node scopeNode, string? callerType, string? callerMember)
+    private void AddCalls(Node scopeNode, string? callerType, string? callerMember, HashSet<NodeKey>? skip = null)
     {
         if (_callsFull)
         {
             return;
         }
 
+        var skipping = skip is { Count: > 0 };
+        var scopeKey = KeyOf(scopeNode);
         var pending = new Stack<Node>();
         pending.Push(scopeNode);
         while (pending.Count > 0)
         {
             ct.ThrowIfCancellationRequested();
             var node = pending.Pop();
+            if (skipping)
+            {
+                // A local member owns the calls inside it; they were recorded under its name.
+                var key = KeyOf(node);
+                if (key != scopeKey && skip!.Contains(key))
+                {
+                    continue;
+                }
+            }
+
             if (node.Type is "call_expression" or "new_expression")
             {
                 var site = ReadCall(node, callerType, callerMember);
@@ -773,6 +1079,9 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
             }
         }
     }
+
+    private static NodeKey KeyOf(Node node) =>
+        new(node.Type, node.StartPosition.Row, node.StartPosition.Column, node.EndPosition.Row, node.EndPosition.Column);
 
     private static CodeCallSiteEntry? ReadCall(Node call, string? callerType, string? callerMember)
     {
@@ -891,6 +1200,14 @@ internal sealed class TypeScriptExtractor(string moduleName, int lineCount, Code
     /// <summary>The visibility of a top-level name: exported (or any name in a script or declaration file) is public, the rest is internal to the module.</summary>
     private string TopLevelVisibility(Context context, string name) =>
         context.Scope is not null ? "public" : context.Exported || _topLevelPublic || _namedExports.Contains(name) ? "public" : "internal";
+
+    /// <summary>The visibility of a top-level name, plus <c>default</c> when it is the default export.</summary>
+    private string TopLevelModifiers(Context context, string name) =>
+        TopLevelVisibility(context, name) + (context.IsDefault || (context.Scope is null && _defaultExports.Contains(name)) ? " default" : string.Empty);
+
+    /// <summary>The modifiers of a member declared inside a function body.</summary>
+    private static string LocalModifiers(HashSet<string> keywords) =>
+        LocalMembers.Modifier + (keywords.Contains("async") ? " async" : string.Empty);
 
     private static string? MemberName(Node? node)
     {

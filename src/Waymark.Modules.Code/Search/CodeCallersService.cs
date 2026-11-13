@@ -30,7 +30,8 @@ internal sealed class CodeCallersService(
         int InTests,
         bool Capped,
         bool IncludeTests,
-        bool IncludeUnrelated);
+        bool IncludeUnrelated,
+        (int StartLine, int EndLine)? LocalScope);
 
     public async Task<string> CallersAsync(
         string? workspace,
@@ -62,9 +63,22 @@ internal sealed class CodeCallersService(
         var name = overloads[0].Name;
         var sites = await store.FindCallSitesAsync(target.Workspace.Id, name, options.MaxCallSites, ct).ConfigureAwait(false);
         var inTests = sites.Rows.Count(s => TestPaths.IsTest(s.RelativePath));
+        var localScope = LocalScopeOf(file, overloads);
         var visible = includeTests ? sites.Rows : [.. sites.Rows.Where(s => !TestPaths.IsTest(s.RelativePath))];
 
+        // A local member (a handler inside a component) can only be called from inside the function that declares it.
+        if (localScope is { } scope)
+        {
+            visible = [.. visible.Where(s => string.Equals(s.RelativePath, target.RelativePath, StringComparison.OrdinalIgnoreCase) && s.Line >= scope.StartLine && s.Line <= scope.EndLine)];
+        }
+
         var (classified, filterOff) = await ClassifyAsync(target.Workspace.Id, owner, overloads, visible, ct).ConfigureAwait(false);
+
+        // The generic "matched by name only" note does not apply: the scope above already limits the sites to the declaring function.
+        if (localScope is not null)
+        {
+            filterOff = null;
+        }
         var shown = includeUnrelated ? classified : [.. classified.Where(s => s.Match != SiteMatch.Unrelated)];
         var excluded = includeUnrelated ? [] : ReceiverFilter.CountUnrelated(classified);
         var excludedCount = classified.Count - shown.Count;
@@ -81,16 +95,23 @@ internal sealed class CodeCallersService(
             includeTests ? 0 : inTests,
             sites.Capped,
             includeTests,
-            includeUnrelated);
+            includeUnrelated,
+            localScope);
         return Render(view, OutgoingCalls(file, owner, name), pageSize, page);
     }
 
+    private static (int StartLine, int EndLine)? LocalScopeOf(CodeFileIndex file, List<CodeMemberEntry> overloads)
+    {
+        var index = file.Members.ToList().IndexOf(overloads[0]);
+        return index < 0 || !LocalMembers.IsLocal(overloads[0]) ? null : LocalMembers.ScopeLines(file.Members, index);
+    }
     private static (CodeTypeEntry? Owner, List<CodeMemberEntry> Overloads) FindTarget(CodeFileIndex file, string methodName, string? className)
     {
-        var named = file.Members
-            .Where(m => m.Kind is CodeMemberKind.Method or CodeMemberKind.Constructor or CodeMemberKind.Function
-                && (string.Equals(m.Name, methodName, StringComparison.OrdinalIgnoreCase)
-                    || (m.Kind == CodeMemberKind.Constructor && string.Equals(methodName, "__init__", StringComparison.Ordinal))))
+        var members = file.Members;
+        var named = Enumerable.Range(0, members.Count)
+            .Where(i => members[i].Kind is CodeMemberKind.Method or CodeMemberKind.Constructor or CodeMemberKind.Function
+                && (string.Equals(members[i].Name, methodName, StringComparison.OrdinalIgnoreCase)
+                    || (members[i].Kind == CodeMemberKind.Constructor && string.Equals(methodName, "__init__", StringComparison.Ordinal))))
             .ToList();
         if (named.Count == 0)
         {
@@ -98,7 +119,22 @@ internal sealed class CodeCallersService(
         }
 
         var wanted = string.IsNullOrWhiteSpace(className) ? null : className.Trim();
+
+        // No type has that name: it names the function that declares the wanted local member (a handler inside a React component, say).
+        if (wanted is not null && !file.Types.Any(t => TypeMatches(t, wanted)))
+        {
+            var owners = LocalMembers.OwnerIndexes(members);
+            named = [.. named.Where(i => LocalMembers.IsInside(members, i, wanted, owners))];
+            if (named.Count == 0)
+            {
+                throw new ArgumentException($"No class named '{wanted}', and no function '{wanted}' that declares '{methodName}', in {file.Stamp.RelativePath}.");
+            }
+
+            wanted = null;
+        }
+
         var groups = named
+            .Select(i => members[i])
             .GroupBy(m => m.TypeIndex)
             .Where(g => wanted is null || (g.Key is { } i && TypeMatches(file.Types[i], wanted)))
             .ToList();
@@ -250,7 +286,8 @@ internal sealed class CodeCallersService(
 
     private static string CallerCounts(View view)
     {
-        if (view.FilterOff is not null)
+        // A local member's calls are scoped by position, not sorted by receiver type, so the typed/name-only split says nothing.
+        if (view.FilterOff is not null || view.LocalScope is not null)
         {
             return view.Shown.Count.ToString(CultureInfo.InvariantCulture);
         }
@@ -269,7 +306,12 @@ internal sealed class CodeCallersService(
 
     private IEnumerable<string> Notes(View view)
     {
-        if (view.FilterOff is not null)
+        if (view.LocalScope is { } scope)
+        {
+            // The scope is the whole match rule for a local, so the receiver-type notes below would only mislead.
+            yield return $"_Local member: only calls in {view.Path} lines {scope.StartLine}-{scope.EndLine} (the function that declares it) are listed._";
+        }
+        else if (view.FilterOff is not null)
         {
             yield return $"_Matched by method name only ({view.FilterOff}): a same-named method on another type is listed too, and so are all overloads. Use the receiver to tell them apart._";
         }
