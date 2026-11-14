@@ -46,8 +46,6 @@ Waymark is a local [MCP](https://modelcontextprotocol.io) server that runs on yo
 |---|---|
 | Claude guesses a package's API from training data, often the wrong version. | `pkg_find` reads the real package at the version your project pins. A member that isn't confirmed there **does not exist**. |
 | Every new chat re-explores the same feature: search, open, read, repeat. | Claude saves each feature as a **flow** (trigger → ordered method steps → outcome). Next time, one `recall` call gives the path. |
-| Reading code means reading whole files. | `code_skeleton` → `code_search` → `code_outline` → `code_method`: overview, find, structure, one body with real line numbers. |
-| Searching only works if you know the name. | `code_search` finds code **by what it does** (`refresh token rotate`), ranked, with the words each hit matched. |
 | Find-and-replace across files is all trust. | `file_replace` previews a plan first, then applies all or nothing, refused if anything changed since. |
 | A backend, a frontend and a worker means three chats. | One conversation, every workspace. Search them all at once, copy code between them on the server. |
 | An agent with a shell can do anything, silently. | Typed actions with Off / Ask / Auto gates, approvals only on your machine, secrets hidden, a live log and an audit trail. |
