@@ -89,12 +89,15 @@ What the installer did for you:
 | Shortcut | a **Waymark** Start menu shortcut that starts it if needed and opens the admin page | a **Waymark** app in `~/Applications` that does the same |
 | Your data | database, keys and secrets in `%LOCALAPPDATA%\Waymark`, separate from the program | database, encrypted key ring and secrets in `~/Library/Application Support/Waymark`; the key that opens them is in your login Keychain |
 
+On macOS the key that unlocks your stored secrets (the ngrok token and vault secrets) lives in your login Keychain, as the item `waymark-data-protection`. If the login Keychain is reset or deleted, those secrets can no longer be read: Waymark keeps running, and you enter them again in the admin page.
+
 If the build fails, nothing is changed and an earlier install keeps working. If the page does not open, see [Troubleshooting](docs/install.md#troubleshooting) and look at the last lines of the log the installer prints.
 
 ### Day to day
 
 - Waymark is already running after you sign in. Use the **Waymark** shortcut (Start menu on Windows, `~/Applications` or Spotlight on macOS) to open the admin page at any time.
 - To stop it on Windows, in PowerShell: `& "$env:LOCALAPPDATA\Waymark\waymark.ps1" stop` (in Command Prompt: `powershell -File "%LOCALAPPDATA%\Waymark\waymark.ps1" stop`). On macOS: `bash ~/Library/Application\ Support/Waymark/waymark.sh stop`. To start it again, use the shortcut.
+- To check whether it is installed, starts at sign-in and is running, on Windows in PowerShell: `& "$env:LOCALAPPDATA\Waymark\waymark.ps1" status`. On macOS, in your clone: `bash install.sh status` (or `bash ~/Library/Application\ Support/Waymark/waymark.sh status` from anywhere). It also shows the installed version.
 - Admin page: <http://localhost:47100> (this computer only).
 
 ### Update and remove
