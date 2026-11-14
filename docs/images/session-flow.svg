@@ -1,0 +1,172 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 640" width="1200" height="640" role="img" aria-labelledby="t d">
+  <title id="t">How a Waymark session flows</title>
+  <desc id="d">Claude on claude.ai (through your ngrok tunnel) or Claude Code (on localhost) calls Waymark on your computer. Each call passes pairing, Pause all, the tool switch and its gate. Ask gates wait for your approval on this machine. Approved calls reach the code, memory, packages, files and commands tools, which use the syntax index, flows, package registries, your workspaces and your toolchains. Every result has secrets hidden, is audited and shown on the live log, then goes back to Claude.</desc>
+  <style>
+    .bg{fill:#ffffff}
+    .box{fill:#f6f8fa;stroke:#d0d7de}
+    .client{fill:#ffffff;stroke:#8c959f}
+    .pipe{fill:#ddf4ff;stroke:#54aeff}
+    .ask{fill:#fff8c5;stroke:#d4a72c}
+    .tool{fill:#dafbe1;stroke:#4ac26b}
+    .res{fill:#ffffff;stroke:#d0d7de}
+    .ret{fill:#fbefff;stroke:#c297ff}
+    .h{fill:#1f2328;font:600 15px Inter,"Segoe UI",-apple-system,Helvetica,Arial,sans-serif}
+    .t{fill:#1f2328;font:500 13px Inter,"Segoe UI",-apple-system,Helvetica,Arial,sans-serif}
+    .m{fill:#59636e;font:400 12px Inter,"Segoe UI",-apple-system,Helvetica,Arial,sans-serif}
+    .k{fill:#59636e;font:600 11px Inter,"Segoe UI",-apple-system,Helvetica,Arial,sans-serif;letter-spacing:.06em}
+    .ln{stroke:#8c959f;stroke-width:1.6;fill:none}
+    @media (prefers-color-scheme: dark){
+      .bg{fill:#0d1117}
+      .box{fill:#161b22;stroke:#30363d}
+      .client{fill:#0d1117;stroke:#6e7681}
+      .pipe{fill:#0c2d6b;stroke:#1f6feb}
+      .ask{fill:#3b2e00;stroke:#9e6a03}
+      .tool{fill:#0f3d1f;stroke:#2ea043}
+      .res{fill:#0d1117;stroke:#30363d}
+      .ret{fill:#2e1a47;stroke:#8957e5}
+      .h,.t{fill:#e6edf3}
+      .m,.k{fill:#9198a1}
+    }
+  </style>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0 0L10 5L0 10z" fill="#8c959f"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" x="0" y="0" width="1200" height="640" rx="16"/>
+
+  <!-- Waymark container -->
+  <rect class="box" x="300" y="40" width="880" height="560" rx="16" stroke-width="1.5"/>
+  <text class="k" x="324" y="68">WAYMARK · ON YOUR COMPUTER</text>
+
+  <!-- Clients -->
+  <text class="k" x="30" y="68">CLAUDE</text>
+  <rect class="client" x="30" y="110" width="210" height="84" rx="12" stroke-width="1.5"/>
+  <text class="h" x="135" y="146" text-anchor="middle">claude.ai</text>
+  <text class="m" x="135" y="168" text-anchor="middle">web · desktop · phone</text>
+
+  <rect class="client" x="30" y="300" width="210" height="84" rx="12" stroke-width="1.5"/>
+  <text class="h" x="135" y="336" text-anchor="middle">Claude Code</text>
+  <text class="m" x="135" y="358" text-anchor="middle">terminal, same computer</text>
+
+  <path class="ln" d="M240 152 H268 V108 H328" marker-end="url(#a)"/>
+  <text class="m" x="135" y="214" text-anchor="middle">through your ngrok tunnel</text>
+  <path class="ln" d="M240 342 H284 V122 H328" marker-end="url(#a)"/>
+  <text class="m" x="135" y="290" text-anchor="middle">localhost:47101, no tunnel</text>
+
+
+  <!-- Request pipeline -->
+  <rect class="pipe" x="330" y="86" width="170" height="56" rx="10" stroke-width="1.5"/>
+  <text class="t" x="415" y="110" text-anchor="middle">Paired client</text>
+  <text class="m" x="415" y="128" text-anchor="middle">OAuth, approved by you</text>
+  <path class="ln" d="M500 114 H524" marker-end="url(#a)"/>
+
+  <rect class="pipe" x="528" y="86" width="170" height="56" rx="10" stroke-width="1.5"/>
+  <text class="t" x="613" y="110" text-anchor="middle">Pause all is off</text>
+  <text class="m" x="613" y="128" text-anchor="middle">one switch stops everything</text>
+  <path class="ln" d="M698 114 H722" marker-end="url(#a)"/>
+
+  <rect class="pipe" x="726" y="86" width="170" height="56" rx="10" stroke-width="1.5"/>
+  <text class="t" x="811" y="110" text-anchor="middle">Tool switched on</text>
+  <text class="m" x="811" y="128" text-anchor="middle">off tools are not listed</text>
+  <path class="ln" d="M896 114 H920" marker-end="url(#a)"/>
+
+  <rect class="pipe" x="924" y="86" width="226" height="56" rx="10" stroke-width="1.5"/>
+  <text class="t" x="1037" y="110" text-anchor="middle">Gate</text>
+  <text class="m" x="1037" y="128" text-anchor="middle">Off · Ask · Auto, per operation</text>
+
+  <!-- Approval -->
+  <path class="ln" d="M1080 142 V164" marker-end="url(#a)"/>
+  <text class="m" x="1088" y="158">Ask</text>
+  <rect class="ask" x="996" y="168" width="168" height="52" rx="10" stroke-width="1.5"/>
+  <text class="t" x="1080" y="190" text-anchor="middle">You approve</text>
+  <text class="m" x="1080" y="208" text-anchor="middle">on this computer only</text>
+
+  <!-- Bus to tools -->
+  <path class="ln" d="M1080 220 V238"/>
+  <path class="ln" d="M960 142 V238"/>
+  <text class="m" x="952" y="196" text-anchor="end">Auto</text>
+  <path class="ln" d="M405 238 H1085"/>
+  <path class="ln" d="M405 238 V256" marker-end="url(#a)"/>
+  <path class="ln" d="M575 238 V256" marker-end="url(#a)"/>
+  <path class="ln" d="M745 238 V256" marker-end="url(#a)"/>
+  <path class="ln" d="M915 238 V256" marker-end="url(#a)"/>
+  <path class="ln" d="M1085 238 V256" marker-end="url(#a)"/>
+
+  <!-- Tool groups -->
+  <rect class="tool" x="330" y="260" width="150" height="70" rx="10" stroke-width="1.5"/>
+  <text class="h" x="405" y="290" text-anchor="middle">Code</text>
+  <text class="m" x="405" y="312" text-anchor="middle">search · outline · method</text>
+
+  <rect class="tool" x="500" y="260" width="150" height="70" rx="10" stroke-width="1.5"/>
+  <text class="h" x="575" y="290" text-anchor="middle">Memory</text>
+  <text class="m" x="575" y="312" text-anchor="middle">recall · memorise flows</text>
+
+  <rect class="tool" x="670" y="260" width="150" height="70" rx="10" stroke-width="1.5"/>
+  <text class="h" x="745" y="290" text-anchor="middle">Packages</text>
+  <text class="m" x="745" y="312" text-anchor="middle">find · outline · expand</text>
+
+  <rect class="tool" x="840" y="260" width="150" height="70" rx="10" stroke-width="1.5"/>
+  <text class="h" x="915" y="290" text-anchor="middle">Files</text>
+  <text class="m" x="915" y="312" text-anchor="middle">edit · write · replace</text>
+
+  <rect class="tool" x="1010" y="260" width="150" height="70" rx="10" stroke-width="1.5"/>
+  <text class="h" x="1085" y="290" text-anchor="middle">Commands</text>
+  <text class="m" x="1085" y="312" text-anchor="middle">project · git · shell</text>
+
+  <!-- Resources -->
+  <path class="ln" d="M405 330 V352" marker-end="url(#a)"/>
+  <path class="ln" d="M575 330 V352" marker-end="url(#a)"/>
+  <path class="ln" d="M745 330 V352" marker-end="url(#a)"/>
+  <path class="ln" d="M915 330 V352" marker-end="url(#a)"/>
+  <path class="ln" d="M1085 330 V352" marker-end="url(#a)"/>
+
+  <rect class="res" x="330" y="356" width="150" height="62" rx="10" stroke-width="1.5"/>
+  <text class="t" x="405" y="382" text-anchor="middle">Syntax index</text>
+  <text class="m" x="405" y="400" text-anchor="middle">Roslyn · tree-sitter</text>
+
+  <rect class="res" x="500" y="356" width="150" height="62" rx="10" stroke-width="1.5"/>
+  <text class="t" x="575" y="382" text-anchor="middle">Saved flows</text>
+  <text class="m" x="575" y="400" text-anchor="middle">names only, in SQLite</text>
+
+  <rect class="res" x="670" y="356" width="150" height="62" rx="10" stroke-width="1.5"/>
+  <text class="t" x="745" y="382" text-anchor="middle">NuGet · PyPI · npm</text>
+  <text class="m" x="745" y="400" text-anchor="middle">at your pinned version</text>
+
+  <rect class="res" x="840" y="356" width="150" height="62" rx="10" stroke-width="1.5"/>
+  <text class="t" x="915" y="382" text-anchor="middle">Your workspaces</text>
+  <text class="m" x="915" y="400" text-anchor="middle">the folders you added</text>
+
+  <rect class="res" x="1010" y="356" width="150" height="62" rx="10" stroke-width="1.5"/>
+  <text class="t" x="1085" y="382" text-anchor="middle">Your toolchains</text>
+  <text class="m" x="1085" y="400" text-anchor="middle">dotnet · uv · npm · git</text>
+
+  <!-- Return path -->
+  <path class="ln" d="M405 418 V446 H1085 V418"/>
+  <path class="ln" d="M575 418 V446 M745 418 V446 M915 418 V446"/>
+  <path class="ln" d="M1037 446 V472" marker-end="url(#a)"/>
+
+  <rect class="ret" x="924" y="476" width="226" height="52" rx="10" stroke-width="1.5"/>
+  <text class="t" x="1037" y="498" text-anchor="middle">Secrets hidden</text>
+  <text class="m" x="1037" y="516" text-anchor="middle">before anything leaves</text>
+  <path class="ln" d="M924 502 H900" marker-end="url(#a)"/>
+
+  <rect class="ret" x="726" y="476" width="170" height="52" rx="10" stroke-width="1.5"/>
+  <text class="t" x="811" y="498" text-anchor="middle">Audited</text>
+  <text class="m" x="811" y="516" text-anchor="middle">every call, kept</text>
+  <path class="ln" d="M726 502 H702" marker-end="url(#a)"/>
+
+  <rect class="ret" x="528" y="476" width="170" height="52" rx="10" stroke-width="1.5"/>
+  <text class="t" x="613" y="498" text-anchor="middle">Live log</text>
+  <text class="m" x="613" y="516" text-anchor="middle">you watch it happen</text>
+  <path class="ln" d="M528 502 H504" marker-end="url(#a)"/>
+
+  <rect class="ret" x="330" y="476" width="170" height="52" rx="10" stroke-width="1.5"/>
+  <text class="t" x="415" y="498" text-anchor="middle">Result</text>
+  <text class="m" x="415" y="516" text-anchor="middle">back to the same chat</text>
+
+  <path class="ln" d="M330 502 H135 V388" marker-end="url(#a)"/>
+
+  <text class="m" x="740" y="574" text-anchor="middle">Reading is quick and automatic. Edits, tests, runs, installs and every shell script wait for you by default.</text>
+</svg>
