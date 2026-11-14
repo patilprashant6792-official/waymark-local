@@ -161,7 +161,7 @@ public sealed class ProcRecipes(ListeningPorts ports)
 
     private static bool IsInside(string root, string path)
     {
-        var comparison = OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal;
+        var comparison = Waymark.Core.Platform.PathComparisons.Comparison;
         var prefix = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root)) + Path.DirectorySeparatorChar;
         return Path.GetFullPath(path).StartsWith(prefix, comparison);
     }

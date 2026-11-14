@@ -127,7 +127,18 @@ public sealed class PathGuardTests : IDisposable
     [InlineData("PROGRA~1/x.cs")]
     [InlineData("dir/LONGNA~1.TXT")]
     [InlineData("file~1.cs")]
-    public void ShortEightDotThreeNamesAreRefused(string input) => Assert.Contains("Short (8.3)", Denied(input).Reason);
+    public void ShortEightDotThreeNamesAreRefusedOnWindowsOnly(string input)
+    {
+        if (OperatingSystem.IsWindows())
+        {
+            Assert.Contains("Short (8.3)", Denied(input).Reason);
+        }
+        else
+        {
+            // Short names do not exist off Windows; 'draft~1.md' is an ordinary file there.
+            Assert.Equal(input, Resolve(input).RelativePath);
+        }
+    }
 
     [Fact]
     public void ATildeThatIsNotFollowedByADigitIsFine() => Assert.Equal("a~b.cs", Resolve("a~b.cs").RelativePath);
@@ -257,15 +268,12 @@ public sealed class PathGuardTests : IDisposable
     }
 
     [Fact]
-    public void BackslashesAreSeparatorsOnWindows()
+    public void BackslashesAreSeparatorsOnEverySystem()
     {
-        if (!OperatingSystem.IsWindows())
-        {
-            return;
-        }
-
+        // Off Windows a backslash would be part of a file name; agents write Windows separators, so they are read as '/' everywhere.
         Assert.Equal("src/a.cs", Resolve("src\\a.cs").RelativePath);
         Assert.Equal("The path leaves the workspace folder.", Denied("..\\x.cs").Reason);
+        Assert.Contains("restricted folder", Denied("src\\bin\\a.cs").Reason);
     }
 
     [Fact]

@@ -4,6 +4,8 @@
     <AssemblyName>Waymark.Host</AssemblyName>
     <RootNamespace>Waymark.Host</RootNamespace>
     <BlazorDisableThrowNavigationException>true</BlazorDisableThrowNavigationException>
+    <!-- The Waymark logo on Waymark.Host.exe, so the Start menu shortcut (which points at the exe's first icon) and Task Manager show it. -->
+    <ApplicationIcon>wwwroot\favicon.ico</ApplicationIcon>
   </PropertyGroup>
   <ItemGroup>
     <ProjectReference Include="..\Waymark.Core\Waymark.Core.csproj" />

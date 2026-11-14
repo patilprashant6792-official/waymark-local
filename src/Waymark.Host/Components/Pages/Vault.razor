@@ -28,7 +28,7 @@
         <SectionHeader Title="Saved secrets" />
         @if (_secrets.Count == 0)
         {
-            <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="No secrets yet" Text="Add one above. Values are encrypted with Windows data protection and cannot be read back." />
+            <EmptyState Icon="@Icons.Material.Outlined.Lock" Title="No secrets yet" Text="Add one above. Values are encrypted with keys only your account on this computer can open (Windows data protection, or the macOS login Keychain) and cannot be read back." />
         }
         else
         {

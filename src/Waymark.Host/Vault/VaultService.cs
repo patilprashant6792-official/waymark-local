@@ -7,7 +7,7 @@ using Waymark.Core.Vault;
 namespace Waymark.Host.Vault;
 
 /// <summary>
-/// Saves named secrets encrypted with ASP.NET Data Protection (keys next to the database, protected by Windows DPAPI).
+/// Saves named secrets encrypted with ASP.NET Data Protection (keys protected by Windows DPAPI, or on macOS by a master key in the login Keychain).
 /// A secret value is never returned to the admin UI and never written to the audit trail.
 /// </summary>
 public sealed class VaultService(

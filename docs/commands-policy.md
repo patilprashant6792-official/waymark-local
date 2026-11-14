@@ -55,7 +55,7 @@ Before a script, the card shows plain-language hints (`RiskHints`): deletes file
 - No shell. The executable is resolved to an absolute path from `PATH`, arguments go in `ArgumentList`, standard input is closed.
 - Every option is checked (`RecipeOptions`); paths must stay inside the workspace (`IPathGuard`); unknown option keys are refused.
 - The environment is an allow-list (`ChildEnvironment`): Waymark's own variables never reach the child. Prompts are switched off.
-- On Windows the process runs in a Job Object, so ending a run ends the whole tree.
+- On Windows the process runs in a Job Object, so ending a run ends the whole tree. macOS has no Job Objects: ending a run ends the process tree as it is at that moment, so a child that detached itself (double-forked, or reparented to launchd) can outlive the run. `MSBUILDDISABLENODEREUSE` is set for every run and builds pass `-nodeReuse:false -p:UseSharedCompilation=false`, which keeps .NET build servers from staying behind; `cmd_proc build_server` ends any that do.
 - Git: no force push, no pager, no external diff or textconv, paths after `--`.
 - Operations that change files run one at a time per workspace.
 

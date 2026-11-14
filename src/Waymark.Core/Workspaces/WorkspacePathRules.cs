@@ -6,7 +6,9 @@ namespace Waymark.Core.Workspaces;
 public static partial class WorkspacePathRules
 {
     public const int MaxNameLength = 64;
-    public const int MaxPathLength = 260;
+
+    /// <summary>The longest folder path accepted: the classic Windows limit there, the macOS and Linux PATH_MAX elsewhere.</summary>
+    public static int MaxPathLength { get; } = OperatingSystem.IsWindows() ? 260 : 1024;
 
     /// <summary>Folders that never hold source a workspace should index.</summary>
     public static readonly IReadOnlySet<string> ExcludedDirectories = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
@@ -56,7 +58,9 @@ public static partial class WorkspacePathRules
 
         if (!System.IO.Path.IsPathFullyQualified(trimmed))
         {
-            return (null, "Use the full path, for example C:\\Users\\you\\source\\app.");
+            return (null, OperatingSystem.IsWindows()
+                ? "Use the full path, for example C:\\Users\\you\\source\\app."
+                : "Use the full path, for example /Users/you/source/app.");
         }
 
         var full = System.IO.Path.GetFullPath(trimmed);
@@ -69,7 +73,7 @@ public static partial class WorkspacePathRules
         return (System.IO.Path.TrimEndingDirectorySeparator(full), null);
     }
 
-    // Letters and digits of any script plus the punctuation common in Windows folder names.
+    // Letters and digits of any script plus the punctuation common in Windows and macOS folder names.
     [GeneratedRegex(@"^[\p{L}\p{N}\\/:_\-.\s()\[\]'&+,~#@]+$")]
     private static partial Regex PathRegex();
 

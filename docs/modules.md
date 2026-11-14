@@ -45,7 +45,7 @@ One Confirm tool, two calls: a preview that reads and keeps a plan, and an apply
 - `ReplaceApplier` reads every planned file again and refuses if any hash differs, builds every new file in memory (`SpanApplier`, then `TextFileFormat.EncodeExact`, which keeps every line ending), refuses a replacement that adds a secret on a changed line (`IContentInspector`, before and after), then writes through `CopyTransaction` with `CancellationToken.None`, so the call timeout cannot stop it halfway. One `FileChanged` per file; the tool asks `IFlowEditAdvisor` once with every path.
 - Exclusions (`ReplaceExclusions`): `path` or `path#L12`, applied to the plan before the count check.
 - Settings under `Waymark:Files:Replace:*` (`ReplaceOptions`): `MaxFiles` 200, `MaxMatches` 5000, `MaxFindChars` 200, `MaxWithChars` 1000, `PlanMinutes` 10, `MaxOpenPlans` 16, `ScanBudgetSeconds` 20, `MaxPreviewLinesPerFile` 20.
-- `AtomicFile` swaps an existing file with `File.Replace` on Windows (keeps creation time, ACLs, attributes and named streams), falling back to a move; this applies to every file tool.
+- `AtomicFile` swaps an existing file with `File.Replace` on Windows (keeps creation time, ACLs, attributes and named streams), falling back to a move; on macOS it moves the new file over the old one after copying the old file's permission bits, so a script keeps its execute bit. This applies to every file tool.
 - Tests: `tests/Waymark.Tests` (xUnit v3 on Microsoft Testing Platform); the acceptance prompt is `docs/file-replace-test.md`.
 
 ## Feature maps = flows (`recall`, `memorise`)
@@ -85,7 +85,7 @@ Migrations are numbered files in `Waymark.Data/Migrations` (next: 019; 013 rebui
 
 ## Vault
 
-Named secrets, encrypted with ASP.NET Data Protection (keys next to the database, DPAPI on Windows). The UI never shows a value. `VaultRules.Scrub` replaces secret values in text with `[secret:NAME]`. It is **not yet applied** to command output (open item, see `commands-policy.md`).
+Named secrets, encrypted with ASP.NET Data Protection. On Windows the keys are files next to the database, protected by DPAPI; on macOS they are rows in the database (`data_protection_keys`), each encrypted with AES-256-GCM under a master key kept in the login Keychain (`Vault/MasterKey`). The UI never shows a value. `VaultRules.Scrub` replaces secret values in text with `[secret:NAME]`. It is **not yet applied** to command output (open item, see `commands-policy.md`).
 
 The Vault page is hidden from the admin menu and the command palette for now. The page, store and rules are kept for further implementation.
 

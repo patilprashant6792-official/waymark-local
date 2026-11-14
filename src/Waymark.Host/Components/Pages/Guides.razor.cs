@@ -14,7 +14,7 @@ public partial class Guides : LiveComponentBase
     private const string Placeholder =
         "For example:\n\n" +
         "## How I work\n- Small commits, one idea each. Never push without asking.\n\n" +
-        "## Updating my installed copy\n- The repo has install.cmd. To update my installed copy, run it with cmd_shell in the Waymark workspace, then stop and wait for me to say it finished. After that, check that it is running.\n\n" +
+        "## Updating my installed copy\n- The repo has install.cmd (install.sh on a Mac). To update my installed copy, run it with cmd_shell in the Waymark workspace, then stop and wait for me to say it finished. After that, check that it is running.\n\n" +
         "## Always ask first\n- Before adding a package, deleting a file or touching a migration.";
 
     private IReadOnlyList<ToolGuide> _groupGuides = [];

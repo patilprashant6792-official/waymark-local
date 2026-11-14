@@ -32,19 +32,19 @@ public static partial class RiskHints
     [GeneratedRegex(@"\|\s*(iex|Invoke-Expression|bash|sh|zsh|python3?|node)\b|-EncodedCommand|\bFromBase64String\b|base64\s+(-d|--decode)|\biex\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex RemoteCodePattern();
 
-    [GeneratedRegex(@"\breg\s+(add|delete|import)\b|\bHKLM\b|\bHKCU\b|Set-ItemProperty|\bsc(\.exe)?\s+(config|create|delete)\b|\bschtasks\b|New-Service|\bnetsh\b|\bsystemctl\b|\bcrontab\b", RegexOptions.IgnoreCase, 200)]
+    [GeneratedRegex(@"\breg\s+(add|delete|import)\b|\bHKLM\b|\bHKCU\b|Set-ItemProperty|\bsc(\.exe)?\s+(config|create|delete)\b|\bschtasks\b|New-Service|\bnetsh\b|\bsystemctl\b|\bcrontab\b|\blaunchctl\b|\bdefaults\s+(write|delete|import)\b|\bcsrutil\b|\bspctl\b|\btccutil\b|\bdscl\b|\bpmset\b|\bnetworksetup\b|\bscutil\b|\bsystemsetup\b|\bchflags\b|\bnvram\b|xattr\s+[^\n]*com\.apple\.quarantine", RegexOptions.IgnoreCase, 200)]
     private static partial Regex SystemPattern();
 
-    [GeneratedRegex(@"\bsudo\b|\brunas\b|-Verb\s+RunAs|\bsu\s+-", RegexOptions.IgnoreCase, 200)]
+    [GeneratedRegex(@"\bsudo\b|\brunas\b|-Verb\s+RunAs|\bsu\s+-|with\s+administrator\s+privileges", RegexOptions.IgnoreCase, 200)]
     private static partial Regex ElevatePattern();
 
-    [GeneratedRegex(@"\bdiskpart\b|\bmkfs\b|\bformat\s+[a-z]:|Format-Volume|\bdd\s+[^\n]*of=", RegexOptions.IgnoreCase, 200)]
+    [GeneratedRegex(@"\bdiskpart\b|\bmkfs\b|\bformat\s+[a-z]:|Format-Volume|\bdd\s+[^\n]*of=|\bdiskutil\s+(erase\w*|partitionDisk|zeroDisk|randomDisk|secureErase|apfs\s+delete\w*)\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex DiskPattern();
 
     [GeneratedRegex(@"git\s+push\s+[^\n]*(--force|-f\b|--force-with-lease)|git\s+reset\s+--hard|git\s+clean\s+[^\n]*-[a-z]*f|git\s+checkout\s+--\s", RegexOptions.IgnoreCase, 200)]
     private static partial Regex GitDestructivePattern();
 
-    [GeneratedRegex(@"\.ssh\b|id_rsa|id_ed25519|\.aws\b|\.kube\b|\.npmrc|\.git-credentials|\.env\b|Get-Credential|ConvertTo-SecureString|\bpassword\b|\btoken\b|\bsecret\b|credential", RegexOptions.IgnoreCase, 200)]
+    [GeneratedRegex(@"\.ssh\b|id_rsa|id_ed25519|\.aws\b|\.kube\b|\.npmrc|\.git-credentials|\.env\b|Get-Credential|ConvertTo-SecureString|\bpassword\b|\btoken\b|\bsecret\b|credential|\bsecurity\s+(find-generic-password|find-internet-password|dump-keychain|export|unlock-keychain)\b|Keychains", RegexOptions.IgnoreCase, 200)]
     private static partial Regex SecretPattern();
 
     [GeneratedRegex(@"\b(kill|pkill|killall|taskkill|Stop-Process)\b", RegexOptions.IgnoreCase, 200)]
@@ -53,7 +53,7 @@ public static partial class RiskHints
     [GeneratedRegex(@"\b(ssh|scp|sftp|nc|ncat|telnet|ftp|Enter-PSSession|Invoke-Command)\b", RegexOptions.IgnoreCase, 200)]
     private static partial Regex RemotePattern();
 
-    [GeneratedRegex(@"[a-z]:\\Windows\b|System32|(^|[\s'""=])/(etc|usr|bin|sbin|boot|var|opt|root)(/|\b)|Program Files", RegexOptions.IgnoreCase | RegexOptions.Multiline, 200)]
+    [GeneratedRegex(@"[a-z]:\\Windows\b|System32|(^|[\s'""=])/(etc|usr|bin|sbin|boot|var|opt|root|System|Library|private)(/|\b)|Program Files|Library/(LaunchAgents|LaunchDaemons|Keychains)", RegexOptions.IgnoreCase | RegexOptions.Multiline, 200)]
     private static partial Regex SystemFolderPattern();
 
     public static IReadOnlyList<string> Scan(string script)

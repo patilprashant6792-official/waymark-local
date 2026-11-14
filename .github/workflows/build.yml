@@ -10,7 +10,12 @@ permissions:
 
 jobs:
   build:
-    runs-on: windows-latest
+    # Waymark runs on Windows and macOS; macos-latest is Apple silicon. Tests that only make sense on one system return early on the other.
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
@@ -24,3 +29,9 @@ jobs:
 
       - name: Test
         run: dotnet test --solution Waymark.slnx -c Release --no-build
+
+      - name: Check the macOS scripts
+        if: runner.os == 'macOS'
+        run: |
+          for f in scripts/waymark.sh install.sh update.sh uninstall.sh; do bash -n "$f"; done
+          if grep -l $'\r' scripts/waymark.sh install.sh update.sh uninstall.sh; then echo 'CRLF line endings in a macOS script'; exit 1; fi

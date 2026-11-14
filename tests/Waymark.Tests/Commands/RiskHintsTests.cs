@@ -60,6 +60,16 @@ public sealed class RiskHintsTests
     [InlineData("dir C:\\Windows\\System32", "touches system folders")]
     [InlineData("cat /etc/passwd", "touches system folders")]
     [InlineData("ls 'Program Files'", "touches system folders")]
+    [InlineData("launchctl bootout gui/501/com.example", "changes the registry or system services")]
+    [InlineData("defaults write com.apple.dock autohide -bool true", "changes the registry or system services")]
+    [InlineData("xattr -d com.apple.quarantine ./tool", "changes the registry or system services")]
+    [InlineData("sudo pmset -a sleep 0", "changes the registry or system services")]
+    [InlineData("osascript -e 'do shell script \"x\" with administrator privileges'", "runs with administrator rights")]
+    [InlineData("diskutil eraseDisk APFS X disk4", "formats or partitions a disk")]
+    [InlineData("security find-generic-password -s x -w", "touches keys, tokens or credentials")]
+    [InlineData("security dump-keychain -d", "touches keys, tokens or credentials")]
+    [InlineData("cp x.plist ~/Library/LaunchAgents/", "touches system folders")]
+    [InlineData("ls /System/Library", "touches system folders")]
     public void ADangerousLookingScriptIsLabelled(string script, string expectedLabel) =>
         Assert.Contains(expectedLabel, RiskHints.Scan(script));
 

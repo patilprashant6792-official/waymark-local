@@ -1,6 +1,7 @@
 using Waymark.Core.Memory;
 using Waymark.Core.Security;
 using Waymark.Core.Transfer;
+using Waymark.Core.Workspaces;
 
 namespace Waymark.Tests.Transfer;
 
@@ -130,9 +131,11 @@ public sealed class WorkspaceBundleSanitizerTests
     [Fact]
     public void APathHintThatIsTooLongOrHasControlCharactersIsDropped()
     {
-        Assert.Null(Sanitized(Run(Ws("app", path: new string('a', 261)))).PathHint);
+        // The limit is 260 on Windows and 1024 elsewhere, so the test follows the rule rather than one platform's number.
+        var limit = WorkspacePathRules.MaxPathLength;
+        Assert.Null(Sanitized(Run(Ws("app", path: new string('a', limit + 1)))).PathHint);
         Assert.Null(Sanitized(Run(Ws("app", path: "C:\\x\ty"))).PathHint);
-        Assert.NotNull(Sanitized(Run(Ws("app", path: new string('a', 260)))).PathHint);
+        Assert.NotNull(Sanitized(Run(Ws("app", path: new string('a', limit)))).PathHint);
     }
 
     [Fact]

@@ -15,7 +15,7 @@ internal sealed record PendingFile(Workspace Workspace, GuardedPath Path, byte[]
 /// <summary>The files read during one tool call, so a batch sees every source in one consistent state and reads each file once.</summary>
 internal sealed class CopySession
 {
-    private static readonly StringComparer PathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+    private static readonly StringComparer PathComparer = Waymark.Core.Platform.PathComparisons.Comparer;
 
     public Dictionary<string, SourceSnapshot> Snapshots { get; } = new(PathComparer);
 

@@ -47,10 +47,10 @@
         else if (_workspace is { } workspace)
         {
             <nav class="wm-subnav" aria-label="Workspace sections">
-                @foreach (var section in WorkspaceSections.All)
+                @foreach (var tab in WorkspaceSections.All)
                 {
-                    <NavLink class="wm-subnav-item" ActiveClass="active" href="@section.Href(workspace.Id)" Match="NavLinkMatch.All">
-                        <MudIcon Icon="@section.Icon" Size="Size.Small" /><span>@section.Title</span>
+                    <NavLink class="wm-subnav-item" ActiveClass="active" href="@tab.Href(workspace.Id)" Match="NavLinkMatch.All">
+                        <MudIcon Icon="@tab.Icon" Size="Size.Small" /><span>@tab.Title</span>
                     </NavLink>
                 }
             </nav>

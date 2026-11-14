@@ -1,6 +1,6 @@
 ﻿namespace Waymark.Host.Edge;
 
-/// <summary>Finds an executable without starting a shell: the configured path first, then PATH, then the folders the Windows installers use.</summary>
+/// <summary>Finds an executable without starting a shell: the configured path first, then PATH, then the folders the Windows installers or Homebrew use.</summary>
 public sealed class NgrokLocator(NgrokOptions options)
 {
     public string? Find()
@@ -23,11 +23,20 @@ public sealed class NgrokLocator(NgrokOptions options)
             .Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries));
 
         // A program installed a moment ago is on the machine's PATH but not on the PATH this process started with.
-        var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-        if (!string.IsNullOrWhiteSpace(localAppData))
+        if (OperatingSystem.IsWindows())
         {
-            folders.Add(Path.Combine(localAppData, "Microsoft", "WindowsApps"));
-            folders.Add(Path.Combine(localAppData, "Microsoft", "WinGet", "Links"));
+            var localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
+            if (!string.IsNullOrWhiteSpace(localAppData))
+            {
+                folders.Add(Path.Combine(localAppData, "Microsoft", "WindowsApps"));
+                folders.Add(Path.Combine(localAppData, "Microsoft", "WinGet", "Links"));
+            }
+        }
+        else if (OperatingSystem.IsMacOS())
+        {
+            // Homebrew on Apple silicon, then on Intel; launchd does not put either on PATH.
+            folders.Add("/opt/homebrew/bin");
+            folders.Add("/usr/local/bin");
         }
 
         foreach (var folder in folders)

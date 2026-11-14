@@ -31,7 +31,7 @@ public sealed record WaymarkDataOptions
     /// <summary>How long a connection waits for a lock before SQLite reports the database as busy.</summary>
     public TimeSpan BusyTimeout { get; }
 
-    /// <summary>%LOCALAPPDATA%\Waymark on Windows.</summary>
+    /// <summary>%LOCALAPPDATA%\Waymark on Windows, ~/Library/Application Support/Waymark on macOS (.NET 8 and later map LocalApplicationData there).</summary>
     public static string DefaultDataDirectory
     {
         get

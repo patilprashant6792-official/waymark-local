@@ -10,7 +10,7 @@ Use GitHub's private reporting instead: open the **Security** tab of this reposi
 
 - what you found and why it matters,
 - the steps to reproduce it (a short script or a list of clicks),
-- the version or commit you tested, and your Windows version.
+- the version or commit you tested, and your Windows or macOS version.
 
 This is a one-person open-source project, so replies are best effort and there is no service-level promise. You will get an answer as soon as it can be read. Please give a reasonable time to fix the problem before you share it publicly.
 
@@ -33,9 +33,9 @@ Examples that are in scope:
 
 - An assistant doing what you approved, or what you set to Auto. Auto means no question is asked.
 - Prompt injection in general: text in a file or web page can steer an assistant. Waymark limits the damage but cannot remove this risk. A way around a limit that Waymark claims to enforce is in scope.
-- Problems that need an attacker who already controls your Windows account.
+- Problems that need an attacker who already controls your Windows or macOS account.
 - Secrets whose shape Waymark cannot recognise; the scanner finds known formats, not every secret.
-- Missing hardening on `localhost` pages that only the signed-in Windows user can reach.
+- Missing hardening on `localhost` pages that only the signed-in user can reach.
 
 ## For people who run Waymark
 

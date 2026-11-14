@@ -60,6 +60,7 @@ public static class DataServiceCollectionExtensions
         services.AddSingleton<INuGetIndexStore, NuGetIndexStore>();
         services.AddSingleton<INuGetMetadataStore, NuGetMetadataStore>();
         services.AddSingleton<IVaultStore, VaultStore>();
+        services.AddSingleton<IDataProtectionKeyStore, DataProtectionKeyStore>();
         services.AddSingleton<INuGetCacheStore, NuGetCacheStore>();
         services.AddSingleton<IAccessRuleStore, AccessRuleStore>();
         services.AddSingleton<ICommandRunStore, CommandRunStore>();

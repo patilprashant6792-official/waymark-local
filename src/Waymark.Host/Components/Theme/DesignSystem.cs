@@ -7,10 +7,10 @@ namespace Waymark.Host.Components.Theme;
 /// </summary>
 public static class DesignSystem
 {
-    /// <summary>The sans stack. Inter is used when installed; Segoe UI Variable is the native Windows fallback.</summary>
+    /// <summary>The sans stack. Inter is used when installed; Segoe UI Variable is the native Windows fallback, system-ui and -apple-system the macOS one.</summary>
     public static readonly string[] SansFamily = ["Inter", "Segoe UI Variable Text", "Segoe UI", "system-ui", "-apple-system", "sans-serif"];
 
-    public const string MonoFamily = "\"Cascadia Mono\", ui-monospace, Consolas, monospace";
+    public const string MonoFamily = "\"Cascadia Mono\", ui-monospace, \"SF Mono\", Menlo, Consolas, monospace";
 
     /// <summary>The dark palette is the product default.</summary>
     public static class Dark

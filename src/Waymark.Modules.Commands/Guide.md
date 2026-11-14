@@ -116,10 +116,10 @@ Use it for a port that stays busy (`ports`, then `stop_port`), for files locked 
 
 Every script waits for the owner, who may edit it before approving; the edited text is what runs. So:
 
-- Write for the shell that will run it (PowerShell on Windows unless you name another with `shell`).
+- Write for the shell that will run it: PowerShell on Windows and zsh on macOS, unless you name another with `shell`. The live setup of the overview names the computer's system.
 - Keep it short and do one thing: it is approved faster.
 - Nothing can be typed to it while it runs.
-- For a question about the computer itself, leave `workspace` out and keep the script read-only (a `Get-CimInstance` query on Windows, say). This is the owner's real machine; answer from the output rather than saying you cannot reach it.
+- For a question about the computer itself, leave `workspace` out and keep the script read-only (a `Get-CimInstance` query on Windows; `sw_vers`, `system_profiler` or `sysctl` on macOS, say). This is the owner's real machine; answer from the output rather than saying you cannot reach it.
 - `timeoutSeconds` is 5 to 3600 (default 300). With `workspace` it starts in that folder; without, it is a system script that starts in the home folder.
 - Plan for slow approval: `waitSeconds` returns a run id, then use `cmd_wait`.
 
@@ -129,11 +129,11 @@ A server, a watcher, a big test run or an installer can take minutes. Start it w
 
 ### Project scripts
 
-Projects often ship their own script for a multi-step job (install.cmd, build.ps1, deploy.sh). Look for one (`code_skeleton`, the README, the docs) before redoing the steps by hand. Read it first (`code_read`) so you can tell the user what it does, run it with `cmd_shell` in the workspace, then hand off as above.
+Projects often ship their own script for a multi-step job (install.cmd, install.sh, build.ps1, deploy.sh). Look for one (`code_skeleton`, the README, the docs) before redoing the steps by hand. Read it first (`code_read`) so you can tell the user what it does, run it with `cmd_shell` in the workspace, then hand off as above.
 
 ### Restarting Waymark itself
 
-A run ends when Waymark stops. A script that restarts or reinstalls Waymark (an update, an installer) must start outside it, for example as a one-shot Windows scheduled task, or the restart kills it halfway. Tell the user the connection will drop and wait for them.
+A run ends when Waymark stops. A script that restarts or reinstalls Waymark (an update, an installer) must start outside it, or the restart kills it halfway: on Windows as a one-shot scheduled task; on macOS detached in a subshell, `(nohup ./update.sh > /tmp/waymark-update.log 2>&1 &)`, which launchd lets outlive Waymark. Tell the user the connection will drop and wait for them.
 
 ## Output
 

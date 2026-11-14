@@ -15,6 +15,11 @@ public static class ChildEnvironment
         "CommonProgramW6432", "USERNAME", "USERDOMAIN", "COMPUTERNAME", "OS", "PROCESSOR_ARCHITECTURE", "PROCESSOR_IDENTIFIER", "PROCESSOR_LEVEL",
         "PROCESSOR_REVISION", "NUMBER_OF_PROCESSORS", "LANG", "LC_ALL", "USER", "LOGNAME", "SHELL", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "ALL_PROXY",
         "SSL_CERT_FILE", "SSL_CERT_DIR", "SSH_AUTH_SOCK", "JAVA_HOME", "ANDROID_HOME",
+
+        // macOS: without LC_CTYPE or __CF_USER_TEXT_ENCODING, Python, git and the system tools can fall back to ASCII; the rest are where
+        // Homebrew, nvm, pyenv and Xcode keep their tools.
+        "LC_CTYPE", "__CF_USER_TEXT_ENCODING", "TERM", "HOMEBREW_PREFIX", "HOMEBREW_CELLAR", "HOMEBREW_REPOSITORY", "NVM_DIR", "NVM_BIN",
+        "PYENV_ROOT", "DEVELOPER_DIR", "SDKROOT",
     };
 
     private static readonly string[] AllowedPrefixes = ["NUGET_", "DOTNET_", "UV_", "PIP_"];
