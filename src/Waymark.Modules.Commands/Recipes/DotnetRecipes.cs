@@ -78,7 +78,17 @@ public static class DotnetRecipes
     private static CommandPlan Test(RecipeContext c)
     {
         var args = new List<string> { "test" };
-        AddTarget(c, args);
+        var target = c.BuildTarget("target");
+        if (target is not null)
+        {
+            // Microsoft.Testing.Platform (chosen in global.json) refuses a bare path: the target must follow --solution or --project.
+            if (DotnetTestRunner.UsesTestingPlatform(c.Root))
+            {
+                args.Add(IsSolution(target) ? "--solution" : "--project");
+            }
+
+            args.Add(target);
+        }
         AddConfiguration(c, args);
         AddFramework(c, args);
         var filter = c.Options.Token("filter", RecipeRules.TestFilter(), "letters, digits and the characters . , ( ) = ! ~ | & < > - and space, at most 200");
@@ -346,6 +356,10 @@ public static class DotnetRecipes
             args.Add(target);
         }
     }
+
+    private static bool IsSolution(string path) =>
+        Path.GetExtension(path) is var extension
+        && (extension.Equals(".sln", StringComparison.OrdinalIgnoreCase) || extension.Equals(".slnx", StringComparison.OrdinalIgnoreCase));
 
     private static void AddConfiguration(RecipeContext c, List<string> args)
     {
