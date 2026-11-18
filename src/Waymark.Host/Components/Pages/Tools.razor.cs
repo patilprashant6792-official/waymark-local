@@ -307,5 +307,5 @@ public partial class Tools : LiveComponentBase
     }
 
     private string ToolTip(ToolRow row) =>
-        row.Tool.Gate == ToolGate.Confirm ? "Changes files. Off until you switch it on." : "Only reads.";
+        row.Tool.Gate == ToolGate.Confirm ? "Changes files or runs commands. On by default; switch it off to keep Claude to reading." : "Only reads.";
 }

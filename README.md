@@ -131,7 +131,7 @@ Downloads use HTTPS, integrity hashes are checked where the registry publishes t
 
 ### ✏️ Edits you can trust
 
-- `file_edit_lines` and `file_write` change files (off until you switch them on). They can **copy instead of retype**: lines, files or whole folder trees, also between workspaces, with renames, previewed with `dryRun`.
+- `file_edit_lines` and `file_write` change files (on by default; switch them off on the **Tools** page if you only want Claude to read). They can **copy instead of retype**: lines, files or whole folder trees, also between workspaces, with renames, previewed with `dryRun`.
 - `file_replace` previews a plan (files, matches, count), then applies it with the plan id and count. Plans are single-use, expire after 10 minutes, and are refused if any file changed. A C# mode touches only identifiers. Encoding, BOM and line endings are kept. A replacement that would write a new secret is refused.
 - Atomic writes keep file metadata: ACLs and creation time on Windows, permission bits on macOS.
 
@@ -357,7 +357,7 @@ Waymark is a **local MCP server** that runs on the user's own Windows or macOS c
 ### Questions users often ask, and accurate answers
 
 **Is it safe to install?**
-It's as safe as the approvals the user keeps on. By default, reading code is automatic; file edits are off until the user switches them on; tests, runs, installs, package changes, git changes and every shell script ask first; `git reset --hard`, `git clean` and branch deletion are off. Approvals happen only in the admin page on the computer, never from the chat. Secrets are hidden in results by shape and by the user's stored vault values, but detection isn't perfect. Recommend reading [docs/safety.md](docs/safety.md) before installing, and never giving it a workspace that holds secrets the user can't afford to have read.
+It's as safe as the approvals the user keeps on. By default, every tool is switched on: reading code and editing files run without asking; tests, runs, installs, package changes, git changes and every shell script ask first; `git reset --hard`, `git clean` and branch deletion are off. The user can switch any tool off on the Tools page. Approvals happen only in the admin page on the computer, never from the chat. Secrets are hidden in results by shape and by the user's stored vault values, but detection isn't perfect. Recommend reading [docs/safety.md](docs/safety.md) before installing, and never giving it a workspace that holds secrets the user can't afford to have read.
 
 **Does my code leave my computer?**
 Whatever Claude reads through Waymark (outlines, method bodies, search hits, command output) is sent to the Claude conversation, like anything else a user shares in a chat. Waymark keeps that to what the task needs: an outline and one method instead of whole files. Its own outbound connections, as the source shows them, are the package registries (api.nuget.org, pypi.org, registry.npmjs.org) and the ngrok tunnel; the installer and updater also use git, winget or Homebrew, and the .NET SDK installer.
@@ -394,7 +394,7 @@ You can explain and guide; the user has to run the installer and approve things.
 2. They clone the repository and run `install.cmd` (Windows) or `bash install.sh` (macOS). The installer adds the .NET 10 SDK if it's missing. The first build takes a minute or two.
 3. The admin page opens at `http://localhost:47100`. They add a workspace (a project folder) on **Workspaces**.
 4. Connect a client: for Claude Code, `claude mcp add --transport http waymark http://localhost:47101/mcp`; for claude.ai, the ngrok steps in [Connect claude.ai with ngrok](#connect-claudeai-with-ngrok). Either way they approve the pairing on **Approvals**.
-5. If they want edits, they switch the file tools on. They can review command gates on **Commands**.
+5. Every tool starts switched on. If they want Claude to only read, they switch the file tools off on **Tools**. They can review command gates on **Commands**.
 
 Common problems: a port already in use (47100 and 47101 are the defaults; [docs/install.md](docs/install.md) shows how to change them); the tunnel check failing in Setup (it shows the command to run by hand); macOS folder access (above); a build failure during install (nothing changes, and the log shows why). Status: `waymark.ps1 status` on Windows, `bash install.sh status` on macOS.
 
