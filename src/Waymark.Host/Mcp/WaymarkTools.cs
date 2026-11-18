@@ -13,10 +13,16 @@ public sealed class WaymarkTools
     private const string Iso = "yyyy-MM-dd'T'HH:mm:ss'Z'";
     private const string IsoOffset = "yyyy-MM-dd'T'HH:mm:sszzz";
 
-    // The overview itself is added to this result by the call pipeline (it always counts as asked for), after the secret check and the size limit.
+    // The guide itself is added to this result by the call pipeline (it always counts as asked for), after the secret check and the size limit.
+    // With a workspace the pipeline sends that workspace's guide instead, and refuses an unknown or switched-off workspace before this runs.
     [McpServerTool(Name = GuideRules.OverviewTool, ReadOnly = true, Idempotent = true)]
-    [Description("Returns the Waymark overview: what each tool group does, how approvals and long-running commands work, the owner's own instructions and what is switched on now. Call it once before your first Waymark call in a conversation, and again only when a result says it changed.")]
-    public static string Overview() => "The Waymark overview is in the block above this line.";
+    [Description("Returns the Waymark overview: what each tool group does, how approvals and long-running commands work, the owner's own instructions, the workspaces and what is switched on now. Call it once before your first Waymark call in a conversation, and again only when a result says it changed. With workspace set to a workspace's name it returns that workspace's guide instead: the owner's instructions for it, its saved flows and its own command gates. Call that once before you work in a workspace.")]
+    public static string Overview(
+        [Description("Optional: the name of a workspace, to receive that workspace's guide instead of the overview.")]
+        string? workspace = null) =>
+        string.IsNullOrWhiteSpace(workspace) || workspace.Trim() == "*"
+            ? "The Waymark overview is in the block above this line."
+            : "The guide of that workspace is in the block above this line.";
 
     [McpServerTool(Name = "waymark_ping", ReadOnly = true, Idempotent = true)]
     [Description("Checks that Waymark is reachable and signed in. Returns the server time in UTC.")]

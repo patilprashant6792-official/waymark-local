@@ -9,7 +9,8 @@ public enum BundleContent
     None = 0,
     AccessRules = 1,
     FeatureMaps = 2,
-    All = AccessRules | FeatureMaps,
+    Instructions = 4,
+    All = AccessRules | FeatureMaps | Instructions,
 }
 
 /// <summary>One access rule as it travels. The workspace is the one that holds it, so no id of this computer is written.</summary>
@@ -27,9 +28,21 @@ public sealed record BundleComponent(string Spec, string Note, int Depth = 0, st
 public sealed record BundleMap(string Name, string Summary, DateTimeOffset? UpdatedUtc, IReadOnlyList<BundleComponent> Components, bool Ordered = false);
 
 /// <summary>
+/// The owner's summary and instructions for a workspace as they travel. Optional in the file: a bundle from before workspace instructions existed has none,
+/// and an older Waymark that reads a newer file ignores them.
+/// </summary>
+public sealed record BundleInstructions(string Summary, string Text);
+
+/// <summary>
 /// A workspace as it travels. <paramref name="PathHint"/> is the folder it had on the computer that exported it: only a suggestion, because the folder is chosen again on the computer that imports.
 /// </summary>
-public sealed record BundleWorkspace(string Name, string? PathHint, bool Enabled, IReadOnlyList<BundleRule> AccessRules, IReadOnlyList<BundleMap> FeatureMaps);
+public sealed record BundleWorkspace(
+    string Name,
+    string? PathHint,
+    bool Enabled,
+    IReadOnlyList<BundleRule> AccessRules,
+    IReadOnlyList<BundleMap> FeatureMaps,
+    BundleInstructions? Instructions = null);
 
 /// <summary>The file the owner moves to another computer: the workspaces with their access rules and feature maps. Nothing that identifies an installation, nothing secret.</summary>
 public sealed record WorkspaceBundle(string Format, int FormatVersion, DateTimeOffset ExportedUtc, IReadOnlyList<BundleWorkspace> Workspaces);

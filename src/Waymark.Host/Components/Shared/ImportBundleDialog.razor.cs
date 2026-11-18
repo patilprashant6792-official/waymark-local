@@ -71,7 +71,8 @@ public partial class ImportBundleDialog : LiveComponentBase
     {
         BundleContent.AccessRules => "access rules",
         BundleContent.FeatureMaps => "flows",
-        _ => "access rules and flows",
+        BundleContent.Instructions => "summary and instructions",
+        _ => "access rules, flows and instructions",
     };
 
     private bool CanImport =>
@@ -257,6 +258,11 @@ public partial class ImportBundleDialog : LiveComponentBase
             parts.Add(Count(source.FeatureMaps.Count, "flow"));
         }
 
+        if (Content.HasFlag(BundleContent.Instructions))
+        {
+            parts.Add(source.Instructions is null ? "no instructions" : "a summary and instructions");
+        }
+
         return "In the file: " + string.Join(", ", parts);
     }
 
@@ -284,6 +290,13 @@ public partial class ImportBundleDialog : LiveComponentBase
             yield return line + ".";
         }
 
+        if (Content.HasFlag(BundleContent.Instructions) && (plan.InstructionsToSet is not null || plan.InstructionsKept))
+        {
+            yield return plan.InstructionsToSet is not null
+                ? "Summary and instructions: set from the file (this workspace has none of its own)."
+                : "Summary and instructions: not set (this workspace has its own, and they stay as they are; clear them first to take the ones in the file).";
+        }
+
         if (!preview.CreatesWorkspace && !plan.HasChanges)
         {
             yield return "Nothing to add: everything in the file is here already.";
@@ -301,7 +314,7 @@ public partial class ImportBundleDialog : LiveComponentBase
         var applied = item.Applied;
         var text = string.Create(
             CultureInfo.InvariantCulture,
-            $"{(item.CreatedWorkspace ? "Workspace created. " : string.Empty)}Added {applied?.RulesAdded ?? 0} access rules and {applied?.MapsAdded ?? 0} new flows ({applied?.StepsAdded ?? 0} steps).");
+            $"{(item.CreatedWorkspace ? "Workspace created. " : string.Empty)}Added {applied?.RulesAdded ?? 0} access rules and {applied?.MapsAdded ?? 0} new flows ({applied?.StepsAdded ?? 0} steps){(applied?.InstructionsSet == true ? ", and set the summary and instructions" : string.Empty)}.");
         return text;
     }
 

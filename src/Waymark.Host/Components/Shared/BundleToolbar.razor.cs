@@ -52,7 +52,7 @@ public partial class BundleToolbar : LiveComponentBase
         {
             var file = await Bundles.ExportAsync(WorkspaceId, Content, Cancel);
             await Js.InvokeVoidAsync("waymark.download", Cancel, file.FileName, file.Text, "application/json");
-            Snackbar.Add($"Saved {file.FileName}. It lists your access rules and flows, so keep it somewhere you trust.", Severity.Success);
+            Snackbar.Add($"Saved {file.FileName}. It lists your access rules, flows and instructions, so keep it somewhere you trust.", Severity.Success);
         }
         catch (OperationCanceledException)
         {

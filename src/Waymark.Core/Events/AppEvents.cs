@@ -32,6 +32,8 @@ public sealed record AccessRulesChanged(long WorkspaceId);
 /// <summary>A feature map of a workspace was saved, changed or deleted, by Claude through memorise or by the owner in the admin UI.</summary>
 public sealed record FeatureMapsChanged(long WorkspaceId);
 
+/// <summary>The owner's summary or instructions of a workspace were saved or cleared, on its Instructions page or by an import.</summary>
+public sealed record WorkspaceGuideChanged(long WorkspaceId);
 public enum FlowChange
 {
     /// <summary>A flow was created or its steps were replaced.</summary>

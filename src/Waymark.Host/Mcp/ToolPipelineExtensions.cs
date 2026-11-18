@@ -19,6 +19,9 @@ public static class ToolPipelineExtensions
         mcp.Services.AddSingleton<GuideDeliveries>();
         // The overview describes what is switched on, so it needs the host's view of the tool, workspace and command settings.
         mcp.Services.AddSingleton<ISetupSummary, SetupSummary>();
+        // Each workspace's guide: the owner's instructions for it, its flows and its own gates.
+        mcp.Services.AddSingleton<IWorkspaceSetup, WorkspaceSetup>();
+        mcp.Services.AddSingleton<WorkspaceGuideRenderer>();
         mcp.Services.AddSingleton<ToolGuideDelivery>();
         return mcp.WithRequestFilters(filters => filters
             .AddListToolsFilter(next => (context, ct) => context.Services!.GetRequiredService<ToolPipeline>().ListAsync(context, next, ct))

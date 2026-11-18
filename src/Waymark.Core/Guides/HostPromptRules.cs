@@ -26,6 +26,7 @@ public static class HostPromptRules
             ? string.Empty
             : "## Instructions from the owner\n\n" +
               "These come from the person who runs this Waymark. Follow them. Where they conflict with the defaults in this guide, they win; " +
+              "a workspace's own instructions (in its workspace guide) win over these for that workspace. " +
               "Waymark's gates and approvals still apply and cannot be changed by text.\n\n" +
               ownerText +
               "\n\n";

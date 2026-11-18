@@ -83,15 +83,22 @@ public sealed class ToolPipeline(
         CallToolResult result;
 
         // Every tool of a module with a guide accepts guide: true. The flag is removed here, so the tool never sees it.
-        // The overview tool needs no flag: calling it is the request.
+        // The overview tool needs no flag: calling it is the request. With a workspace it asks for that workspace's guide instead.
         var guideModule = GuideModuleOf(tool);
+        var isOverviewTool = string.Equals(tool, GuideRules.OverviewTool, StringComparison.Ordinal);
         var guideRequested = guideModule is not null
-            && (ToolGuideDelivery.TakeFlag(context.Params?.Arguments) || string.Equals(tool, GuideRules.OverviewTool, StringComparison.Ordinal));
+            && (ToolGuideDelivery.TakeFlag(context.Params?.Arguments) || isOverviewTool);
+        var workspaceName = WorkspaceNameOf(context.Params?.Arguments);
         var refused = false;
 
         try
         {
             var refusal = await RefusalReasonAsync(tool, context.Params?.Arguments, ct);
+            if (refusal is null && isOverviewTool && workspaceName is not null)
+            {
+                refusal = await guideDelivery.WorkspaceRefusalAsync(workspaceName, ct);
+            }
+
             if (refusal is not null)
             {
                 refused = true;
@@ -171,7 +178,7 @@ public sealed class ToolPipeline(
         // A refused call gets neither guide nor notice.
         if (!refused && guideModule is not null)
         {
-            var added = await guideDelivery.AttachAsync(result, guideModule, guideRequested, client, ct);
+            var added = await guideDelivery.AttachAsync(result, guideModule, guideRequested, client, workspaceName, ct);
             bytes += added.Bytes;
             tokens += added.Tokens;
         }
@@ -211,6 +218,18 @@ public sealed class ToolPipeline(
     private static bool CarriesRedactionMarker(IDictionary<string, JsonElement>? arguments) =>
         arguments is not null
         && arguments.Values.Any(value => SensitiveDataScanner.ContainsMarker(value.GetRawText()));
+
+    // The workspace a call names, trimmed; null when it names none, and for '*', which names every workspace and so no single guide.
+    private static string? WorkspaceNameOf(IDictionary<string, JsonElement>? arguments)
+    {
+        if (arguments is null || !arguments.TryGetValue(WorkspaceArgument, out var value) || value.ValueKind != JsonValueKind.String)
+        {
+            return null;
+        }
+
+        var name = value.GetString()?.Trim();
+        return string.IsNullOrEmpty(name) || name == "*" ? null : name;
+    }
 
     // A value that cannot be read counts as paused: the switch fails closed.
     private async Task<bool> IsPausedAsync(CancellationToken ct)

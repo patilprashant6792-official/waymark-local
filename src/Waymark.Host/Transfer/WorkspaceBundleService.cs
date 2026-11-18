@@ -2,6 +2,7 @@ using System.Globalization;
 using Waymark.Core.Audit;
 using Waymark.Core.Auth;
 using Waymark.Core.Events;
+using Waymark.Core.Guides;
 using Waymark.Core.Memory;
 using Waymark.Core.Security;
 using Waymark.Core.Transfer;
@@ -50,6 +51,7 @@ public sealed class WorkspaceBundleService(
     IIndexScheduler scheduler,
     IAuditStore audit,
     IEventBus events,
+    IWorkspaceGuides guides,
     TimeProvider time,
     ILogger<WorkspaceBundleService> logger)
 {
@@ -94,7 +96,17 @@ public sealed class WorkspaceBundleService(
                         map.Ordered)));
             }
 
-            items.Add(new BundleWorkspace(workspace.Name, workspace.Path, workspace.Enabled, exportedRules, exportedMaps));
+            BundleInstructions? exportedInstructions = null;
+            if (content.HasFlag(BundleContent.Instructions))
+            {
+                var stored = await guides.GetAsync(workspace.Id, ct).ConfigureAwait(false);
+                if (!stored.IsEmpty)
+                {
+                    exportedInstructions = new BundleInstructions(stored.Summary, stored.Instructions);
+                }
+            }
+
+            items.Add(new BundleWorkspace(workspace.Name, workspace.Path, workspace.Enabled, exportedRules, exportedMaps, exportedInstructions));
         }
 
         var now = time.GetUtcNow();
@@ -109,6 +121,7 @@ public sealed class WorkspaceBundleService(
         {
             BundleContent.AccessRules => "-access-rules",
             BundleContent.FeatureMaps => "-feature-maps",
+            BundleContent.Instructions => "-instructions",
             _ => string.Empty,
         };
         var fileName = string.Create(CultureInfo.InvariantCulture, $"waymark-{label}{kind}-{now:yyyyMMdd-HHmmss}.json");
@@ -254,8 +267,14 @@ public sealed class WorkspaceBundleService(
             return results;
         }
 
-        foreach (var (item, written) in pending.Zip(applied))
+        foreach (var ((item, stored), apply) in pending.Zip(applied).Zip(applies))
         {
+            var written = stored;
+            if (apply.Plan.InstructionsToSet is { } instructions)
+            {
+                written = stored with { InstructionsSet = await SetInstructionsAsync(item.Target, instructions, ct).ConfigureAwait(false) };
+            }
+
             results.Add(new WorkspaceImported(item.Choice.BundleName, item.Target.Name, item.Created, written, null));
             ruleCache.Invalidate(item.Target.Id);
             await AuditAsync("config.bundle_imported", item.Target.Name, DescribeApplied(written, item.Created), ct).ConfigureAwait(false);
@@ -285,7 +304,30 @@ public sealed class WorkspaceBundleService(
 
         var storedRules = content.HasFlag(BundleContent.AccessRules) ? await rules.ListAsync(existing.Id, ct).ConfigureAwait(false) : [];
         var storedMaps = content.HasFlag(BundleContent.FeatureMaps) ? await LoadMapsAsync(existing.Id, ct).ConfigureAwait(false) : [];
-        return BundleMergePlanner.Plan(source, content, storedRules, storedMaps);
+        var storedText = content.HasFlag(BundleContent.Instructions) ? await guides.GetAsync(existing.Id, ct).ConfigureAwait(false) : null;
+        return BundleMergePlanner.Plan(source, content, storedRules, storedMaps, storedText);
+    }
+
+    // Written after the rules and maps, through the same checks as the Instructions page. The plan said the workspace had no text of its own;
+    // text the owner saved since the preview is kept, as import never replaces what is here.
+    private async Task<bool> SetInstructionsAsync(Workspace target, BundleInstructions instructions, CancellationToken ct)
+    {
+        try
+        {
+            var current = await guides.GetAsync(target.Id, ct).ConfigureAwait(false);
+            if (!current.IsEmpty)
+            {
+                return false;
+            }
+
+            await guides.SaveAsync(target.Id, instructions.Summary, instructions.Text, AuthDefaults.AdminActor, ct).ConfigureAwait(false);
+            return true;
+        }
+        catch (Exception ex) when (ex is ArgumentException or KeyNotFoundException)
+        {
+            logger.LogWarning(ex, "The instructions of a bundle could not be set on workspace {Workspace}", target.Name);
+            return false;
+        }
     }
 
     private sealed record Step(ImportChoice Choice, BundleWorkspace? Source, Workspace? Existing, bool Creates, string? Problem);
@@ -379,10 +421,10 @@ public sealed class WorkspaceBundleService(
     private static string Describe(BundleContent content, IReadOnlyList<BundleWorkspace> items) =>
         string.Create(
             CultureInfo.InvariantCulture,
-            $"{content}: {items.Count} workspaces, {items.Sum(item => item.AccessRules.Count)} rules, {items.Sum(item => item.FeatureMaps.Count)} maps");
+            $"{content}: {items.Count} workspaces, {items.Sum(item => item.AccessRules.Count)} rules, {items.Sum(item => item.FeatureMaps.Count)} maps, {items.Count(item => item.Instructions is not null)} instructions");
 
     private static string DescribeApplied(WorkspaceApplied applied, bool created) =>
         string.Create(
             CultureInfo.InvariantCulture,
-            $"{(created ? "workspace created; " : string.Empty)}rules +{applied.RulesAdded}; maps +{applied.MapsAdded} new, {applied.StepsAdded} steps");
+            $"{(created ? "workspace created; " : string.Empty)}rules +{applied.RulesAdded}; maps +{applied.MapsAdded} new, {applied.StepsAdded} steps{(applied.InstructionsSet ? "; instructions set" : string.Empty)}");
 }

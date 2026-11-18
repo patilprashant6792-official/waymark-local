@@ -12,9 +12,10 @@
         <ul>
             <li>what each group of tools is for (code, packages, files, commands), and how an agent asks for the group's own guide;</li>
             <li>a few rules: a refusal is a decision, not a glitch; never write a hidden-secret marker into a file; what to do if a secret shows up;</li>
-            <li>what is different right now: tools switched off, workspaces, the commands that ask you first, and the flows Claude has saved (their ids, names and one-line summaries);</li>
+            <li>what is different right now: tools switched off, the commands that ask you first, and one line per workspace (on or off, your summary of it, how many flows it has, whether it has instructions);</li>
             <li>how to reuse earlier work: before it explores a feature an agent reads the flow saved for it (<code>recall</code>), and after it explores one it saves a flow (<code>memorise</code>). You read and prune the flows on the <strong>Flows</strong> page of each workspace.</li>
         </ul>
+        <p>Each workspace also has <strong>its own guide</strong>, which an agent loads before it works there: your instructions for that workspace, its saved flows and the command gates set for it alone. Write those on the <strong>Instructions</strong> page of each workspace; they win over the text below for work in that workspace.</p>
         <p>The details of the tools, shells, approvals and long-running commands live in the group guides, which are built into Waymark and update with it. <strong>You do not edit any of that.</strong></p>
         <p><strong>Your text below is placed inside the overview</strong>, under &ldquo;Instructions from the owner&rdquo;, and wins wherever it disagrees with Waymark's defaults. Waymark's gates and approvals still apply, whatever the text says.</p>
         <p class="wm-muted">Good things to write: how you like work done, your conventions and project rules, what to ask before touching, what never to do, and your own workflows: a script the project ships, how to run it, and when to stop and wait for you. Agents load the overview once per conversation. After you save, every agent that holds the old text is told on its next call. Do not put secrets here: every agent that loads it receives it.</p>

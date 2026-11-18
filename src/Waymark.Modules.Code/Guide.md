@@ -20,7 +20,7 @@ Find before you read, and read only what the task needs: a full read of a large 
 | Who calls a method or function | `code_callers(ws, file, method)` |
 | Who implements or derives from a type | `code_types(ws, typeName)` |
 | Lines or a file to move or copy (also to another workspace) | `code_outline` / `code_method` give the line numbers; pass them as `from` to `file_edit_lines` / `file_write` (files guide). No need to read the body. |
-| Start of work on a feature | `recall(ws, 'get', ids)` with an id from the live setup, or `recall(ws, 'list', query?)` to search (flows below) |
+| Start of work on a feature | `recall(ws, 'get', ids)` with an id from the workspace guide, or `recall(ws, 'list', query?)` (flows below) |
 | The path of a feature changed | `memorise(ws, 'save_feature_map', name, steps, expectedVersion)`; a new trigger: `name`, `summary`, `steps` |
 
 Batch lists are comma separated with no spaces; a batch outline may mix languages.
@@ -29,8 +29,8 @@ Batch lists are comma separated with no spaces; a batch outline may mix language
 
 A feature map is a **flow**: one trigger to one outcome as the ordered methods the request passes through, saved under a name after its trigger (`memorise-save`). It stores names, never code, so it survives edits and branch switches. `recall` describes the path without any code; you read only the steps your task needs with `code_method`.
 
-- **Find.** The live setup of the overview lists the newest 15 flows per workspace (id, name, steps, one-line summary). Otherwise `recall(ws, action='list', query='words')`; a method name as the query finds the flows it is a step of. Do this before you explore a feature.
-- **Read.** `recall(ws, action='get', ids='12')` returns one line per step: where it is, its signature, and a mark for the link from the step above. Use it instead of exploring again, and explore only what it lacks.
+- **Find.** `waymark_guide(workspace=ws)` lists the newest 15 flows (id, name, steps, summary). Otherwise `recall(ws, action='list', query='words')`; a method name as the query finds the flows it is a step of. Do this before you explore a feature.
+- - **Read.** `recall(ws, action='get', ids='12')` returns one line per step: where it is, its signature, and a mark for the link from the step above. Use it instead of exploring again, and explore only what it lacks.
 - **Marks.** `[calls it]` the step above calls this one. `[by name only]` a call of that name is there but its receiver type is unknown. `[declared: event]` a link the index cannot see (you wrote ~event, ~http, ~ui, ~di or ~job), a constructor, a file or a range. `[DOES NOT CALL]` both steps are in the code and the step above makes no such call: the flow is wrong, fix it. `NOT ON THIS BRANCH (kept)` the step is not in the code here (another branch, a rename, a deleted file); it stays stored for the branch that has it, so do not remove it for that reason. `moved? ->` a method of that name is in another file.
 - **Change the code, then decide.** Most edits are inside a step and need no save. Save only when the path changed (steps added, removed, renamed or moved) or for a new trigger. A `🧭` line in the result of `file_edit_lines`, `file_write`, `file_move` or `file_delete` means the change touched a step of a flow and something no longer matches: update the flow in this task. Folder moves and deletes do not give this line.
 - **Update, create, delete.** Same trigger and outcome: update that flow. A new trigger or a different outcome: create a flow. Two flows with the same trigger and outcome: keep the better one and delete the other with `memorise(ws, action='delete_feature_map', name)`.

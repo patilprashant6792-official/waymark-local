@@ -15,6 +15,10 @@ A question about the computer itself (which monitors are connected, hardware, OS
 
 A group's guide covers its tools, their order and their pitfalls. Ask for it once, when you first use the group; a group you never use costs nothing. `waymark_guide` returns this overview again with a fresh live setup. `util_datetime` gives the time and time zones, and `waymark_ping` checks that Waymark is reachable.
 
+## Workspaces have their own guides
+
+The live setup below lists each workspace in one line. Everything particular to one workspace is in its own guide: the owner's instructions for it, its saved flows and the command gates set for it alone. Before you work in a workspace, call `waymark_guide(workspace='<name>')` once in the conversation; always do so for a workspace marked "has instructions". The owner's instructions for a workspace win over the owner's instructions in this overview for work in that workspace. A result that names a workspace tells you when its instructions are new to you or changed.
+
 ## Using them together
 
 Orient with code, change with files, verify with commands. Let each group's guide decide the details.
@@ -25,7 +29,7 @@ Orient the way a developer explores a new repository: start from the `code_skele
 
 A feature map is a **flow**: one trigger (an endpoint, a tool, a job, a button) to one outcome, as the ordered methods the request passes through. Waymark keeps what you learn so the next session does not search for "what is called next". `recall` gives you the path without any code; you open only the methods the task needs with the usual code tools. Follow this loop:
 
-1. **Find.** Look under "Feature maps (flows) saved" in the live setup below, or `recall(ws, action='list', query='...')` with words from the task, or with the name of a method you are about to change (it finds the flows that method is a step of).
+1. **Find.** Look under "Flows saved" in the workspace's guide (`waymark_guide(workspace='<name>')`), or `recall(ws, action='list', query='...')` with words from the task, or with the name of a method you are about to change (it finds the flows that method is a step of).
 2. **Read.** `recall(ws, action='get', ids='12')` returns each step's place, signature and whether its link to the step above still holds. It never returns code. Read only the steps you need with `code_method`; explore only what the flow lacks.
 3. **Change** the code. A `🧭` line in the result of a file tool means the change touched a step of a flow and a link no longer holds: fix the flow in this task.
 4. **Decide whether the path changed.** Most edits change code inside a step and need no save.
