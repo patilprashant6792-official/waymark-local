@@ -23,12 +23,25 @@ using Waymark.Modules.NuGet;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Two loopback listeners: the admin UI, and the one the tunnel forwards to (OAuth and MCP only).
+// --stdio: MCP over stdin/stdout for a client that starts Waymark as a child process (Claude Desktop config, MCP inspectors,
+// Glama's checks). The parent process is the client, so there is no OAuth and no MCP listener; the admin UI still runs so
+// approvals work. stdout carries the protocol, so every log line goes to stderr.
+var isStdio = args.Contains("--stdio", StringComparer.OrdinalIgnoreCase);
+if (isStdio)
+{
+    builder.Services.Configure<Microsoft.Extensions.Logging.Console.ConsoleLoggerOptions>(
+        options => options.LogToStandardErrorThreshold = LogLevel.Trace);
+}
+
+// Two loopback listeners: the admin UI, and the one the tunnel forwards to (OAuth and MCP only). In stdio mode only the admin UI.
 var edge = EdgeOptions.FromConfiguration(builder.Configuration);
 builder.WebHost.ConfigureKestrel(kestrel =>
 {
     kestrel.ListenLocalhost(edge.AdminPort);
-    kestrel.ListenLocalhost(edge.McpPort);
+    if (!isStdio)
+    {
+        kestrel.ListenLocalhost(edge.McpPort);
+    }
 });
 
 builder.Services.AddSingleton(edge);
@@ -57,8 +70,8 @@ builder.Services.AddWaymarkTools(
     builder.Configuration,
     [typeof(WaymarkTools).Assembly, .. modules.Select(module => module.GetType().Assembly)]);
 
-var mcp = builder.Services.AddMcpServer(options => options.ServerInstructions = GuideRules.ServerInstructions)
-    .WithHttpTransport(options => options.Stateless = true)
+var mcpServer = builder.Services.AddMcpServer(options => options.ServerInstructions = GuideRules.ServerInstructions);
+var mcp = (isStdio ? mcpServer.WithStdioServerTransport() : mcpServer.WithHttpTransport(options => options.Stateless = true))
     .WithTools<WaymarkTools>()
     .WithWaymarkToolPipeline();
 
@@ -100,7 +113,14 @@ static async Task SoftAsync(string what, Func<Task> work)
 }
 
 app.Logger.LogInformation("Admin UI: http://localhost:{Port}", edge.AdminPort);
-app.Logger.LogInformation("MCP endpoint: http://localhost:{Port}/mcp (Waymark starts the ngrok tunnel itself once an address is saved on the Setup page)", edge.McpPort);
+if (isStdio)
+{
+    app.Logger.LogInformation("MCP over stdio: this process is the server for the client that started it; no MCP listener and no tunnel");
+}
+else
+{
+    app.Logger.LogInformation("MCP endpoint: http://localhost:{Port}/mcp (Waymark starts the ngrok tunnel itself once an address is saved on the Setup page)", edge.McpPort);
+}
 
 static bool IsAdmin(HttpContext context) =>
     context.RequestServices.GetRequiredService<IListenerClassifier>().Classify(context) == ListenerKind.Admin;
@@ -136,9 +156,20 @@ AuthorizeEndpoints.Map(app);
 GrantEndpoints.Map(app);
 
 // Unauthenticated calls get 401 plus WWW-Authenticate with the metadata address (see BearerAuthHandler).
-app.MapMcp("/mcp").RequireAuthorization(AuthPolicies.Mcp);
+if (!isStdio)
+{
+    app.MapMcp("/mcp").RequireAuthorization(AuthPolicies.Mcp);
+}
 
 app.MapRazorComponents<App>()
     .AddInteractiveServerRenderMode();
 
-app.Run();
+try
+{
+    await app.RunAsync();
+}
+catch (OperationCanceledException) when (isStdio)
+{
+    // In stdio mode the client owns the lifetime: when it closes stdin while the host is still starting (a quick inspector run),
+    // start-up is cancelled. That is a normal end, not a crash.
+}
