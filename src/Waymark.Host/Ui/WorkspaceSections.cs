@@ -16,11 +16,12 @@ public sealed record WorkspaceSection(string Key, string Title, string Icon, str
 public static class WorkspaceSections
 {
     public static readonly WorkspaceSection Overview = new("overview", "Overview", Icons.Material.Outlined.Dashboard, string.Empty);
+    public static readonly WorkspaceSection Instructions = new("instructions", "Instructions", Icons.Material.Outlined.Description, "instructions");
     public static readonly WorkspaceSection Access = new("access", "Access rules", Icons.Material.Outlined.Lock, "access");
     public static readonly WorkspaceSection Commands = new("commands", "Commands", Icons.Material.Outlined.Tune, "commands");
 
     // What the product calls a flow was once called a feature map; the old address keeps working (see WorkspaceFlows).
     public static readonly WorkspaceSection Flows = new("flows", "Flows", Icons.Material.Outlined.AccountTree, "flows");
 
-    public static IReadOnlyList<WorkspaceSection> All { get; } = [Overview, Access, Commands, Flows];
+    public static IReadOnlyList<WorkspaceSection> All { get; } = [Overview, Instructions, Access, Commands, Flows];
 }

@@ -1,3 +1,4 @@
+using Waymark.Core.Guides;
 using Waymark.Core.Memory;
 using Waymark.Core.Security;
 using Waymark.Core.Workspaces;
@@ -56,7 +57,8 @@ public static class WorkspaceBundleSanitizer
                 CleanPath(workspace.PathHint),
                 workspace.Enabled,
                 CleanRules(name!, workspace.AccessRules, notes),
-                CleanMaps(name!, workspace.FeatureMaps, notes)));
+                CleanMaps(name!, workspace.FeatureMaps, notes),
+                CleanInstructions(name!, workspace.Instructions, notes)));
         }
 
         var clean = new WorkspaceBundle(WorkspaceBundleJson.FormatName, WorkspaceBundleJson.CurrentVersion, bundle.ExportedUtc, workspaces);
@@ -144,6 +146,37 @@ public static class WorkspaceBundleSanitizer
         }
 
         return clean;
+    }
+
+    // The same rules the Instructions page applies: one-line summary and normalized text within their limits, and no secret. Text that fails is left out whole,
+    // because a cut instruction can say the opposite of the whole one.
+    private static BundleInstructions? CleanInstructions(string workspace, BundleInstructions? instructions, NoteList notes)
+    {
+        if (instructions is null)
+        {
+            return null;
+        }
+
+        var summary = WorkspaceGuideRules.NormalizeSummary(instructions.Summary ?? string.Empty);
+        var text = GuideRules.Normalize(instructions.Text ?? string.Empty);
+        if (summary.Length == 0 && text.Length == 0)
+        {
+            return null;
+        }
+
+        if (summary.Length > WorkspaceGuideRules.MaxSummaryChars || text.Length > WorkspaceGuideRules.MaxInstructionsChars)
+        {
+            notes.Add($"{workspace}: the summary or instructions are longer than this Waymark allows; they were left out.");
+            return null;
+        }
+
+        if (SensitiveDataScanner.Redact(summary).HasFindings || SensitiveDataScanner.Redact(text).HasFindings || SensitiveDataScanner.ContainsMarker(summary + "\n" + text))
+        {
+            notes.Add($"{workspace}: the summary or instructions look like they hold a secret or a redaction marker; they were left out.");
+            return null;
+        }
+
+        return new BundleInstructions(summary, text);
     }
 
     private static BundleMap? CleanMap(string workspace, BundleMap map, NoteList notes)

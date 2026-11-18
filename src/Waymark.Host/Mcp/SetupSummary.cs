@@ -22,11 +22,11 @@ public sealed class SetupSummary(
     IWorkspaceService workspaces,
     ICommandPolicyStore policy,
     IFeatureMapStore featureMaps,
+    IWorkspaceGuides workspaceGuides,
     TimeProvider time) : ISetupSummary
 {
     private const string None = "none";
-    private const int MaxMapNamesPerWorkspace = 15;
-    private const int MaxSummaryChars = 60;
+    private const int MaxWorkspaceSummaryChars = WorkspaceGuideRules.MaxSummaryChars;
 
     public async Task<string> DescribeAsync(CancellationToken ct)
     {
@@ -51,29 +51,21 @@ public sealed class SetupSummary(
             ? "- State: PAUSED. Every tool call is refused until the owner resumes Waymark in the admin UI."
             : "- State: running.");
         text.Append("- Computer: ").AppendLine(RuntimeInformation.OSDescription);
-        text.Append("- Workspaces on: ").AppendLine(Names(folders.Where(w => w.Enabled).Select(w => w.Name)));
-        text.Append("- Workspaces off: ").AppendLine(Names(folders.Where(w => !w.Enabled).Select(w => w.Name)));
-        var index = await featureMaps.ListNamesAsync(MaxMapNamesPerWorkspace, ct);
-        text.AppendLine("- Feature maps (flows) saved (a flow is one trigger to one outcome as ordered method steps; recall with action 'get' and an id describes one in a single call, with no code; action 'list' searches by words or by a method name; memorise saves or changes one):");
-        var withMaps = folders.Where(w => w.Enabled && index.ContainsKey(w.Id)).ToList();
-        if (withMaps.Count == 0)
+        // One line per workspace. Its flows, its own gates and the owner's instructions for it are in its own guide, so this list stays short
+        // however many workspaces and flows there are.
+        var texts = await workspaceGuides.ListAsync(ct);
+        var index = await featureMaps.ListNamesAsync(1, ct);
+        text.Append("- Workspaces (each has its own guide with the owner's instructions for it, its flows and its own command gates: call ")
+            .Append(GuideRules.OverviewTool)
+            .AppendLine(" with workspace='<name>' before you work in one; 'has instructions' marks those the owner wrote instructions for):");
+        if (folders.Count == 0)
         {
-            text.AppendLine("  - none yet");
+            text.AppendLine("  - none");
         }
 
-        foreach (var mapped in withMaps)
+        foreach (var folder in folders.OrderBy(w => w.Name, StringComparer.OrdinalIgnoreCase))
         {
-            var entry = index[mapped.Id];
-            text.AppendLine($"  - {mapped.Name}:");
-            foreach (var map in entry.Newest)
-            {
-                text.Append("    - ").AppendLine(FlowLine(map));
-            }
-
-            if (entry.Total > entry.Newest.Count)
-            {
-                text.AppendLine($"    - and {entry.Total - entry.Newest.Count} more (action 'list')");
-            }
+            text.AppendLine(WorkspaceLine(folder, texts.GetValueOrDefault(folder.Id), index.TryGetValue(folder.Id, out var entry) ? entry.Total : 0));
         }
         text.Append("- Tools switched off (not in your list; ask the owner to turn one on): ").AppendLine(Names(off));
 
@@ -81,7 +73,7 @@ public sealed class SetupSummary(
         var byGate = CommandCatalog.Operations
             .GroupBy(op => CommandCatalog.Resolve(op, null, gates))
             .ToDictionary(g => g.Key, g => g.Select(op => op.Key));
-        text.AppendLine("- Command operations that ask the owner first (a workspace can set its own gates; every other operation runs at once):");
+        text.AppendLine("- Command operations that ask the owner first (a workspace can set its own gates, listed in its guide; every other operation runs at once):");
         text.Append("  - Ask: ").AppendLine(Names(byGate.GetValueOrDefault(CommandGate.Ask, [])));
         text.Append("  - Off (refused): ").Append(Names(byGate.GetValueOrDefault(CommandGate.Off, [])));
         return text.ToString();
@@ -93,17 +85,29 @@ public sealed class SetupSummary(
         return list.Count == 0 ? None : string.Join(", ", list);
     }
 
-    // One line on one flow: enough for an agent to pick it without listing first. The summary is cut short; recall get has the rest.
-    private static string FlowLine(FeatureMapName map)
+    // One line on one workspace: its name, whether it is on, the owner's summary, how many flows it has and whether the owner wrote instructions for it.
+    private static string WorkspaceLine(Workspace workspace, WorkspaceGuideText? text, int flows)
     {
-        var steps = $"{map.StepCount} {(map.StepCount == 1 ? "step" : "steps")}{(map.Ordered ? string.Empty : ", unordered")}";
-        var summary = map.Summary.Replace('\n', ' ').Replace('\r', ' ').Trim();
-        if (summary.Length > MaxSummaryChars)
+        var line = new StringBuilder();
+        line.Append("  - ").Append(workspace.Name).Append(workspace.Enabled ? " (on)" : " (off)");
+        var summary = text?.Summary ?? string.Empty;
+        if (summary.Length > MaxWorkspaceSummaryChars)
         {
-            summary = summary[..(MaxSummaryChars - 3)] + "...";
+            summary = summary[..(MaxWorkspaceSummaryChars - 3)] + "...";
         }
 
-        return summary.Length == 0 ? $"{map.Id} {map.Name} ({steps})" : $"{map.Id} {map.Name} ({steps}): {summary}";
+        if (summary.Length > 0)
+        {
+            line.Append(": ").Append(summary);
+        }
+
+        line.Append(string.Create(CultureInfo.InvariantCulture, $" · {flows} {(flows == 1 ? "flow" : "flows")}"));
+        if (text?.HasInstructions == true)
+        {
+            line.Append(" · has instructions");
+        }
+
+        return line.ToString();
     }
 
     // A value that cannot be read counts as paused, the same way the call pipeline treats it.

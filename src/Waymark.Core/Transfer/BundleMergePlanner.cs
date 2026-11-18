@@ -1,3 +1,4 @@
+using Waymark.Core.Guides;
 using Waymark.Core.Memory;
 using Waymark.Core.Security;
 
@@ -11,6 +12,8 @@ public sealed record MapMerge(string Name, string Summary, DateTimeOffset? Updat
 
 /// <summary>Exactly what an import adds to one workspace, and what it leaves as it is.</summary>
 /// <param name="MapsConflicting">Maps whose name is here with other steps: left out, so the map in this workspace stays as it is.</param>
+/// <param name="InstructionsToSet">The summary and instructions to write: only when the workspace has none of its own.</param>
+/// <param name="InstructionsKept">The file has other text than the workspace: left out, so the owner's text here stays as it is.</param>
 public sealed record WorkspaceMergePlan(
     IReadOnlyList<BundleRule> RulesToAdd,
     int RulesAlreadyThere,
@@ -18,7 +21,9 @@ public sealed record WorkspaceMergePlan(
     int RulesOverLimit,
     IReadOnlyList<MapMerge> Maps,
     int MapsUnchanged,
-    int MapsConflicting)
+    int MapsConflicting,
+    BundleInstructions? InstructionsToSet = null,
+    bool InstructionsKept = false)
 {
     public static WorkspaceMergePlan Empty { get; } = new([], 0, 0, 0, [], 0, 0);
 
@@ -29,12 +34,13 @@ public sealed record WorkspaceMergePlan(
     /// <summary>Rules that let tools open one more file type. They widen what Claude can read, so the owner is told before they are added.</summary>
     public int RulesAllowingFileTypes => RulesToAdd.Count(rule => rule is { Kind: AccessRuleKind.AllowExtension, Enabled: true });
 
-    public bool HasChanges => RulesToAdd.Count > 0 || Maps.Count > 0;
+    public bool HasChanges => RulesToAdd.Count > 0 || Maps.Count > 0 || InstructionsToSet is not null;
 }
 
 /// <summary>
 /// Works out what importing a workspace of a bundle changes in a workspace that exists already. Only adds: a rule that is there stays as the owner has it, and a feature map (flow)
 /// whose name is there is never merged: the same steps count as already here, different steps are left out and counted, so the owner decides which one to keep.
+/// The owner's summary and instructions are set only on a workspace that has none; text that is here is never replaced.
 /// Pure, so the preview the owner confirms is the same computation the import runs.
 /// </summary>
 public static class BundleMergePlanner
@@ -43,7 +49,8 @@ public static class BundleMergePlanner
         BundleWorkspace incoming,
         BundleContent content,
         IReadOnlyList<AccessRule> existingRules,
-        IReadOnlyList<FeatureMap> existingMaps)
+        IReadOnlyList<FeatureMap> existingMaps,
+        WorkspaceGuideText? existingText = null)
     {
         ArgumentNullException.ThrowIfNull(incoming);
         ArgumentNullException.ThrowIfNull(existingRules);
@@ -55,7 +62,28 @@ public static class BundleMergePlanner
         var mapPlan = content.HasFlag(BundleContent.FeatureMaps)
             ? PlanMaps(incoming.FeatureMaps, existingMaps)
             : (Maps: new List<MapMerge>(), Unchanged: 0, Conflicting: 0);
-        return new WorkspaceMergePlan(ruleCounts.Add, ruleCounts.Already, ruleCounts.Different, ruleCounts.Over, mapPlan.Maps, mapPlan.Unchanged, mapPlan.Conflicting);
+        var instructions = content.HasFlag(BundleContent.Instructions)
+            ? PlanInstructions(incoming.Instructions, existingText ?? WorkspaceGuideText.Empty)
+            : (Set: null, Kept: false);
+        return new WorkspaceMergePlan(
+            ruleCounts.Add, ruleCounts.Already, ruleCounts.Different, ruleCounts.Over, mapPlan.Maps, mapPlan.Unchanged, mapPlan.Conflicting, instructions.Set, instructions.Kept);
+    }
+
+    private static (BundleInstructions? Set, bool Kept) PlanInstructions(BundleInstructions? incoming, WorkspaceGuideText existing)
+    {
+        if (incoming is null || (incoming.Summary.Length == 0 && incoming.Text.Length == 0))
+        {
+            return (null, false);
+        }
+
+        if (existing.IsEmpty)
+        {
+            return (incoming, false);
+        }
+
+        var same = string.Equals(existing.Summary, incoming.Summary, StringComparison.Ordinal)
+            && string.Equals(existing.Instructions, incoming.Text, StringComparison.Ordinal);
+        return (null, !same);
     }
 
     private static (List<BundleRule> Add, int Already, int Different, int Over) PlanRules(IReadOnlyList<BundleRule> incoming, IReadOnlyList<AccessRule> existing)

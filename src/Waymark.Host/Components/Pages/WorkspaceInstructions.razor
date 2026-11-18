@@ -1,0 +1,10 @@
+@page "/workspaces/{WorkspaceId:long}/instructions"
+
+<WorkspaceShell WorkspaceId="WorkspaceId" Context="workspace">
+    <WorkspaceInstructionsEditor Workspace="workspace" />
+</WorkspaceShell>
+
+@code {
+    [Parameter]
+    public long WorkspaceId { get; set; }
+}

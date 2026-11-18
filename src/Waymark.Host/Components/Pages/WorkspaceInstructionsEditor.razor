@@ -1,0 +1,90 @@
+@inherits LiveComponentBase
+@using MudBlazor
+@using Waymark.Core.Guides
+@using Waymark.Core.Transfer
+@using Waymark.Host.Components.Shared
+@using Waymark.Host.Ui
+
+<SectionHeader Title="Instructions" Lead="What every agent should know before it works in this workspace. The summary is one line in the overview, so an agent can tell your workspaces apart. The instructions go only into this workspace's guide, which an agent loads before it works here, together with its flows and the command gates set for it alone.">
+    <Actions>
+        <BundleToolbar WorkspaceId="Workspace.Id" Content="BundleContent.Instructions" ExportLabel="Export instructions" Hint="Keep your summary and instructions when you move to another computer." />
+    </Actions>
+</SectionHeader>
+
+@if (_error is not null)
+{
+    <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
+}
+
+@if (!_loaded)
+{
+    <p class="wm-lead" aria-live="polite">Loading...</p>
+}
+else
+{
+    <section class="wm-card" aria-labelledby="wi-text">
+        <div class="wm-row spread">
+            <h2 id="wi-text" class="wm-card-title">Your text for this workspace</h2>
+            <div class="wm-row">
+                @if (_saved.ChangedUtc is null)
+                {
+                    <WmStatus State="StatusState.Off" Text="Empty" />
+                }
+                else
+                {
+                    <WmStatus State="StatusState.Healthy" Text="In use" />
+                }
+                <WmTag Text="@($"Instructions: about {DisplayFormat.Count(_draftTokens)} tokens")" />
+                <WmTag Text="@($"Whole guide as sent: about {DisplayFormat.Count(_guideTokens)} tokens")" />
+            </div>
+        </div>
+        <p class="wm-muted wm-note">@HolderText()</p>
+
+        <label class="wm-label" for="wi-summary">Summary (one line, listed in the overview)</label>
+        <input id="wi-summary" class="wm-input" type="text" spellcheck="false" maxlength="@(WorkspaceGuideRules.MaxSummaryChars + 50)"
+               placeholder="For example: .NET 8 API for chat and agents; tests in tests/" value="@_summaryDraft"
+               @oninput="e => OnSummaryInput(e.Value?.ToString())" disabled="@_busy" />
+        <div class="wm-row spread">
+            <span class="wm-muted">@DisplayFormat.Count(SummaryChars) of @DisplayFormat.Count(WorkspaceGuideRules.MaxSummaryChars) characters</span>
+        </div>
+        @if (SummaryChars > WorkspaceGuideRules.MaxSummaryChars)
+        {
+            <InlineAlert Severity="Severity.Error">The summary is @DisplayFormat.Count(SummaryChars) characters; the limit is @DisplayFormat.Count(WorkspaceGuideRules.MaxSummaryChars). Every agent reads it in the overview, so keep it to one short line. Shorten it to save.</InlineAlert>
+        }
+
+        <label class="wm-label" for="wi-instructions">Instructions (only in this workspace's guide)</label>
+        <textarea id="wi-instructions" class="wm-input wm-mono wm-textarea" rows="20" spellcheck="false" maxlength="@(WorkspaceGuideRules.MaxInstructionsChars + 2_000)"
+                  aria-label="Your instructions for agents that work in this workspace" placeholder="@Placeholder"
+                  value="@_draft" @oninput="e => OnInput(e.Value?.ToString())" disabled="@_busy"></textarea>
+        <div class="wm-row spread">
+            <span class="wm-muted">@DisplayFormat.Count(DraftChars) of @DisplayFormat.Count(WorkspaceGuideRules.MaxInstructionsChars) characters</span>
+            <span class="wm-muted">@LastChange()</span>
+        </div>
+        @if (DraftChars > WorkspaceGuideRules.MaxInstructionsChars)
+        {
+            <InlineAlert Severity="Severity.Error">The instructions are @DisplayFormat.Count(DraftChars) characters; the limit is @DisplayFormat.Count(WorkspaceGuideRules.MaxInstructionsChars). Shorten them to save.</InlineAlert>
+        }
+        @if (_draftTokens > WorkspaceGuideRules.WarnTokens)
+        {
+            <InlineAlert Severity="Severity.Warning">Every agent that works in this workspace reads all of this. Past a few thousand tokens it starts to crowd out the work; consider trimming.</InlineAlert>
+        }
+        <p class="wm-muted">For work in this workspace these instructions win over the host prompt. Waymark's gates and approvals still apply, whatever the text says. Do not put secrets here: every agent that works in this workspace receives the text. Anything that must never happen is safer as a gate (Commands) or an access rule than as text.</p>
+        <div class="wm-row wm-card-actions">
+            <WmButton Kind="ButtonKind.Primary" OnClick="SaveAsync" Disabled="@(_busy || !IsDirty || TooLong)">Save</WmButton>
+            <WmButton OnClick="Revert" Disabled="@(_busy || !IsDirty)">Undo edits</WmButton>
+            <WmButton Kind="ButtonKind.Danger" OnClick="ClearAsync" Disabled="@(_busy || _saved.ChangedUtc is null)">Clear</WmButton>
+        </div>
+    </section>
+
+    <section class="wm-card" aria-labelledby="wi-preview">
+        <div class="wm-row spread">
+            <h2 id="wi-preview" class="wm-card-title">What agents receive</h2>
+            <WmButton OnClick="() => _showPreview = !_showPreview">@(_showPreview ? "Hide" : "Show")</WmButton>
+        </div>
+        <p class="wm-muted wm-note">This workspace's guide exactly as saved, with its flows and gates of this moment. An agent receives it when it calls waymark_guide with this workspace's name.</p>
+        @if (_showPreview)
+        {
+            <pre class="wm-mono wm-preview">@_preview</pre>
+        }
+    </section>
+}

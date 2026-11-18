@@ -1,6 +1,6 @@
 # Guides and the host prompt
 
-Waymark teaches a connected agent in two layers, both delivered through MCP tool results, so they work with or without a skill.
+Waymark teaches a connected agent in three layers, all delivered through MCP tool results, so they work with or without a skill.
 
 ## The overview (host prompt)
 
@@ -9,9 +9,24 @@ A short text, written by Waymark, that an agent loads once per conversation with
 - the four groups (code, packages, files, commands) and how to ask for a group's guide;
 - a few cross-cutting rules: a refusal is a decision, a missing tool is switched off, never write a `[redacted:...]` marker into a file, what to do if a secret shows up, ask before anything hard to undo;
 - **your instructions**, under "Instructions from the owner" (edit them on the **Host prompt** page; up to 40,000 characters; secrets are refused because every agent receives the text);
-- the **live setup**: tools switched off, workspaces, and the command operations that ask first or are refused.
+- the **live setup**: tools switched off, one line per workspace (on or off, your summary of it, how many flows it has, whether it has instructions), and the command operations that ask first or are refused.
 
 The template is `src/Waymark.Host/Guide.md` (markers `{{owner}}` and `{{setup}}`). Your text is stored in the `tool_guides` table under the key `host`. The hash covers the template and your text, not the live setup, so a settings change does not re-announce the overview.
+
+## Workspace guides
+
+Each workspace has its own guide, which an agent loads with `waymark_guide(workspace='<name>')`. It holds:
+
+- your **summary** of the workspace (one line, up to 200 characters; it is also listed in the overview so an agent can pick the right workspace);
+- your **instructions** for that workspace, under "Instructions from the owner for this workspace" (edit both on the workspace's **Instructions** tab; up to 20,000 characters; secrets are refused). For work in that workspace they win over the host prompt; gates and approvals still apply;
+- its **live setup**: the newest 15 flows and the command gates set for that workspace alone.
+
+The text is stored in `workspace_guides` (one row per workspace, removed with the workspace). Delivery is tracked under the module key `ws:<workspace id>`. The hash covers the name, summary and instructions, not the flows, so saving a flow does not re-announce the guide.
+
+An agent is reminded in two ways, because Waymark tracks deliveries per access key and cannot tell conversations apart:
+
+- a call in a workspace that has instructions the client never loaded, or holds an older version of, carries a one-line notice (after the overview's notice, before a group's);
+- the first group guide of a conversation (`guide: true`) in a workspace with instructions carries a one-line reminder to load them.
 
 ## Group guides
 

@@ -40,6 +40,7 @@ public static class GuideRules
         "Waymark tools may be listed by name only until loaded; load them like any other deferred tool. " +
         "Four tool groups: code (read and search C#, Python, TypeScript and JavaScript), packages (NuGet, PyPI and npm APIs), files (edit files) and commands (build, test and git for .NET, Python and Node, plus cmd_shell for anything else on the computer). " +
         "Before your first Waymark call in a conversation, call waymark_guide: it explains the groups, the owner's own instructions and what is switched on now. " +
+        "Each workspace has its own guide (the owner's instructions for it and its saved flows): before you work in a workspace, call waymark_guide with workspace set to its name. " +
         "Each group also has its own guide: add guide: true to your first call to that group. Ask once; a result tells you when a guide changed. " +
         "Feature maps are flows, your memory of this codebase: one trigger to one outcome as ordered method steps. Before you work on a feature call recall (list, then get) and read only the steps you need with the code tools; after a change that alters the path, update that flow with memorise, or create one for a new trigger; an edit inside a step needs no save. If two flows describe the same trigger and outcome, delete one.";
 
@@ -97,5 +98,37 @@ public static class GuideRules
         return neverLoaded
             ? $"Waymark has a usage guide for its {module} tools that you have not loaded. Add guide: true to your next {module} tool call to receive it once."
             : $"The Waymark {module} guide changed since you last loaded it. Add guide: true to your next {module} tool call to receive the new version.";
+    }
+
+    /// <summary>The block placed first in a result when the agent asked for a workspace's guide.</summary>
+    public static string DeliverWorkspace(string workspaceName, string content)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceName);
+        ArgumentNullException.ThrowIfNull(content);
+        return
+            $"[Waymark guide: workspace {workspaceName}]\n" +
+            $"Sent once. Call {OverviewTool} with workspace='{workspaceName}' again only for fresh flows, or when a result says this guide changed.\n" +
+            "---\n" +
+            content +
+            "\n[End of Waymark guide]";
+    }
+
+    /// <summary>The short line appended to a result in a workspace whose instructions the client has never loaded, or holds an older version of.</summary>
+    public static string WorkspaceNotice(string workspaceName, bool neverLoaded)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceName);
+        return neverLoaded
+            ? $"The owner wrote instructions for the workspace '{workspaceName}' that you have not loaded. Call {OverviewTool} with workspace='{workspaceName}' once to receive them, before you change anything there."
+            : $"The owner's instructions for the workspace '{workspaceName}' changed since you last loaded them. Call {OverviewTool} with workspace='{workspaceName}' to receive the new version.";
+    }
+
+    /// <summary>
+    /// The line added when an agent asks for a group guide in a workspace that has instructions. A group guide is asked for at the start of each
+    /// conversation, and Waymark cannot tell conversations apart, so this is the reminder that reaches a new conversation.
+    /// </summary>
+    public static string WorkspaceReminder(string workspaceName)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(workspaceName);
+        return $"The owner wrote instructions for the workspace '{workspaceName}'. If you have not loaded them in this conversation, call {OverviewTool} with workspace='{workspaceName}' before you change anything there.";
     }
 }

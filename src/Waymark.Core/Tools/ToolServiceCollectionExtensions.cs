@@ -21,6 +21,7 @@ public static class ToolServiceCollectionExtensions
         var registry = new ToolRegistry(assemblies);
         services.TryAddSingleton<IToolRegistry>(registry);
         services.TryAddSingleton<IHostPrompt, HostPrompt>();
+        services.TryAddSingleton<IWorkspaceGuides, WorkspaceGuides>();
         services.TryAddSingleton<IGuideCatalog>(provider => new GuideCatalog(
             registry,
             assemblies,

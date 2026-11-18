@@ -66,6 +66,7 @@ public static class DataServiceCollectionExtensions
         services.AddSingleton<ICommandRunStore, CommandRunStore>();
         services.AddSingleton<ICommandPolicyStore, CommandPolicyStore>();
         services.AddSingleton<IGuideStore, GuideStore>();
+        services.AddSingleton<IWorkspaceGuideStore, WorkspaceGuideStore>();
         services.AddSingleton<IFeatureMapStore, FeatureMapStore>();
         services.AddSingleton<IWorkspaceBundleStore, WorkspaceBundleStore>();
         return services;
