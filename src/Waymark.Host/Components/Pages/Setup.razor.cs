@@ -7,6 +7,7 @@ using Waymark.Core.Events;
 using Waymark.Core.Workspaces;
 using Waymark.Host.Components.Shared;
 using Waymark.Host.Edge;
+using Waymark.Host.Notifications;
 
 namespace Waymark.Host.Components.Pages;
 
@@ -21,6 +22,7 @@ public partial class Setup : LiveComponentBase
     private bool _busy;
     private bool _autoRunning;
     private string? _error;
+    private bool _notifyEnabled = true;
 
     [Inject]
     private PublicUrlService Urls { get; set; } = default!;
@@ -51,6 +53,12 @@ public partial class Setup : LiveComponentBase
 
     [Inject]
     private ILogger<Setup> Logger { get; set; } = default!;
+
+    [Inject]
+    private DesktopNotificationSettings NotifySettings { get; set; } = default!;
+
+    [Inject]
+    private IDesktopNotifier Notifier { get; set; } = default!;
 
     private string? SavedUrl => PublicUrl.Current;
 
@@ -123,6 +131,7 @@ public partial class Setup : LiveComponentBase
         {
             _authInfo = await AuthStore.GetInfoAsync(Cancel);
             _workspaceCount = (await WorkspaceService.ListAsync(Cancel)).Count;
+            _notifyEnabled = await NotifySettings.IsEnabledAsync(Cancel);
         }
         catch (OperationCanceledException)
         {
@@ -238,6 +247,40 @@ public partial class Setup : LiveComponentBase
         catch (Exception ex) when (ex is JSException or JSDisconnectedException or OperationCanceledException)
         {
             Snackbar.Add("Copying was blocked. Select the text and copy it by hand.", Severity.Warning);
+        }
+    }
+
+    private async Task SetNotifyAsync(bool enabled)
+    {
+        await RunAsync(async () =>
+        {
+            await NotifySettings.SetEnabledAsync(enabled, Cancel);
+            _notifyEnabled = enabled;
+        });
+    }
+
+    // Shown straight away, without the quiet period and the pause between notifications, so the owner sees at once whether it works.
+    private async Task SendTestNotificationAsync()
+    {
+        _error = null;
+        _busy = true;
+        try
+        {
+            await Notifier.ShowAsync(ApprovalNoticeText.Test(Edge.AdminPort), Cancel);
+            Snackbar.Add("Test notification sent. If nothing appeared, read the note under the button.", Severity.Success);
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "The test desktop notification could not be shown");
+            Snackbar.Add("The notification could not be shown: " + ex.Message, Severity.Warning);
+        }
+        finally
+        {
+            _busy = false;
         }
     }
 

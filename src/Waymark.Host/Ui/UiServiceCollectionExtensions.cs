@@ -1,4 +1,5 @@
 ﻿using Microsoft.Extensions.DependencyInjection.Extensions;
+using Waymark.Host.Notifications;
 
 namespace Waymark.Host.Ui;
 
@@ -22,6 +23,13 @@ public static class UiServiceCollectionExtensions
         services.AddSingleton<Waymark.Host.Commands.CommandAdminService>();
         services.AddSingleton<Waymark.Host.FeatureMaps.FeatureMapAdminService>();
         services.AddSingleton<Waymark.Host.Transfer.WorkspaceBundleService>();
+
+        // Desktop notifications about waiting approvals: they only point to the admin UI, where deciding stays.
+        services.AddSingleton<IDesktopNotifier>(_ => DesktopNotifiers.ForThisComputer());
+        services.AddSingleton<DesktopNotificationSettings>();
+        services.AddSingleton<IDesktopNotificationSettings>(provider => provider.GetRequiredService<DesktopNotificationSettings>());
+        services.AddSingleton<IPendingDecisionSource, PendingDecisionSource>();
+        services.AddHostedService<ApprovalNudgeService>();
         return services;
     }
 }
