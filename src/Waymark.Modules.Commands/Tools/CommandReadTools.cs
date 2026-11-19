@@ -9,38 +9,53 @@ public sealed class CommandReadTools(CommandService service)
 {
     [McpServerTool(Name = "cmd_wait", ReadOnly = true, Idempotent = true)]
     [Description(
-        "Wait for a command (run id from cmd_project, cmd_git, cmd_proc or cmd_shell) to finish or to be decided by the owner, then report it like the original call did. " +
-        "Returns early when the run ends. Call it again when the run is still going.")]
+        "Waits for one command run to finish, or for the owner to approve or deny it, then returns the same report as the call that started it: status, exit code, duration and the last output lines. " +
+        "It returns as soon as the run ends; when waitSeconds runs out first it reports the current state (waiting for approval, queued or running) and you call it again. Waiting changes nothing.\n" +
+        "WHEN TO USE: cmd_project, cmd_git, cmd_proc or cmd_shell gave you a run id instead of a result, because the run waits for approval or takes longer than its waitSeconds. " +
+        "Not for reading more output now (cmd_output), ending a run (cmd_stop) or finding a lost run id (cmd_list). An unknown run id is an error.")]
     public Task<string> Wait(
-        [Description("The run number, for example 12.")] long runId,
-        [Description("Seconds to wait (default 30, at most about 45).")] int? waitSeconds = null,
+        [Description("The run number the starting call returned, for example 12.")] long runId,
+        [Description("Seconds to wait before reporting the current state (default 30, at most about 45, which keeps the call inside the client's time limit).")] int? waitSeconds = null,
         CancellationToken cancellationToken = default) =>
         service.WaitAsync(runId, waitSeconds, cancellationToken);
 
     [McpServerTool(Name = "cmd_output", ReadOnly = true, Idempotent = true)]
     [Description(
-        "Read the output of a command as plain text (no colours), with line numbers. Without options you get the last lines. " +
-        "Use grep to find lines (case-insensitive text) and fromLine/lines to page through a long output.")]
+        "Reads the output of one command run as plain text with line numbers (colours removed), finished or still running. Three ways: " +
+        "no options = the last 150 lines; fromLine (+ lines) = a window starting at that line; grep = only the lines that contain that text, with their line numbers (100 by default). " +
+        "The header gives the run's status and the total line count, so you can page with fromLine; at most 500 lines per call, and a very long reply is cut to the size limit. " +
+        "A run that is still going says so: call again for newer lines.\n" +
+        "WHEN TO USE: you need more than the last lines a cmd_* result or cmd_wait showed, such as the first compiler error or a whole test failure. " +
+        "To wait for the run to end use cmd_wait; to find a run id use cmd_list. An unknown run id is an error.")]
     public Task<string> Output(
-        [Description("The run number.")] long runId,
-        [Description("First line to show (1-based). Omit to show the last lines.")] int? fromLine = null,
-        [Description("How many lines (default 150, or 100 with grep; at most 500).")] int? lines = null,
-        [Description("Only show lines that contain this text (case-insensitive).")] string? grep = null,
+        [Description("The run number from a cmd_* result or cmd_list, for example 12.")] long runId,
+        [Description("Optional: first line to show (1-based). Omit for the last lines. Ignored with grep.")] int? fromLine = null,
+        [Description("Optional: how many lines (default 150, or 100 with grep; 1 to 500).")] int? lines = null,
+        [Description("Optional: plain text, not a pattern; only lines that contain it are shown, any letter case. Example: 'error CS', 'FAILED'.")] string? grep = null,
         CancellationToken cancellationToken = default) =>
         service.OutputAsync(runId, fromLine, lines, grep, cancellationToken);
 
     [McpServerTool(Name = "cmd_list", ReadOnly = true, Idempotent = true)]
-    [Description("List the most recent commands (newest first) with their run numbers and status, optionally for one workspace.")]
+    [Description(
+        "Lists the most recent command runs, newest first. Each row: run number, status (waiting for approval, queued, running, succeeded, failed, timed out, cancelled or denied), " +
+        "operation, workspace, the command line (cut at 90 characters) and how long ago it was requested. Reads only.\n" +
+        "WHEN TO USE: to find a run id you no longer have, to see what is still running before you start another build or app, or to check whether the owner approved or denied a request. " +
+        "Then cmd_output reads a run's output, cmd_wait waits for one that is still going and cmd_stop ends one. Not for output itself: rows carry no output.")]
     public Task<string> List(
-        [Description("Optional workspace name.")] string? workspace = null,
-        [Description("How many runs (default 10, at most 30).")] int? limit = null,
+        [Description("Optional: only runs of this workspace (name as shown in Waymark). Omit for runs of every workspace and system scripts.")] string? workspace = null,
+        [Description("Optional: how many runs to show (default 10, 1 to 30).")] int? limit = null,
         CancellationToken cancellationToken = default) =>
         service.ListAsync(workspace, limit, cancellationToken);
 
-    [McpServerTool(Name = "cmd_stop", ReadOnly = false, Destructive = false, Idempotent = true)]
-    [Description("End a command that waits, is queued or runs (for example a dotnet run). The whole process tree is ended. Does nothing when the run already finished.")]
+    [McpServerTool(Name = "cmd_stop", ReadOnly = false, Destructive = true, Idempotent = true)]
+    [Description(
+        "Ends one command run. A run that still waits for approval or is queued is withdrawn and never starts. " +
+        "A running one is killed together with every process it started: a forced stop, so the program cannot clean up or save state. " +
+        "It then waits up to 8 seconds and reports the final state like cmd_wait. A run that already finished is left as it is and the reply gives its status; an unknown run id is an error.\n" +
+        "WHEN TO USE: to end an app that keeps running (run, py_run, node_run), a hung build or test, or a request you no longer want. " +
+        "For a program Waymark did not start that holds a port use cmd_proc stop_port; to find run ids use cmd_list.")]
     public Task<string> Stop(
-        [Description("The run number.")] long runId,
+        [Description("The run number to end, from a cmd_* result or cmd_list, for example 12.")] long runId,
         CancellationToken cancellationToken = default) =>
         service.StopAsync(runId, cancellationToken);
 }

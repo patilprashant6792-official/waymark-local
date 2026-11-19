@@ -15,14 +15,15 @@ public sealed class FileOperationTools(IFileManager manager, ToolPipelineOptions
     [McpServerTool(Name = "folder_create", ReadOnly = false, Destructive = false, Idempotent = true)]
     [ToolGate(ToolGate.Confirm)]
     [Description(
-        "Create one or more folders (including nested paths) in one call.\n" +
-        "Idempotent - already existing folders are not an error.\n" +
-        "EXAMPLE: [\"Features/Orders\", \"Features/Orders/Models\", \"Features/Orders/Services\"]\n" +
-        "RETURNS: per-folder success or error.")]
+        "Creates one or more empty folders in a workspace, with any missing parent folders, in one call. A folder that already exists is reported as such, not as an error.\n" +
+        "WHEN TO USE: only for folders that must exist before any file is in them (a layout to fill later, an output folder a tool expects). " +
+        "file_write and file_move already create the parent folders they need, so do not call this first. To rename or move a folder use folder_move; to remove one use folder_delete.\n" +
+        "Each path is handled on its own: a path that is already a file, outside the workspace or blocked by the access rules fails alone and the others are still created. At most 50 paths per call.\n" +
+        "RETURNS: one line per path: created, already existed, or the error.")]
     public async Task<string> CreateFolder(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
         string workspace,
-        [Description("JSON array of relative folder paths to create:\n  [\"Features/Orders\", \"Features/Orders/Models\"]")]
+        [Description("JSON array of folder paths relative to the workspace root, '/' as separator. A nested path creates every level, so [\"Features/Orders/Models\"] alone is enough for three folders.")]
         string pathsJson,
         CancellationToken cancellationToken = default)
     {
@@ -34,16 +35,17 @@ public sealed class FileOperationTools(IFileManager manager, ToolPipelineOptions
     [McpServerTool(Name = "file_move", ReadOnly = false, Destructive = false, Idempotent = false)]
     [ToolGate(ToolGate.Confirm)]
     [Description(
-        "Move or rename one or more files within the same workspace.\n" +
-        "Same-folder destination = rename. Cross-folder destination = move.\n" +
-        "ATOMIC SAFETY: ALL entries are validated before ANY file is moved.\n" +
-        "If one entry fails validation the whole batch is aborted - nothing is moved.\n" +
-        "An existing destination is never overwritten. Namespaces inside moved C# files are not updated.\n" +
-        "RETURNS: per-file success or error.")]
+        "Moves or renames one or more files inside one workspace. A destination in the same folder renames; one in another folder moves, creating missing destination folders.\n" +
+        "ALL OR NOTHING: every entry is checked first (source exists and is a file, destination free, no two entries to the same place, access rules). If any entry fails, nothing is moved and each problem is listed.\n" +
+        "An existing destination is never overwritten: delete it first with file_delete if it must be replaced. At most 50 entries per call.\n" +
+        "Contents are not changed: C# namespaces, imports and references to the old path stay as they were, so fix them afterwards (file_replace) and build. " +
+        "Saved flows whose steps lived in a moved file are named in the reply, to update with memorise.\n" +
+        "WHEN TO USE: renaming or reorganising files. For a whole folder use folder_move; to copy a file use file_write with a copy entry.\n" +
+        "RETURNS: one line per file with its new path, or the reasons nothing was moved.")]
     public async Task<string> MoveFile(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
         string workspace,
-        [Description("JSON array of move entries:\n  [ { \"from\": \"Services/OldName.cs\", \"to\": \"Core/Services/NewName.cs\" } ]")]
+        [Description("JSON array of moves, paths relative to the workspace root: [ { \"from\": \"Services/OldName.cs\", \"to\": \"Core/Services/NewName.cs\" } ]. 'to' is the full new file path, not a folder.")]
         string movesJson,
         CancellationToken cancellationToken = default)
     {
@@ -55,14 +57,16 @@ public sealed class FileOperationTools(IFileManager manager, ToolPipelineOptions
     [McpServerTool(Name = "file_delete", ReadOnly = false, Destructive = true, Idempotent = false)]
     [ToolGate(ToolGate.Confirm)]
     [Description(
-        "Delete one or more files. Each file is independent - partial success is possible.\n" +
-        "UNDO: use git. No backups are created.\n" +
-        "BLOCKED: files in restricted folders (bin, obj, .git, ...) and files that hold secrets, keys or databases.\n" +
-        "RETURNS: per-file success or error.")]
+        "Deletes one or more files from a workspace for good: no backup and no recycle bin; only git can bring back a tracked file.\n" +
+        "Each file is handled on its own, so some can succeed while others fail. A missing file is an error for that entry; a folder path is refused (use folder_delete). At most 50 paths per call.\n" +
+        "BLOCKED: files in restricted folders (bin, obj, .git and the like), files that hold secrets, keys or databases, and anything the workspace's access rules hide.\n" +
+        "Saved flows whose steps lived in a deleted file are named in the reply, to update with memorise.\n" +
+        "WHEN TO USE: removing files that are no longer needed, after code_callers or code_grep shows nothing still uses them. To rename or move instead use file_move; to empty a file use file_write.\n" +
+        "RETURNS: one line per file: deleted, or the error.")]
     public async Task<string> DeleteFile(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
         string workspace,
-        [Description("JSON array of relative file paths to delete:\n  [\"Services/OldService.cs\", \"Services/IOldService.cs\"]")]
+        [Description("JSON array of file paths relative to the workspace root: [\"Services/OldService.cs\", \"Services/IOldService.cs\"]. Files only, no folders or wildcards.")]
         string pathsJson,
         CancellationToken cancellationToken = default)
     {
@@ -74,17 +78,18 @@ public sealed class FileOperationTools(IFileManager manager, ToolPipelineOptions
     [McpServerTool(Name = "folder_move", ReadOnly = false, Destructive = false, Idempotent = false)]
     [ToolGate(ToolGate.Confirm)]
     [Description(
-        "Move or rename a folder and its entire contents.\n" +
-        "Intentionally single-operation - folder moves are high-impact and should be deliberate.\n" +
-        "Same-parent destination = rename. Cross-parent = move. An existing destination is never overwritten.\n" +
-        "NOTE: namespaces inside moved C# files are not updated. The code index follows the move automatically.\n" +
-        "RETURNS: success or error.")]
+        "Moves or renames one folder with everything in it, inside one workspace. Same parent folder = rename; another parent = move (missing parent folders are created).\n" +
+        "One folder per call on purpose: a folder move touches many files at once. The destination must not exist (it is never overwritten or merged), a folder cannot move into itself, " +
+        "and a change of letter case only is allowed as a rename.\n" +
+        "Contents are not changed: C# namespaces, imports and project references to the old path stay as they were, so fix them afterwards (file_replace) and build. The code index follows the move.\n" +
+        "WHEN TO USE: reorganising a feature or project folder. For single files use file_move (it takes many at once); to remove a folder use folder_delete.\n" +
+        "RETURNS: the new path, or the error.")]
     public async Task<string> MoveFolder(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
         string workspace,
-        [Description("Current relative folder path (e.g. 'Services')")]
+        [Description("The folder to move, relative to the workspace root (e.g. 'Services'). Must exist.")]
         string from,
-        [Description("New relative folder path (e.g. 'Core/Services')")]
+        [Description("The full new folder path, relative to the workspace root (e.g. 'Core/Services'), not the parent to move into. Must not exist.")]
         string to,
         CancellationToken cancellationToken = default)
     {
@@ -95,16 +100,17 @@ public sealed class FileOperationTools(IFileManager manager, ToolPipelineOptions
     [McpServerTool(Name = "folder_delete", ReadOnly = false, Destructive = true, Idempotent = false)]
     [ToolGate(ToolGate.Confirm)]
     [Description(
-        "Delete one or more folders recursively.\n" +
-        "Folders are deleted deepest-first - safe to include both parent and child in one call.\n" +
-        "A folder that does not exist is skipped (not an error). A folder that contains a link is refused.\n" +
-        "BLOCKED: bin, obj, .git, .vs, .ssh, node_modules, backups, logs, packages and other restricted folders.\n" +
-        "UNDO: use git. No backups are created.\n" +
-        "RETURNS: per-folder success or error.")]
+        "Deletes one or more folders with everything in them, for good: no backup and no recycle bin; only git can bring back tracked files.\n" +
+        "Folders are deleted deepest first, so a parent and its child may be in one call. A folder that is already gone is reported as such, not as an error; " +
+        "a file path is refused (use file_delete), and so is the workspace root. At most 50 paths per call.\n" +
+        "REFUSED: a folder that contains a link (it could reach outside the workspace), a folder with more than 20,000 entries (delete its subfolders one at a time), " +
+        "and restricted folders: bin, obj, .git, .vs, .ssh, node_modules, backups, logs, packages and anything the workspace's access rules hide.\n" +
+        "WHEN TO USE: removing a feature, test or sample folder that is no longer needed. To keep the contents under another name use folder_move; for single files use file_delete.\n" +
+        "RETURNS: one line per folder: deleted, already gone, or the error.")]
     public async Task<string> DeleteFolder(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
         string workspace,
-        [Description("JSON array of relative folder paths to delete:\n  [\"Features/OldFeature\", \"Features/OldFeature/Models\"]")]
+        [Description("JSON array of folder paths relative to the workspace root: [\"Features/OldFeature\", \"Features/OldFeature/Models\"]. Folders only, no wildcards.")]
         string pathsJson,
         CancellationToken cancellationToken = default)
     {

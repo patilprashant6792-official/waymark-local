@@ -4,7 +4,7 @@ using Waymark.Core.Tools;
 
 namespace Waymark.Modules.Commands.Tools;
 
-/// <summary>The tools that start commands. They are Confirm tools: off until the owner switches them on, and each operation has its own Off/Ask/Auto gate on the Commands page.</summary>
+/// <summary>The tools that start commands. They are Confirm tools: on by default, the owner can switch them off, and each operation has its own Off/Ask/Auto gate on the Commands page.</summary>
 [McpServerToolType]
 public sealed class CommandRunTools(CommandService service)
 {
@@ -56,7 +56,7 @@ public sealed class CommandRunTools(CommandService service)
         "  node_run: script (default dev, else start), args (array)   - a script that keeps running until stopped\n" +
         "  node_package_add: package*, version*, dev   - npm install of one package at an exact version, --save-exact --ignore-scripts\n" +
         "  node_package_remove: package*   - npm uninstall --ignore-scripts\n" +
-        "When 'target' is omitted the only .sln/.slnx file in the workspace root is used.\n" +
+        "When 'target' is omitted the only .sln/.slnx file in the workspace root is used. For git use cmd_git; for ports and locked build files cmd_proc; for anything without a typed action cmd_shell.\n" +
         "RETURNS: result, compiler or linter findings (workspace-relative paths), test summary and the last output lines. If it takes longer than waitSeconds you get a run id for cmd_wait / cmd_output.")]
     public Task<string> Project(
         [Description(WorkspaceHelp)] string workspace,
@@ -72,7 +72,8 @@ public sealed class CommandRunTools(CommandService service)
     [McpServerTool(Name = "cmd_git", ReadOnly = false, Destructive = false, Idempotent = false)]
     [ToolGate(ToolGate.Confirm)]
     [Description(
-        "Run a git command in a workspace as a typed action (no shell, no pager, no external diff or filter programs). Nothing can force-push. Reading is automatic; changes wait for the owner unless the owner set them to Auto.\n" +
+        "Run a git command in a workspace as a typed action (no shell, no pager, no external diff or filter programs). Nothing can force-push. Reading (status, diff, log, show, branches, stashes, remotes) is automatic; changes wait for the owner unless the owner set them to Auto. " +
+        "reset_hard, clean and branch_delete are switched off unless the owner enables them. For a git operation not listed here use cmd_shell; for what changed on disk without git use code_changes_since.\n" +
         "ACTIONS and optionsJson keys (* = required, paths relative to the workspace):\n" +
         "  status: -\n" +
         "  diff: staged, stat, revision, paths (array)\n" +
@@ -88,9 +89,9 @@ public sealed class CommandRunTools(CommandService service)
         "  restore: paths* (array), staged\n" +
         "  pull: remote, branch (fast-forward only)\n" +
         "  push: remote (default origin), branch, setUpstream\n" +
-        "  reset_hard: revision (default HEAD)   - switched off unless the owner enables it\n" +
-        "  clean: dryRun (default true), paths (array)   - switched off unless the owner enables it\n" +
-        "  branch_delete: name*   - switched off unless the owner enables it\n" +
+        "  reset_hard: revision (default HEAD)\n" +
+        "  clean: dryRun (default true), paths (array)\n" +
+        "  branch_delete: name*\n" +
         "RETURNS: result and the output of git.")]
     public Task<string> Git(
         [Description(WorkspaceHelp)] string workspace,
@@ -103,21 +104,24 @@ public sealed class CommandRunTools(CommandService service)
         CancellationToken cancellationToken = default) =>
         service.GitAsync(workspace, action, purpose, optionsJson, waitSeconds, cancellationToken);
 
-    [McpServerTool(Name = "cmd_proc", ReadOnly = false, Destructive = false, Idempotent = false)]
+    [McpServerTool(Name = "cmd_proc", ReadOnly = false, Destructive = true, Idempotent = false)]
     [ToolGate(ToolGate.Confirm)]
     [Description(
-        "Process and clean-up helpers for a workspace.\n" +
+        "Port, process and build-output helpers for a workspace, done by Waymark itself (no shell). Two actions change things: stop_port kills a program and clean_outputs deletes folders.\n" +
         "ACTIONS and optionsJson keys (* = required):\n" +
-        "  ports: port (show only that port)   - which program listens on which TCP port\n" +
-        "  stop_port: port*   - ends the program on that port; only a program that runs from the workspace or a dotnet program, never Waymark\n" +
-        "  build_server: -   - dotnet build-server shutdown, frees files locked by compiler servers\n" +
-        "  clean_outputs: path (folder, default the workspace), dryRun   - deletes bin and obj folders that sit next to a project file\n" +
-        "RETURNS: result and what was done.")]
+        "  ports: port (1-65535, show only that port)   - reads only: a PORT, PID, PROGRAM, ADDRESS table of listening TCP ports\n" +
+        "  stop_port: port*   - kills the program listening on that port with its child processes. Only a dotnet, Python or Node program, or one that runs from the workspace; " +
+        "never Waymark or a system process, and any other program is refused with its path. Nothing listening is not an error\n" +
+        "  build_server: timeoutMinutes (1-10, default 2)   - dotnet build-server shutdown: frees files that compiler servers keep locked after a build\n" +
+        "  clean_outputs: path (folder, default the workspace), dryRun (true: only list)   - deletes the bin and obj folders next to each .csproj, .fsproj or .vbproj; node_modules, .git, .vs and .idea are skipped\n" +
+        "WHEN TO USE: a port is already in use, a build fails because files are locked, or stale build output must go. " +
+        "Not for runs Waymark started (cmd_stop), building or running (cmd_project) or anything else (cmd_shell). Like every cmd_* call it may wait for the owner's approval.\n" +
+        "RETURNS: status, exit code and what was done (the ports table, each program ended or refused, each folder deleted or listed); a slow run returns a run id for cmd_wait.")]
     public Task<string> Proc(
         [Description(WorkspaceHelp)] string workspace,
         [Description("One of: ports, stop_port, build_server, clean_outputs")] string action,
         [Description(PurposeHelp)] string purpose,
-        [Description("JSON object with the options of the action, for example {\"port\":5000}. Omit when none are needed.")]
+        [Description("JSON object with the options of the action, e.g. {\"port\":5000} or {\"path\":\"src/Api\",\"dryRun\":true}. Unknown keys are refused. Omit when none are needed.")]
         string? optionsJson = null,
         [Description(WaitHelp)] int? waitSeconds = null,
         CancellationToken cancellationToken = default) =>

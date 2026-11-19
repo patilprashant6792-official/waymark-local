@@ -16,23 +16,35 @@ public sealed class WaymarkTools
     // The guide itself is added to this result by the call pipeline (it always counts as asked for), after the secret check and the size limit.
     // With a workspace the pipeline sends that workspace's guide instead, and refuses an unknown or switched-off workspace before this runs.
     [McpServerTool(Name = GuideRules.OverviewTool, ReadOnly = true, Idempotent = true)]
-    [Description("Returns the Waymark overview: what each tool group does, how approvals and long-running commands work, the owner's own instructions, the workspaces and what is switched on now. Call it once before your first Waymark call in a conversation, and again only when a result says it changed. With workspace set to a workspace's name it returns that workspace's guide instead: the owner's instructions for it, its saved flows and its own command gates. Call that once before you work in a workspace.")]
+    [Description(
+        "Returns the Waymark overview: what each tool group (code, packages, files, commands) does, how approvals and long-running commands work, the owner's own instructions, the workspaces and which tools and gates are switched on now. " +
+        "Call it once before your first Waymark call in a conversation, and again only when a result says it changed; each group's detailed usage guide comes separately, with guide: true on your first call to that group. " +
+        "With workspace set it returns that workspace's guide instead: the owner's instructions for it, its saved flows and its command gates; call that once before you change anything in the workspace. " +
+        "Reads only. An unknown or switched-off workspace is an error.")]
     public static string Overview(
-        [Description("Optional: the name of a workspace, to receive that workspace's guide instead of the overview.")]
+        [Description("Optional: a workspace name as shown in the overview, to receive that workspace's guide. Leave empty (or '*') for the overview.")]
         string? workspace = null) =>
         string.IsNullOrWhiteSpace(workspace) || workspace.Trim() == "*"
             ? "The Waymark overview is in the block above this line."
             : "The guide of that workspace is in the block above this line.";
 
     [McpServerTool(Name = "waymark_ping", ReadOnly = true, Idempotent = true)]
-    [Description("Checks that Waymark is reachable and signed in. Returns the server time in UTC.")]
+    [Description(
+        "Checks that Waymark is reachable and that this connection is accepted; returns 'Waymark is running' and the server time in UTC (ISO 8601). Takes no arguments, reads nothing and changes nothing. " +
+        "Use it only to test the connection, for example after a Waymark call failed with a network or sign-in error. " +
+        "Do not use it to start work (call waymark_guide) or to learn the date or the owner's local time (call util_datetime).")]
     public static string Ping() =>
         $"Waymark is running. Server time (UTC): {TimeProvider.System.GetUtcNow().ToString(Iso, CultureInfo.InvariantCulture)}";
 
     [McpServerTool(Name = "util_datetime", ReadOnly = true, Idempotent = true)]
-    [Description("Gets the current date and time in UTC and in this computer's time zone, or in a specific time zone.")]
+    [Description(
+        "Gets the current date and time from this computer's clock. " +
+        "Without timeZoneId it returns two lines: UTC, and the local time with its zone id and offset (ISO 8601). " +
+        "With timeZoneId it returns one line: that zone's id and its time with offset; an unknown id is an error that names the expected form. Reads only. " +
+        "Use it whenever an answer depends on today's date, a weekday, a deadline or the owner's local time, instead of guessing; " +
+        "and to turn a local time into the UTC timestamp code_changes_since expects. waymark_ping only gives the server's UTC time.")]
     public static string CurrentDateTime(
-        [Description("Optional time zone id such as 'Europe/London' or 'India Standard Time'. Leave empty for UTC and local time.")]
+        [Description("Optional time zone id. IANA ids such as 'Europe/London' or 'Asia/Kolkata' work on every system; Windows ids such as 'India Standard Time' work too. Leave empty for UTC plus this computer's local time.")]
         string? timeZoneId = null)
     {
         var now = TimeProvider.System.GetUtcNow();

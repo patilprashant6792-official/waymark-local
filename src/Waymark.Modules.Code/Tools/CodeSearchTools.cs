@@ -20,6 +20,7 @@ public sealed class CodeSearchTools(ICodeSearchService search, ICodeCallersServi
         "Narrow with memberType, pathGlob ('src/Billing/**'), matchIn (Names = symbol names only, Docs, Code = body words) and includeTests=false. " +
         "Workspace '*' searches ALL enabled workspaces. Interface also finds the base-list entries of types ('IUserService' finds its implementers); Attribute finds attribute use ('HttpPost'). " +
         "Examples: code_search('MyApi', 'Redis') | code_search('MyApi', 'refresh token rotate', terms=['jwt']) | code_search('*', 'Authorize', memberType='Attribute') | code_search('MyApi', 'retry -test', pathGlob='src/**'). " +
+        "Not for literal text that is not a name, such as config keys, routes, log messages or SQL: use code_grep. Next steps: read a hit with code_outline + code_method; who calls a member: code_callers; who implements a type: code_types. " +
         "Results come from the syntax index (no symbol resolution). Body words are stored as single words in order of first use, never as lines of code, with secrets redacted first (values after names such as password, secret, token or apiKey are masked as well, but a secret written in another way can remain: keep credentials out of source). The match count shows '+' when the full-text index found more candidates than it ranks.")]
     public Task<string> Search(
         [Description("What to find: a type or member name, camel-case initials, or a description in a few words ('Redis', 'UserService', 'refresh token rotation'). Syntax: \"phrase\", +required, -excluded. At most 200 characters and 16 words (terms included); a query of only filler words (how, does, the) is rejected. Quoted phrases need adjacent words in a name, signature or doc; with matchIn=Code they mean 'all these words'.")]
@@ -52,7 +53,8 @@ public sealed class CodeSearchTools(ICodeSearchService search, ICodeCallersServi
         "Use this BEFORE: changing a method signature (prevents breaking callers), modifying behavior, deleting a method, or renaming a method (find all references). " +
         "Example: before changing GetUser(), verify which services depend on its parameter order. " +
         "Callers are found by method NAME in the syntax index, then sorted by the declared type of their receiver: calls on an unrelated type are left out and counted (includeUnrelated=true lists them), and '?' marks a call whose receiver type is unknown. All overloads share one result. " +
-        "In TypeScript and JavaScript a local function (a handler or useCallback inside a React component) works too, and the calls inside it are reported under its own name, not its component's.")]
+        "In TypeScript and JavaScript a local function (a handler or useCallback inside a React component) works too, and the calls inside it are reported under its own name, not its component's. " +
+        "For implementations and overrides of an interface or virtual member use code_types; to find the method's file first use code_search.")]
     public Task<string> Callers(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
         string workspace,
@@ -75,18 +77,20 @@ public sealed class CodeSearchTools(ICodeSearchService search, ICodeCallersServi
 
     [McpServerTool(Name = "code_types", ReadOnly = true, Destructive = false, Idempotent = true)]
     [Description(
-        "Shows what IMPLEMENTS or DERIVES from a type, and what it builds on: the whole chain, not just the direct level, with file and line. " +
-        "Use this BEFORE changing an interface or base class (every implementer and subclass is affected), or to answer 'who implements IFoo' / 'what does this class inherit'. " +
-        "Pass memberName to see which of those types declare that member (the implementations or overrides of a method). " +
-        "Read from the base lists in the syntax index and matched by simple name; a base type from a library is shown as not in the index.")]
+        "Shows a type's whole inheritance tree in one call: every type that implements or derives from it (directly or through others) and every base type and interface it builds on, each with kind, file and line. " +
+        "With memberName it also marks which of those types declare that member, which finds the implementations and overrides of a method.\n" +
+        "WHEN TO USE: before changing an interface, base class or virtual member (every implementer and subclass is affected), or to answer 'who implements IFoo' or 'what does this class inherit'. " +
+        "For call sites use code_callers; when you do not know the exact type name use code_search first.\n" +
+        "HOW IT MATCHES: from the base lists in the syntax index, by simple name and exact letter case (no symbol resolution). Several types with the same name are merged and named in a note; " +
+        "a base type from a library is shown as not in the index; a name that is not in the index is an error. Very deep or wide trees stop at a limit and say so. Reads only.")]
     public Task<string> Types(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
         string workspace,
-        [Description("Type name, e.g. 'IAuditStore' or 'OrderService' (a namespace or type arguments are ignored)")]
+        [Description("Exact type name, letter case included, e.g. 'IAuditStore' or 'OrderService'. A namespace prefix or type arguments ('Repo<T>') are ignored.")]
         string typeName,
         [Description("Optional: 'both' (default), 'derived' (implementers and subclasses only) or 'bases' (what it builds on only)")]
         string? direction = null,
-        [Description("Optional: a member name; marks the types that declare it, e.g. 'UsageAsync' to find its implementations")]
+        [Description("Optional: a member name such as 'UsageAsync'; each listed type that declares it is marked, and a note counts them.")]
         string? memberName = null,
         [Description("Optional: include derived types in test folders (default true)")]
         bool includeTests = true,

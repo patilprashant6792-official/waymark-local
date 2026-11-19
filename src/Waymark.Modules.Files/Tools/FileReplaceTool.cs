@@ -32,6 +32,7 @@ public sealed class FileReplaceTool(IReplaceService replacer, ToolPipelineOption
         "A plan lasts 10 minutes and is used once. A wrong confirmCount or different arguments are refused and the plan stays usable; " +
         "a planned file that changed after the preview is refused too, and that plan is used up: preview again. " +
         "A preview whose scan was partial (too many files, too slow, over the limits) gives no planId: narrow the scope.\n" +
+        "WHEN TO USE: the same text or identifier changes in many places or files. For edits at known lines of one file use file_edit_lines; to create or rewrite whole files use file_write.\n" +
         "RETURNS: preview - matches per file with marked lines and the planId; apply - replacements per file.")]
     public async Task<string> Replace(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]

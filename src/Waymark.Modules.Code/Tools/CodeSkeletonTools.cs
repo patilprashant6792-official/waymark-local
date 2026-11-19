@@ -35,16 +35,18 @@ public sealed class CodeSkeletonTools(ISkeletonService skeleton, ILogger<CodeSke
 
     [McpServerTool(Name = "code_folder_files", ReadOnly = true, Destructive = false, Idempotent = true)]
     [Description(
-        "Search and paginate the files directly inside one folder of a workspace. " +
-        "Use this when code_skeleton shows 'N files collapsed'. " +
-        "Supports filtering by file name (case-insensitive). Returns sorted, paginated results with size and line count. " +
-        "Example: find all 'Transaction' files in Entities/Exchange.")]
+        "Lists the files directly inside one folder of a workspace (not its subfolders), sorted by name and paged, each with its path, size and line count. " +
+        "Each file is marked small (read it with code_read) or large (use code_outline + code_method). Optionally only names that contain some text. " +
+        "Files tools may not open (build output, .git, secrets, keys, the workspace's access rules) are not listed. A folder that does not exist is an error. Reads only.\n" +
+        "WHEN TO USE: code_skeleton showed a folder as collapsed or too big to list, or you need every file of one folder, e.g. all '*Transaction*' files in Entities/Exchange. " +
+        "For the folder tree use code_skeleton; to find a type or member anywhere use code_search; for text inside files use code_grep.\n" +
+        "RETURNS: 'Showing N of M file(s) - page p/q', the files, and the call for the next page.")]
     public Task<string> FolderFiles(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
         string workspace,
         [Description("Folder path relative to the workspace root (e.g. 'Entities/Exchange', 'Controllers'). '.' is the root.")]
         string folderPath,
-        [Description("Optional: part of the file name to filter by (case-insensitive, e.g. 'Company'). Leave empty to list all.")]
+        [Description("Optional: text the file NAME must contain, any letter case, e.g. 'Company' or '.cs'. Plain text, not a glob ('*' is not a wildcard). Leave empty to list all.")]
         string? searchPattern = null,
         [Description("Optional: page number, starting at 1 (default 1)")]
         int page = 1,
@@ -55,13 +57,14 @@ public sealed class CodeSkeletonTools(ISkeletonService skeleton, ILogger<CodeSke
 
     [McpServerTool(Name = "code_changes_since", ReadOnly = true, Destructive = false, Idempotent = true)]
     [Description(
-        "Lists the files of a workspace that were modified after a point in time, with modified time, size and line count. " +
-        "Use it when resuming work or to review recent edits. " +
-        "The timestamp is a Unix timestamp in seconds or an ISO 8601 date; a date without an offset is taken as UTC.")]
+        "Lists every file in a workspace, in all folders, whose last-modified time on disk is after a point in time, in path order, each with its modified time (UTC), size and line count. " +
+        "Files tools may not open (build output, .git, secrets, the workspace's access rules) are left out. At most 500 files are listed; the reply says when the list was cut, so use a later time to narrow it. Reads only.\n" +
+        "WHEN TO USE: resuming work after a break, or checking what you, the owner or a tool changed since a moment. " +
+        "It reads file times, not git: for uncommitted changes against the last commit use cmd_git status or diff; for the folder layout use code_skeleton.")]
     public Task<string> ChangesSince(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
         string workspace,
-        [Description("Unix timestamp (e.g. '1705449600') or ISO 8601 date (e.g. '2026-01-17T00:00:00Z')")]
+        [Description("The point in time: Unix seconds ('1705449600') or ISO 8601 ('2026-01-17T09:30:00Z', '2026-01-17T15:00:00+05:30'). A date or time without an offset is read as UTC, so add the owner's offset for a local time (util_datetime gives it).")]
         string sinceTimestamp,
         CancellationToken cancellationToken = default) =>
         RunAsync(() => skeleton.ChangesSinceAsync(workspace, sinceTimestamp, cancellationToken));

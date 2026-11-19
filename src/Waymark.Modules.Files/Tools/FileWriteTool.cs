@@ -42,18 +42,17 @@ public sealed class FileWriteTool(IFileEditor editor, ToolPipelineOptions pipeli
         "  Always run it with dryRun=true first: it lists every file and the count; then repeat without dryRun and pass that count as confirmCount (a changed tree is refused).\n" +
         "  A file that fails (binary, a secret, an existing target) fails alone; the rest are copied. Keep the result as the migration record.\n" +
         "dryRun=true runs every check and copy and reports what would happen without writing.\n" +
-        "WHEN TO USE: new files or full rewrites. For targeted edits use file_edit_lines.\n" +
+        "WHEN TO USE: new files, full rewrites, copies and folder migrations. For targeted edits use file_edit_lines; for the same change across many files file_replace; to move or rename file_move.\n" +
         "RETURNS: per-file success or error, line count, size in bytes, last-modified time and, for copies, where the text came from.")]
     public async Task<string> WriteFiles(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
         string workspace,
         [Description(
-            "JSON array of files to write. Each entry:\n" +
-            "  { \"relativeFilePath\": \"Services/OrderService.cs\",\n" +
-            "    \"content\": \"<full file content>\",\n" +
-            "    \"mode\": \"create|overwrite|upsert\" }\n" +
-            "or, to copy instead of typing, replace content by \"from\": { ... } (see the tool description).\n" +
-            "mode defaults to upsert when omitted.")]
+            "JSON array of entries, at most 50 (a fromFolder entry counts as one). Three shapes:\n" +
+            "  write: { \"relativeFilePath\": \"Services/OrderService.cs\", \"content\": \"<full file content>\", \"mode\": \"create|overwrite|upsert\" }\n" +
+            "  copy:  { \"relativeFilePath\": \"Services/OrderService.cs\", \"from\": { \"file\": \"Services/InvoiceService.cs\", ... }, \"mode\": \"create\" }\n" +
+            "  bulk:  { \"fromFolder\": { \"folder\": \"src/Billing\", \"toFolder\": \"src/Orders\", \"confirmCount\": 37, ... } }\n" +
+            "The keys of from and fromFolder are listed in the tool description. mode defaults to upsert for write and copy, and to create for bulk.")]
         string filesJson,
         [Description("true: check and report only, write nothing (default false)")]
         bool dryRun = false,

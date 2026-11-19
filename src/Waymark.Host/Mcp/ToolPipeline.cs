@@ -58,7 +58,8 @@ public sealed class ToolPipeline(
                 tool.Meta ??= new JsonObject();
                 tool.Meta[AlwaysLoadKey] = true;
             }
-            else if (guideDelivery.IsGuided(descriptor.Module))
+            // The other overview tools (waymark_ping, util_datetime) get no guide flag: the overview comes from waymark_guide.
+            else if (!GuideRules.IsOverview(descriptor.Module) && guideDelivery.IsGuided(descriptor.Module))
             {
                 tool.InputSchema = GuideSchema.WithGuideProperty(tool.InputSchema, descriptor.Module);
             }

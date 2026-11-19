@@ -22,12 +22,14 @@ public sealed class PackageTools(INuGetSymbolService symbols, IPackagePins pins,
 
     [McpServerTool(Name = "pkg_search", ReadOnly = true, Destructive = false, Idempotent = true)]
     [Description(
-        "Looks a package up by name. NuGet (default): searches nuget.org and returns id, latest version, download count and a one-line description. " +
-        "PyPI (ecosystem='pypi'): PyPI has no search, so the query is tried as project names (words joined with '-', then each word) and returns the projects that exist. npm (ecosystem='npm'): searches the npm registry. " +
-        "Use it only when the exact package id is not known; skip it when the id is already in the project's package list. " +
-        "Next step: pkg_find(packageId, query) to locate a type, class or function inside the package.")]
+        "Finds a package when you do not know its exact id. Each hit: id, latest version, download count when the registry gives one, and a one-line description; " +
+        "the reply ends with the pkg_find call to make next. Reads the public registry and changes nothing.\n" +
+        "How each ecosystem searches: NuGet (default) searches nuget.org by keyword. npm (ecosystem='npm') searches the npm registry by keyword. " +
+        "PyPI (ecosystem='pypi') has no search, so the query is tried as project names: the words joined with '-', then each word alone; only projects that exist come back, and none means no project has that name.\n" +
+        "WHEN TO USE: only to discover or confirm a package id. Skip it when the id is already in the project's package list or lock file and go straight to pkg_find; " +
+        "for the namespaces or modules of a known package use pkg_outline.")]
     public Task<string> Search(
-        [Description("Package name or keyword (e.g. 'openai', 'polly retry'; for pypi the project name, e.g. 'requests' or 'scikit learn'; for npm words such as 'react query')")]
+        [Description("NuGet and npm: keywords or a name ('polly retry', 'react query'). PyPI: the project name as in 'pip install name' ('requests'); words are joined with '-' ('scikit learn' tries scikit-learn).")]
         string query,
         [Description(EcosystemHelp)]
         string? ecosystem = null,
@@ -75,9 +77,14 @@ public sealed class PackageTools(INuGetSymbolService symbols, IPackagePins pins,
 
     [McpServerTool(Name = "pkg_find", ReadOnly = true, Destructive = false, Idempotent = true)]
     [Description(
-        "Finds types, classes, functions and methods inside a package by describing what you need ('chat completion', 'retry policy'). Results are ranked best first and carry a symbol id. " +
-        "An empty query browses the most prominent symbols. Filters: kind (class, interface, enum, struct, delegate, method), namespace (exact; the module for PyPI), declaringType (lists the methods of one type; for PyPI a module name lists its functions). " +
-        "Pin the version to the project's (a Python project's lock file gives it: pass workspace). Next step: pkg_expand with the ids to see exact signatures.")]
+        "Finds types, classes, functions and methods inside one package, by name or by describing what you need ('chat completion', 'retry policy'). " +
+        "Each hit is a symbol id with a one-line card (a type: kind, full name, member counts and summary; a method: parameter types and return type), ranked by relevance and how prominent the symbol is in the package; the reply gives the total and the next call. " +
+        "An empty query lists the package's most prominent symbols. Nothing matched gives hints instead of an error. " +
+        "The first call for a package version downloads and indexes it (a few seconds); later calls are instant. Reads only.\n" +
+        "Narrow with kind, namespace (exact; the module for PyPI and npm) or declaringType (all methods of one type; for PyPI and npm a module name lists its functions).\n" +
+        "Pin the version the project uses: pass version, or for PyPI and npm pass workspace so the lock file decides.\n" +
+        "WHEN TO USE: the usual first call for a known package. Before it, pkg_search only when the package id is unknown, and pkg_outline only when the package is completely unfamiliar. " +
+        "Next: pkg_expand with up to 5 of the ids for exact signatures. For code in the workspace itself use code_search.")]
     public Task<string> Find(
         [Description("Package id (NuGet, e.g. 'Polly'), project name (PyPI, e.g. 'requests') or package name (npm, e.g. 'zod' or '@tanstack/react-query')")]
         string packageId,
@@ -117,17 +124,21 @@ public sealed class PackageTools(INuGetSymbolService symbols, IPackagePins pins,
 
     [McpServerTool(Name = "pkg_expand", ReadOnly = true, Destructive = false, Idempotent = true)]
     [Description(
-        "Shows the exact shape of up to 5 symbols from pkg_find: constructors or overload signatures, methods, properties, enum values, documentation (XML comments for NuGet, docstrings for PyPI, JSDoc for npm) and related type ids. " +
-        "The signatures come from the package itself (the compiled assembly for NuGet; the wheel, with the stub package's types when the package has none, for PyPI; the declaration files, or the @types package, for npm), so they are the source of truth for what exists. " +
-        "Sections: sig, methods, props, data, doc, rel, or all (default depends on the kind of symbol). Pass the related ids straight back to expand them.")]
+        "Shows the exact API of up to 5 symbols of a package: constructor and overload signatures, methods, properties, enum values, documentation (XML comments, docstrings or JSDoc) and the ids of related types. " +
+        "The signatures are read from the package itself (NuGet: the compiled assembly; PyPI: the wheel, plus its stub package when it has no types; npm: the declaration files or the @types package), " +
+        "so they are the source of truth for what exists: write calls from them, not from memory. Reads only.\n" +
+        "An id that is not in the package is reported as not found while the others are still shown; more than 5 is an error. The first call for a package version downloads and indexes it.\n" +
+        "WHEN TO USE: after pkg_find gave you ids, before you write code that calls them; pass a related id back to follow a parameter or return type. " +
+        "To locate symbols use pkg_find, for the namespace map pkg_outline, to find a package id pkg_search.")]
     public Task<string> Expand(
         [Description("Package id (NuGet), project name (PyPI) or package name (npm)")]
         string packageId,
-        [Description("Symbol ids from pkg_find or related ids (max 5); a full or trailing type name also works")]
+        [Description("Up to 5 symbol ids from pkg_find or from a 'rel' section; a full or trailing type name ('Polly.ResiliencePipeline' or 'ResiliencePipeline') also works.")]
         string[] identifiers,
         [Description(EcosystemHelp)]
         string? ecosystem = null,
-        [Description("Optional: comma separated sections - sig, methods, props, data, doc, rel, or all")]
+        [Description("Optional: comma separated sections. sig = signatures and constructors, methods, props, data = enum values, doc, rel = related type ids, or all. " +
+            "Default: a type gets sig, methods, props, doc, rel; a method gets sig, doc, rel; an enum gets data, doc. Unknown names are ignored. Ask for one section of a large type, e.g. 'methods'.")]
         string? sections = null,
         [Description("Optional: exact package version, from the project's package list or lock file. Omit for the latest stable.")]
         string? version = null,

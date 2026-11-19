@@ -12,9 +12,13 @@ public sealed class MemoryTools(IFeatureMemoryService memory, ILogger<MemoryTool
 {
     [McpServerTool(Name = "recall", ReadOnly = true, Destructive = false, Idempotent = true)]
     [Description(
-        "Returns saved flows: a feature as ordered method steps from its trigger to its outcome, kept by earlier sessions.\n" +
-        "CALL IT FIRST when you start work on a feature. action='list' (optional query: words, or a method name to find the flows it is a step of; page, pageSize) finds flows; action='get' (ids='12,15') returns each step's signature, location and whether its link to the step above still holds. It never returns code: read only the steps your task needs, with code_method.\n" +
-        "A step that is not in the code on this branch is listed as such and kept. A flow is a hint: keep exploring where it falls short.")]
+        "Returns saved flows, your memory of this codebase from earlier sessions: each flow is one feature as ordered method steps, from its trigger (an endpoint, UI event, job) to its outcome. Reads only.\n" +
+        "CALL IT FIRST when you start work on a feature, before searching the code.\n" +
+        "action='list': a table of flows (id, name, steps, version, summary, last update), paged. Without query it lists all; query keeps the flows whose name, summary, steps or notes contain all its words, " +
+        "and a method name finds every flow that method is a step of.\n" +
+        "action='get' with ids from list (up to 5): each step's signature and file location, whether its link to the step above still holds in the code, and which steps are not on this branch (kept, not deleted). " +
+        "It never returns code: read only the steps your task needs with code_method.\n" +
+        "A flow is a hint, not proof: check it in the code and keep exploring where it falls short. When your change alters the path, update the flow with memorise, passing the v shown here as expectedVersion.")]
     public Task<string> Recall(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
         string workspace,
@@ -36,11 +40,16 @@ public sealed class MemoryTools(IFeatureMemoryService memory, ILogger<MemoryTool
             _ => throw new ArgumentException($"Unknown action '{action}'. recall accepts: list, get.")
         });
 
-    [McpServerTool(Name = "memorise", ReadOnly = false, Destructive = false, Idempotent = true)]
+    [McpServerTool(Name = "memorise", ReadOnly = false, Destructive = true, Idempotent = false)]
     [Description(
-        "Saves a flow: one trigger to one outcome as method steps, one per line: 'path:Type.Member', indented 2 spaces per level for 'called by the step above'. The first line is the only trigger. Add ~event, ~http, ~ui, ~di or ~job after a step for a link a call cannot show, and ' | note' for why it matters. Each new step must exist now and each new link must be a call the code makes.\n" +
-        "action='save_feature_map': to create, give name, summary and steps. To change a flow you read with recall, give its whole new steps and expectedVersion (the v shown); newName renames it. Save only when the path changed (steps added, removed, renamed or moved) or for a new trigger; an edit inside a step needs no save. Steps that were saved before stay, whatever branch they are on.\n" +
-        "A flow that starts at the same step as another is refused unless distinct says how it differs. If two flows describe the same trigger and outcome, delete one with action='delete_feature_map' and name.")]
+        "Saves or deletes a flow: one trigger to one outcome as ordered method steps, kept for later sessions and returned by recall.\n" +
+        "STEPS, one per line: 'path:Type.Member', indented 2 spaces under the step that calls it; the first line is the only trigger. After a step add ~event, ~http, ~ui, ~di or ~job for a link a direct call cannot show, " +
+        "and ' | note' for why it matters. Each new step must exist in the code now and each new link must be a call the code makes; otherwise nothing is saved and the reply lists the problems. Text that looks like a secret is refused.\n" +
+        "action='save_feature_map': create with name, summary and steps. To change a flow, read it with recall and send its whole new steps with expectedVersion (the v shown); newName renames it. " +
+        "If the flow changed since you read it, nothing is saved and the reply shows the current flow to merge with. A new flow that starts at the same step as another is refused unless distinct says how it differs.\n" +
+        "action='delete_feature_map' with name: removes a flow for good, e.g. one of two flows that describe the same trigger and outcome.\n" +
+        "WHEN TO SAVE: after a change that adds, removes, renames or moves steps, or for a new trigger. An edit inside a step needs no save. Steps saved before stay, whatever branch they are on.\n" +
+        "RETURNS: the flow's id and new version with a count of its steps and links, the deletion, or the refusal with what to fix.")]
     public Task<string> Memorise(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
         string workspace,

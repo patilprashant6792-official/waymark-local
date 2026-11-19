@@ -16,10 +16,9 @@ public sealed class CodeReadTools(ICodeReadService reader, ILogger<CodeReadTools
         "Returns: namespace (module in Python and TypeScript), using directives (imports), types (classes, interfaces, records, enums, type aliases...), their members with signatures, attributes (decorators) and line ranges, module-level functions and variables, and the file classification. " +
         "In TypeScript and JavaScript the functions declared inside a function (a React component's handlers and useCallback/useMemo values, a hook's helpers) are listed indented under it as local members. " +
         "BATCH MODE: pass 'File1.cs,File2.py,File3.tsx' (comma-separated, NO SPACES) to analyze several files in one call, of any language. " +
-        "Use this BEFORE code_method to understand the structure. " +
-        "TOKEN-EFFICIENT: always prefer this for C#, Python, TypeScript and JavaScript files; use code_read for other files. " +
-        "Set includePrivateMembers=true when debugging internals, analyzing dependency injection (constructors), refactoring private methods or needing the full class architecture. " +
-        "Default: false (public API surface only). The file is parsed from disk on every call, so the result is never stale.")]
+        "Use this BEFORE code_method to understand the structure, and instead of code_read for C#, Python, TypeScript and JavaScript files: it costs far fewer tokens than the full text. For other files use code_read. " +
+        "Set includePrivateMembers=true when debugging internals, analyzing dependency injection (constructors), refactoring private methods or needing the full class architecture; the default shows the public API only. " +
+        "The file is parsed from disk on every call, so the result is never stale.")]
     public Task<string> Outline(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
         string workspace,
@@ -40,7 +39,7 @@ public sealed class CodeReadTools(ICodeReadService reader, ILogger<CodeReadTools
         "A member too large for one answer (a big React component) comes back as a map instead: its local members with line ranges and its opening lines; fetch the parts you need by name. " +
         "BATCH MODE: pass 'Method1,Method2,Method3' (comma-separated, NO SPACES) to fetch several members in one call. " +
         "Overloads of the same name are all returned. " +
-        "Use AFTER code_outline to drill into specific members. " +
+        "Use AFTER code_outline to drill into specific members; to find a member whose file you do not know use code_search first. For a whole small file or a non-code file use code_read. " +
         "CRITICAL: the line numbers are the real file lines, so they can be used directly with file_edit_lines.")]
     public Task<string> Method(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
