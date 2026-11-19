@@ -133,6 +133,33 @@
             }
         </section>
 
+        <section class="wm-card" aria-labelledby="setup-notify">
+            <div class="wm-row spread">
+                <h2 id="setup-notify" class="wm-card-title">Desktop notifications</h2>
+                @if (Notifier.IsSupported)
+                {
+                    <WmSwitch Value="_notifyEnabled" ValueChanged="SetNotifyAsync" Disabled="_busy" Label="Desktop notifications for approvals"
+                              Tooltip="@(_notifyEnabled ? "On: a notification tells you when something waits" : "Off: only this page's tab shows it")" />
+                }
+                else
+                {
+                    <WmStatus State="StatusState.Off" Text="Not available here" />
+                }
+            </div>
+            @if (Notifier.IsSupported)
+            {
+                <p class="wm-muted">When a command or an app connection waits for your approval, Waymark shows a notification on this computer, so you notice it from any app. You still decide here, on the Console or Approvals page. The notification says only how many requests wait, never what they are.</p>
+                <div class="wm-row">
+                    <WmButton OnClick="SendTestNotificationAsync" Disabled="_busy">Send a test notification</WmButton>
+                </div>
+                <p class="wm-muted wm-note">Nothing appeared? Check that Do not disturb (Focus) is off. On Windows the notification comes from Windows PowerShell; on macOS it comes from Script Editor, and macOS may ask once whether Script Editor may show notifications (System Settings, Notifications).</p>
+            }
+            else
+            {
+                <p class="wm-muted">Desktop notifications are available on Windows and macOS. Here, the tab title and icon of the admin UI show when something waits for you.</p>
+            }
+        </section>
+
         <section class="wm-card" aria-labelledby="setup-leaves">
             <h2 id="setup-leaves" class="wm-card-title">What leaves this machine</h2>
             <ul>

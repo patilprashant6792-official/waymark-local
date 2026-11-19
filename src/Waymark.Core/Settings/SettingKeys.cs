@@ -23,4 +23,7 @@ public static class SettingKeys
 
     /// <summary>How many days the kept inputs and outputs are kept (1 to 30).</summary>
     public const string AuditPayloadDays = "audit.payload_days";
+
+    /// <summary>True (the default) to show a desktop notification when a command or an app connection waits for the owner's approval.</summary>
+    public const string DesktopNotifications = "ui.desktop_notifications";
 }
