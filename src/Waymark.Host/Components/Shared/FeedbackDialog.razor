@@ -1,0 +1,14 @@
+@using MudBlazor
+
+<MudDialog>
+    <DialogContent>
+        <FeedbackForm OnClose="Close" />
+    </DialogContent>
+</MudDialog>
+
+@code {
+    [CascadingParameter]
+    private IMudDialogInstance Dialog { get; set; } = default!;
+
+    private void Close() => Dialog.Cancel();
+}

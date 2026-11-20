@@ -37,6 +37,9 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     [Inject]
     private NavigationManager Navigation { get; set; } = default!;
 
+    [Inject]
+    private IDialogService Dialogs { get; set; } = default!;
+
     private (StatusState State, string Text) ServerChip =>
         Status.Paused ? (StatusState.Attention, "Paused") : (StatusState.Healthy, "Server running");
 
@@ -167,6 +170,12 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         {
             Logger.LogDebug(ex, "The shortcuts list could not be shown");
         }
+    }
+
+    private async Task OpenFeedbackAsync()
+    {
+        var options = new DialogOptions { CloseOnEscapeKey = true, MaxWidth = MaxWidth.Small, FullWidth = true };
+        await Dialogs.ShowAsync<FeedbackDialog>("Send feedback", options);
     }
 
     private async Task PollAsync()

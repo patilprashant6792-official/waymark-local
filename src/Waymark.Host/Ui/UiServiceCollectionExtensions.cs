@@ -24,6 +24,11 @@ public static class UiServiceCollectionExtensions
         services.AddSingleton<Waymark.Host.FeatureMaps.FeatureMapAdminService>();
         services.AddSingleton<Waymark.Host.Transfer.WorkspaceBundleService>();
 
+        // Feedback: an email the owner's own mail app sends. FeedbackOptions comes from the configuration (Program.cs).
+        services.AddSingleton<Waymark.Host.Feedback.IOutboundTextScrubber, Waymark.Host.Feedback.GuardTextScrubber>();
+        services.AddSingleton(Waymark.Host.Feedback.FeedbackSystemInfo.ForThisProcess());
+        services.AddSingleton<Waymark.Host.Feedback.FeedbackComposer>();
+
         // Desktop notifications about waiting approvals: they only point to the admin UI, where deciding stays.
         services.AddSingleton<IDesktopNotifier>(_ => DesktopNotifiers.ForThisComputer());
         services.AddSingleton<DesktopNotificationSettings>();

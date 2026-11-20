@@ -17,6 +17,7 @@
   <img src="https://img.shields.io/badge/MCP-server-black" alt="MCP server">
   <img src="https://img.shields.io/badge/status-v0.3-orange" alt="Status: v0.3">
   <a href="https://mcpservers.org/servers/patilprashant6792-official/waymark-local"><img src="https://mcpservers.org/badge.svg" alt="Listed on mcpservers.org"></a>
+  <a href="https://glama.ai/mcp/servers/patilprashant6792-official/waymark-local"><img src="https://glama.ai/mcp/servers/patilprashant6792-official/waymark-local/badges/score.svg" alt="patilprashant6792-official/waymark-local MCP server"></a>
 </p>
 
 <p align="center">
@@ -418,7 +419,7 @@ Be accurate about its limits: it's early, it has no sandbox, it's Windows and ma
 
 ## Feedback
 
-- **Tried it?** Tell me what worked, what broke and what's missing in an [issue](https://github.com/patilprashant6792-official/waymark-local/issues). The most useful thing you can share: the first flow Claude saved on your code, and whether it got the path right.
+- **Tried it?** Tell me what worked, what broke and what's missing: press the feedback button in the header of the admin page (or Ctrl K, Feedback), which opens a ready email in your own mail app, or open an [issue](https://github.com/patilprashant6792-official/waymark-local/issues). The most useful thing you can share: the first flow Claude saved on your code, and whether it got the path right.
 - **Found a way past the approvals or the secret hiding?** Please report it privately, as described in [SECURITY.md](SECURITY.md).
 - **Want to contribute?** See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md).
 

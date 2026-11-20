@@ -46,6 +46,7 @@ builder.WebHost.ConfigureKestrel(kestrel =>
 });
 
 builder.Services.AddSingleton(edge);
+builder.Services.AddSingleton(Waymark.Host.Feedback.FeedbackOptions.FromConfiguration(builder.Configuration));
 builder.Services.AddRazorComponents().AddInteractiveServerComponents();
 builder.Services.AddMudServices();
 var dataOptions = WaymarkDataOptions.FromConfiguration(builder.Configuration);
