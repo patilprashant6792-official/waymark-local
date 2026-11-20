@@ -16,6 +16,7 @@
   <img src="https://img.shields.io/badge/.NET-10-512BD4" alt=".NET 10">
   <img src="https://img.shields.io/badge/MCP-server-black" alt="MCP server">
   <img src="https://img.shields.io/badge/status-v0.3-orange" alt="Status: v0.3">
+  <a href="https://mcpservers.org/servers/patilprashant6792-official/waymark-local"><img src="https://mcpservers.org/badge.svg" alt="Listed on mcpservers.org"></a>
 </p>
 
 <p align="center">
