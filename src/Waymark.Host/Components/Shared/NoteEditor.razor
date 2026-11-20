@@ -1,0 +1,69 @@
+@using Waymark.Core.Memory
+
+@* Writes or changes one note: the text with a character counter, its kind, and (for a workspace note) what it is about. A refusal (a secret, too long) shows here. *@
+<div class="wm-card wm-note-editor" role="group" aria-label="@Title">
+    <h3 class="wm-card-title">@Title</h3>
+    <WmTextField Label="Note" @bind-Value="_body" Lines="4" MaxLength="@NoteRules.MaxBodyChars" Immediate="true" Width="FieldWidth.Full"
+                 HelperText="@($"{_body.Length} of {NoteRules.MaxBodyChars} characters. One idea the code does not say: why, a gotcha, a convention, a decision, how to.")" />
+    <div class="wm-row">
+        <WmSelect TValue="NoteKind" Label="Kind" Options="KindOptions" @bind-Value="_kind" Width="FieldWidth.Small" />
+        @if (AllowAbout)
+        {
+            <WmTextField Label="About (optional)" @bind-Value="_about" Width="FieldWidth.Large" MaxLength="300" HelperText="'path' or 'path:Type.Member' from the workspace root" />
+        }
+    </div>
+    @if (Error is not null)
+    {
+        <InlineAlert Severity="Severity.Warning">@Error</InlineAlert>
+    }
+    <div class="wm-row wm-card-actions">
+        <WmButton Kind="ButtonKind.Primary" Busy="Busy" Disabled="@(string.IsNullOrWhiteSpace(_body))" OnClick="SaveAsync">Save</WmButton>
+        <WmButton Kind="ButtonKind.Ghost" Disabled="Busy" OnClick="() => OnCancel.InvokeAsync()">Cancel</WmButton>
+    </div>
+</div>
+
+@code {
+    private static readonly IReadOnlyList<WmOption<NoteKind>> KindOptions = [.. NoteKinds.All.Select(kind => new WmOption<NoteKind>(kind, NoteKinds.ToText(kind)))];
+
+    private string _body = string.Empty;
+    private NoteKind _kind = NoteKind.Note;
+    private string _about = string.Empty;
+    private Note? _for;
+
+    [Parameter]
+    public string Title { get; set; } = "New note";
+
+    /// <summary>The note being edited; null for a new one.</summary>
+    [Parameter]
+    public Note? Editing { get; set; }
+
+    /// <summary>Show the 'about' field (workspace notes only).</summary>
+    [Parameter]
+    public bool AllowAbout { get; set; }
+
+    [Parameter]
+    public bool Busy { get; set; }
+
+    [Parameter]
+    public string? Error { get; set; }
+
+    [Parameter]
+    public EventCallback<NoteEditorValue> OnSave { get; set; }
+
+    [Parameter]
+    public EventCallback OnCancel { get; set; }
+
+    protected override void OnParametersSet()
+    {
+        if (!ReferenceEquals(_for, Editing))
+        {
+            _for = Editing;
+            _body = Editing?.Body ?? string.Empty;
+            _kind = Editing?.Kind ?? NoteKind.Note;
+            _about = Editing?.About ?? string.Empty;
+        }
+    }
+
+    private Task SaveAsync() =>
+        OnSave.InvokeAsync(new NoteEditorValue(_body, _kind, string.IsNullOrWhiteSpace(_about) ? null : _about.Trim()));
+}

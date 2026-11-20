@@ -20,7 +20,8 @@ public sealed class WorkspaceBundleStore(IWriteQueue writes) : IWorkspaceBundleS
             {
                 var rules = await AddRulesAsync(connection, tx, item, stamp, k);
                 var maps = await AddMapsAsync(connection, tx, item, stamp, k);
-                applied.Add(new WorkspaceApplied(item.WorkspaceId, rules, maps.Created, maps.Steps));
+                var notes = await AddNotesAsync(connection, tx, item, stamp, k);
+                applied.Add(new WorkspaceApplied(item.WorkspaceId, rules, maps.Created, maps.Steps, NotesAdded: notes));
             }
 
             return applied;
@@ -122,6 +123,60 @@ public sealed class WorkspaceBundleStore(IWriteQueue writes) : IWorkspaceBundleS
         return (created, steps);
     }
 
+
+    // Notes are added with the provenance of the file (author, dates), active and unpinned, with no code fingerprint (this computer never saw the code they were written on).
+    // A note on a flow that is not here (or was not imported) is kept detached, under the flow's name. The full-text row is written with it.
+    private static async Task<int> AddNotesAsync(SqliteConnection connection, SqliteTransaction tx, WorkspaceApply item, string stamp, CancellationToken ct)
+    {
+        var added = 0;
+        var workspaceId = item.WorkspaceId;
+        foreach (var note in item.Plan.NotesToAdd ?? [])
+        {
+            long? mapId = null;
+            if (note.Flow is not null)
+            {
+                mapId = await connection.ExecuteScalarAsync<long?>(new CommandDefinition(
+                    "SELECT id FROM feature_maps WHERE workspace_id = @workspaceId AND name = @name", new { workspaceId, name = note.Flow }, tx, cancellationToken: ct));
+            }
+
+            var detachedFrom = mapId is null ? note.Flow ?? note.DetachedFrom : null;
+            if (note.Step is not null && mapId is null && detachedFrom is null)
+            {
+                continue;
+            }
+
+            var kind = NoteKinds.FromStored(note.Kind);
+            await connection.ExecuteAsync(new CommandDefinition(
+                "INSERT INTO notes (workspace_id, map_id, step_spec, about, detached_from, kind, body, content_hash, author_kind, author_id, pinned, created_utc, updated_utc) " +
+                "VALUES (@workspaceId, @mapId, @step, @about, @detachedFrom, @kind, @body, @hash, @authorKind, @authorId, 0, @created, @updated)",
+                new
+                {
+                    workspaceId,
+                    mapId,
+                    step = note.Step,
+                    about = mapId is null && detachedFrom is null ? note.About : null,
+                    detachedFrom,
+                    kind = NoteKinds.ToText(kind),
+                    body = note.Body,
+                    hash = NoteRules.Hash(note.Body),
+                    authorKind = note.AuthorKind,
+                    authorId = note.AuthorId,
+                    created = note.CreatedUtc is { } created ? Timestamp.Format(created) : stamp,
+                    updated = note.UpdatedUtc is { } updated ? Timestamp.Format(updated) : stamp,
+                },
+                tx,
+                cancellationToken: ct));
+            var id = await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT last_insert_rowid()", transaction: tx, cancellationToken: ct));
+            await connection.ExecuteAsync(new CommandDefinition(
+                "INSERT INTO note_fts (rowid, body, anchor) VALUES (@id, @body, @anchor)",
+                new { id, body = note.Body, anchor = NoteStore.AnchorText(note.Flow ?? detachedFrom, note.Step, mapId is null && detachedFrom is null ? note.About : null, kind) },
+                tx,
+                cancellationToken: ct));
+            added++;
+        }
+
+        return added;
+    }
     private static string PathOf(string spec) =>
         FeatureComponentSpec.TryParse(spec, out var component, out _) ? component.Path : spec;
 }

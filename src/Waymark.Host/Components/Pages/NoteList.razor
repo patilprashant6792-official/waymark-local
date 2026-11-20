@@ -1,0 +1,130 @@
+@inherits LiveComponentBase
+@using Waymark.Core.Memory
+@using Waymark.Core.Transfer
+@using Waymark.Host.Ui
+
+<SectionHeader Title="Notes" Lead="Short notes kept by Waymark instead of a CLAUDE.md in the repository: why something is so, gotchas, conventions, decisions. You and Claude both write them; Claude can never change or retire yours. Pinned notes go into the workspace guide every agent reads; the rest are found by search and shown next to the flow steps they are about. A note on code shows 'may be stale' when that code changes.">
+    <Actions>
+        <BundleToolbar WorkspaceId="Workspace.Id" Content="BundleContent.Notes" ExportLabel="Export notes" Hint="Keep your notes when you move to another computer." />
+    </Actions>
+</SectionHeader>
+
+@if (_error is not null)
+{
+    <InlineAlert Severity="Severity.Warning">@_error</InlineAlert>
+}
+
+<section class="wm-card" aria-labelledby="notes-find">
+    <h2 id="notes-find" class="wm-card-title">Find</h2>
+    <div class="wm-row">
+        <WmSelect TValue="NotesView" Label="Show" Options="ViewOptions" Value="_view" ValueChanged="ChangeViewAsync" Width="FieldWidth.Small" />
+        <WmTextField Label="Search" @bind-Value="_query" Immediate="true" Width="FieldWidth.Large" MaxLength="200" HelperText="Words, or what you mean when search by meaning is on" OnKeyUp="OnSearchKey" />
+        <WmButton OnClick="SearchAsync" Disabled="@(_busy || string.IsNullOrWhiteSpace(_query))">Search</WmButton>
+        @if (_search is not null)
+        {
+            <WmButton Kind="ButtonKind.Ghost" OnClick="ClearSearch" Disabled="_busy">Clear search</WmButton>
+        }
+        <WmButton Kind="ButtonKind.Primary" Icon="@Icons.Material.Outlined.Add" Disabled="_busy" OnClick="StartAdd">Add a note</WmButton>
+        <WmButton Kind="ButtonKind.Ghost" Disabled="_busy" OnClick="() => _importing = !_importing">Import from CLAUDE.md</WmButton>
+    </div>
+    <p class="wm-muted wm-caption" aria-live="polite">@Caption()</p>
+</section>
+
+<section class="wm-card" aria-labelledby="notes-budget">
+    <h2 id="notes-budget" class="wm-card-title">Pinned and search by meaning</h2>
+    <div class="wm-row">
+        <BudgetMeter Label="Pinned notes" Used="_pinned.Count" Max="NoteRules.MaxPinned" />
+        <BudgetMeter Label="Pinned characters" Used="@_pinned.Sum(n => n.Body.Length)" Max="NoteRules.MaxPinnedChars" />
+    </div>
+    <div class="wm-row">
+        <WmSwitch Label="Exclude this workspace from search by meaning" Value="_excluded" ValueChanged="SetExcludedAsync" Disabled="_busy"
+                  Tooltip="On: nothing of this workspace is sent to the provider and its stored vectors are deleted. Search here uses words only." />
+        <span>Exclude this workspace from search by meaning</span>
+    </div>
+</section>
+
+@if (_editorOpen)
+{
+    <NoteEditor Title="@(_editing is null ? "New workspace note" : $"Edit note #{_editing.Id}")" Editing="_editing" AllowAbout="@(_editing is null)" Busy="_busy" Error="_editorError"
+                OnSave="SaveAsync" OnCancel="CloseEditor" />
+}
+
+@if (_importing)
+{
+    <section class="wm-card" aria-labelledby="notes-import">
+        <h2 id="notes-import" class="wm-card-title">Import from CLAUDE.md</h2>
+        <p class="wm-muted">Paste the text of an instruction file. Each list item and paragraph becomes a draft with the heading it was under; review, change the kind, untick what you do not want, then save. Nothing is saved before that, and text that looks like a secret is refused.</p>
+        <WmTextField Label="Instruction text" @bind-Value="_importText" Lines="10" Width="FieldWidth.Full" MaxLength="200000" />
+        <div class="wm-row">
+            <WmButton Disabled="@(_busy || string.IsNullOrWhiteSpace(_importText))" OnClick="SplitImport">Make drafts</WmButton>
+        </div>
+        @if (_drafts.Count > 0)
+        {
+            <ol class="wm-stack">
+                @for (var i = 0; i < _drafts.Count; i++)
+                {
+                    var draft = _drafts[i];
+                    var id = $"draft-{i}";
+                    <li @key="draft" class="wm-note">
+                        <div class="wm-row">
+                            <input type="checkbox" id="@id" @bind="draft.Keep" />
+                            <label for="@id">Keep</label>
+                            <WmSelect TValue="NoteKind" Label="Kind" Options="KindOptions" @bind-Value="draft.Kind" Width="FieldWidth.Small" />
+                        </div>
+                        <WmTextField Label="Note" @bind-Value="draft.Body" Lines="2" Width="FieldWidth.Full" MaxLength="@NoteRules.MaxBodyChars" />
+                    </li>
+                }
+            </ol>
+            <div class="wm-row wm-card-actions">
+                <WmButton Kind="ButtonKind.Primary" Busy="_busy" Disabled="@(!_drafts.Any(d => d.Keep))" OnClick="SaveImportAsync">Save @_drafts.Count(d => d.Keep) as notes</WmButton>
+                <WmButton Kind="ButtonKind.Ghost" Disabled="_busy" OnClick="CloseImport">Cancel</WmButton>
+            </div>
+        }
+    </section>
+}
+
+@if (_historyOf is not null)
+{
+    <NoteHistory NoteId="_historyOf.Value" Revisions="_history" OnClose="() => _historyOf = null" />
+}
+
+@if (!_loaded)
+{
+    <p class="wm-lead" aria-live="polite">Loading...</p>
+}
+else if (_search is not null)
+{
+    <section class="wm-card" aria-labelledby="notes-results">
+        <h2 id="notes-results" class="wm-card-title">Results (@(_search.UsedMeaning ? "words and meaning" : "words only"))</h2>
+        @if (_search.Notice is not null)
+        {
+            <InlineAlert Severity="Severity.Info">Words only: @_search.Notice.</InlineAlert>
+        }
+        @if (_searchNotes.Count == 0)
+        {
+            <EmptyState Icon="@Icons.Material.Outlined.SearchOff" Title="No note matches" Text="Try other words." />
+        }
+        @foreach (var (note, match) in _searchNotes)
+        {
+            <div @key="note.Id" class="wm-stack-item">
+                <WmTag Text="@MatchText(match)" Title="Which part of the search found it" />
+                <NoteRow Note="note" Staleness="StalenessOf(note)" Busy="_busy" ShowAnchor="true"
+                         OnEdit="StartEdit" OnRetire="RetireAsync" OnConfirm="ConfirmAsync" OnPin="TogglePinAsync" OnHistory="ShowHistoryAsync" />
+            </div>
+        }
+    </section>
+}
+else if (Shown.Count == 0)
+{
+    <EmptyState Icon="@Icons.Material.Outlined.StickyNote2" Title="No notes here" Text="Add one, import a CLAUDE.md, or let Claude add them with memorise as it learns the workspace." />
+}
+else
+{
+    @foreach (var note in Shown)
+    {
+        <div @key="note.Id" class="wm-stack-item">
+            <NoteRow Note="note" Staleness="StalenessOf(note)" Busy="_busy" ShowAnchor="true"
+                     OnEdit="StartEdit" OnRetire="RetireAsync" OnConfirm="ConfirmAsync" OnPin="TogglePinAsync" OnHistory="ShowHistoryAsync" />
+        </div>
+    }
+}

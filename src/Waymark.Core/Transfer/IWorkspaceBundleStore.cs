@@ -3,8 +3,8 @@ namespace Waymark.Core.Transfer;
 /// <summary>The merge plan for one workspace that exists on this computer.</summary>
 public sealed record WorkspaceApply(long WorkspaceId, WorkspaceMergePlan Plan);
 
-/// <summary>What was written for one workspace. <paramref name="InstructionsSet"/> is filled in by the import after the store, which writes rules and maps only.</summary>
-public sealed record WorkspaceApplied(long WorkspaceId, int RulesAdded, int MapsAdded, int StepsAdded, bool InstructionsSet = false);
+/// <summary>What was written for one workspace. <paramref name="InstructionsSet"/> is filled in by the import after the store, which writes rules, maps and notes.</summary>
+public sealed record WorkspaceApplied(long WorkspaceId, int RulesAdded, int MapsAdded, int StepsAdded, bool InstructionsSet = false, int NotesAdded = 0);
 
 /// <summary>Writes the merge plans of an import.</summary>
 public interface IWorkspaceBundleStore

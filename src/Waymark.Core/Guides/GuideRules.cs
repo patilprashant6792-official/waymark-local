@@ -22,7 +22,7 @@ public static class GuideRules
     public const string ResourceSuffix = ".md";
 
     /// <summary>The longest built-in guide, in characters. A guide is sent whole, so this keeps one mistake from filling an agent's context.</summary>
-    public const int MaxChars = 20_000;
+    public const int MaxChars = 25_000;
 
     private const int HashChars = 12;
 

@@ -10,7 +10,8 @@ public enum BundleContent
     AccessRules = 1,
     FeatureMaps = 2,
     Instructions = 4,
-    All = AccessRules | FeatureMaps | Instructions,
+    Notes = 8,
+    All = AccessRules | FeatureMaps | Instructions | Notes,
 }
 
 /// <summary>One access rule as it travels. The workspace is the one that holds it, so no id of this computer is written.</summary>
@@ -34,6 +35,22 @@ public sealed record BundleMap(string Name, string Summary, DateTimeOffset? Upda
 public sealed record BundleInstructions(string Summary, string Text);
 
 /// <summary>
+/// One active note as it travels: its text, kind, anchor by name (flow name and step text, or what it is about), and its provenance (author and dates), so an import keeps who wrote it.
+/// No vectors, no code fingerprint, no pin: those belong to the computer that made them. A note of a flow that was deleted travels with <paramref name="DetachedFrom"/>.
+/// </summary>
+public sealed record BundleNote(
+    string Body,
+    string Kind,
+    string? Flow,
+    string? Step,
+    string? About,
+    string? DetachedFrom,
+    string AuthorKind,
+    string AuthorId,
+    DateTimeOffset? CreatedUtc,
+    DateTimeOffset? UpdatedUtc);
+
+/// <summary>
 /// A workspace as it travels. <paramref name="PathHint"/> is the folder it had on the computer that exported it: only a suggestion, because the folder is chosen again on the computer that imports.
 /// </summary>
 public sealed record BundleWorkspace(
@@ -42,7 +59,8 @@ public sealed record BundleWorkspace(
     bool Enabled,
     IReadOnlyList<BundleRule> AccessRules,
     IReadOnlyList<BundleMap> FeatureMaps,
-    BundleInstructions? Instructions = null);
+    BundleInstructions? Instructions = null,
+    IReadOnlyList<BundleNote>? Notes = null);
 
 /// <summary>The file the owner moves to another computer: the workspaces with their access rules and feature maps. Nothing that identifies an installation, nothing secret.</summary>
 public sealed record WorkspaceBundle(string Format, int FormatVersion, DateTimeOffset ExportedUtc, IReadOnlyList<BundleWorkspace> Workspaces);

@@ -38,6 +38,7 @@ public static partial class SensitiveDataScanner
         Whole("slack-token", SlackToken()),
         Whole("nuget-api-key", NuGetApiKey()),
         Whole("google-api-key", GoogleApiKey()),
+        Whole("voyage-api-key", VoyageApiKey()),
         Whole("api-key", SecretKeyPrefix()),
         Whole("jwt", JsonWebToken()),
         Whole("url-credentials", UrlCredentials()),
@@ -67,6 +68,10 @@ public static partial class SensitiveDataScanner
 
     [GeneratedRegex(@"\bAIza[0-9A-Za-z_\-]{35}\b", RegexOptions.None, TimeoutMilliseconds)]
     private static partial Regex GoogleApiKey();
+
+    // Voyage AI keys: 'pa-' from the Voyage dashboard, 'al-' (optionally scoped, 'al-eu-') from MongoDB Atlas. Long enough that ordinary hyphenated words do not match.
+    [GeneratedRegex(@"\b(?:pa|al)-[A-Za-z0-9_\-]{32,}", RegexOptions.None, TimeoutMilliseconds)]
+    private static partial Regex VoyageApiKey();
 
     [GeneratedRegex(@"\bsk-(?:ant-|proj-)?[A-Za-z0-9_\-]{20,}", RegexOptions.None, TimeoutMilliseconds)]
     private static partial Regex SecretKeyPrefix();

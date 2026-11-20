@@ -11,6 +11,9 @@ public static class ToolPipelineExtensions
     {
         ArgumentNullException.ThrowIfNull(mcp);
         mcp.Services.AddSingleton<ToolPipeline>();
+        // Who is calling, set by the pipeline around each call: the author of the notes a call writes comes from here, never from the arguments.
+        mcp.Services.TryAddSingleton<CallerContext>();
+        mcp.Services.TryAddSingleton<Waymark.Core.Calls.ICallerContext>(provider => provider.GetRequiredService<CallerContext>());
         mcp.Services.AddSingleton<ToolResultGuard>();
         // Keeps the input and output of each call for its details page (after secret hiding), and lets the owner switch that off or clear it.
         mcp.Services.AddSingleton<ToolPayloadService>();

@@ -23,5 +23,8 @@ public static class WorkspaceSections
     // What the product calls a flow was once called a feature map; the old address keeps working (see WorkspaceFlows).
     public static readonly WorkspaceSection Flows = new("flows", "Flows", Icons.Material.Outlined.AccountTree, "flows");
 
-    public static IReadOnlyList<WorkspaceSection> All { get; } = [Overview, Instructions, Access, Commands, Flows];
+    /// <summary>The workspace's notes: the owner's and Claude's hints, in place of instruction files in the repository.</summary>
+    public static readonly WorkspaceSection Notes = new("notes", "Notes", Icons.Material.Outlined.StickyNote2, "notes");
+
+    public static IReadOnlyList<WorkspaceSection> All { get; } = [Overview, Instructions, Access, Commands, Flows, Notes];
 }

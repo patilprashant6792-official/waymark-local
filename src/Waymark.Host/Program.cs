@@ -16,6 +16,7 @@ using Waymark.Host.Mcp;
 using Waymark.Host.Safety;
 using Waymark.Logging;
 using Waymark.Host.Ui;
+using Waymark.Host.Memory;
 using Waymark.Modules.Code;
 using Waymark.Modules.Commands;
 using Waymark.Modules.Files;
@@ -56,6 +57,9 @@ builder.Services.AddWaymarkDataProtection(Path.Combine(Path.GetDirectoryName(dat
 builder.Services.AddWaymarkEdge();
 builder.Services.AddWaymarkAuth();
 builder.Services.AddWaymarkUi();
+
+// Waymark Memory: notes and search by meaning (providers, encrypted keys, settings, admin services). Off until the owner switches it on.
+builder.Services.AddWaymarkMemory();
 
 // A background service that fails is logged (the Live page shows it under Errors) and the rest of Waymark keeps running.
 builder.Services.Configure<HostOptions>(options => options.BackgroundServiceExceptionBehavior = BackgroundServiceExceptionBehavior.Ignore);

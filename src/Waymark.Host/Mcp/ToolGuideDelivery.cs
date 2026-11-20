@@ -23,6 +23,7 @@ public sealed class ToolGuideDelivery(
     IWorkspaceService workspaces,
     IWorkspaceGuides workspaceGuides,
     WorkspaceGuideRenderer workspaceRenderer,
+    Waymark.Core.Memory.IPinnedNotes pinnedNotes,
     IContextMeter meter,
     ILogger<ToolGuideDelivery> logger)
 {
@@ -209,17 +210,18 @@ public sealed class ToolGuideDelivery(
             : GuideRules.WorkspaceNotice(workspace.Name, notice == GuideNotice.NeverLoaded);
     }
 
-    // The workspace list is read only when some workspace has instructions, so calls in a Waymark without any stay as cheap as before.
+    // The workspace list is read only when some workspace has instructions or pinned notes (both owner text), so calls in a Waymark without any stay as cheap as before.
     private async Task<Workspace?> FindWithInstructionsAsync(string workspaceName, CancellationToken ct)
     {
         var texts = await workspaceGuides.ListAsync(ct);
-        if (!texts.Values.Any(text => text.HasInstructions))
+        var pinned = await pinnedNotes.WorkspacesAsync(ct);
+        if (!texts.Values.Any(text => text.HasInstructions) && pinned.Count == 0)
         {
             return null;
         }
 
         var workspace = await FindAsync(workspaceName, ct);
-        return workspace is not null && texts.TryGetValue(workspace.Id, out var own) && own.HasInstructions ? workspace : null;
+        return workspace is not null && ((texts.TryGetValue(workspace.Id, out var own) && own.HasInstructions) || pinned.Contains(workspace.Id)) ? workspace : null;
     }
 
     private async Task<Workspace?> FindAsync(string workspaceName, CancellationToken ct) =>

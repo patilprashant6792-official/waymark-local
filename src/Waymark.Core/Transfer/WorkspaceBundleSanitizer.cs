@@ -16,6 +16,7 @@ public static class WorkspaceBundleSanitizer
 {
     public const int MaxWorkspaces = 100;
     public const int MaxMapsPerWorkspace = 1000;
+    public const int MaxNotesPerWorkspace = 2000;
 
     private const int MaxNotes = 40;
 
@@ -58,7 +59,8 @@ public static class WorkspaceBundleSanitizer
                 workspace.Enabled,
                 CleanRules(name!, workspace.AccessRules, notes),
                 CleanMaps(name!, workspace.FeatureMaps, notes),
-                CleanInstructions(name!, workspace.Instructions, notes)));
+                CleanInstructions(name!, workspace.Instructions, notes),
+                CleanNotes(name!, workspace.Notes, notes)));
         }
 
         var clean = new WorkspaceBundle(WorkspaceBundleJson.FormatName, WorkspaceBundleJson.CurrentVersion, bundle.ExportedUtc, workspaces);
@@ -177,6 +179,121 @@ public static class WorkspaceBundleSanitizer
         }
 
         return new BundleInstructions(summary, text);
+    }
+
+    // A note goes through the rules memorise and the Notes page apply: one line within the cap, a known kind and author kind, an anchor that parses, no secret.
+    // One that fails is left out on its own; the others still come.
+    private static List<BundleNote>? CleanNotes(string workspace, IReadOnlyList<BundleNote>? incoming, NoteList notes)
+    {
+        if (incoming is null)
+        {
+            return null;
+        }
+
+        var clean = new List<BundleNote>();
+        var left = 0;
+        foreach (var note in incoming)
+        {
+            if (note is null)
+            {
+                continue;
+            }
+
+            if (clean.Count >= MaxNotesPerWorkspace)
+            {
+                notes.Add($"{workspace}: more than {MaxNotesPerWorkspace} notes; the rest was left out.");
+                break;
+            }
+
+            if (CleanNote(note) is { } cleaned)
+            {
+                clean.Add(cleaned);
+            }
+            else
+            {
+                left++;
+            }
+        }
+
+        if (left > 0)
+        {
+            notes.Add($"{workspace}: {left} note(s) were left out (empty, too long, an unknown kind or author, an anchor that is not a path, or text that looks like a secret).");
+        }
+
+        return clean;
+    }
+
+    private static BundleNote? CleanNote(BundleNote note)
+    {
+        string body;
+        try
+        {
+            body = NoteRules.Clean(note.Body);
+        }
+        catch (ArgumentException)
+        {
+            return null;
+        }
+
+        if (!NoteKinds.TryParse(note.Kind, out var kind) || !NoteAuthorKinds.TryParse(note.AuthorKind, out var authorKind))
+        {
+            return null;
+        }
+
+        var author = NoteAuthor.Of(authorKind, note.AuthorId);
+        string? flow = null;
+        if (!string.IsNullOrWhiteSpace(note.Flow))
+        {
+            if (!FeatureMapRules.TryNormalizeName(note.Flow, out var flowName))
+            {
+                return null;
+            }
+
+            flow = flowName;
+        }
+
+        string? detached = null;
+        if (!string.IsNullOrWhiteSpace(note.DetachedFrom))
+        {
+            if (!FeatureMapRules.TryNormalizeName(note.DetachedFrom, out var detachedName))
+            {
+                return null;
+            }
+
+            detached = detachedName;
+        }
+
+        var step = CleanSpec(note.Step, allowRange: true, out var stepOk);
+        var about = CleanSpec(note.About, allowRange: false, out var aboutOk);
+        if (!stepOk || !aboutOk || (step is not null && flow is null && detached is null) || (about is not null && (flow is not null || detached is not null)))
+        {
+            return null;
+        }
+
+        var all = string.Join("\n", body, step ?? string.Empty, about ?? string.Empty, author.Id);
+        if (SensitiveDataScanner.Redact(all).HasFindings || SensitiveDataScanner.ContainsMarker(all))
+        {
+            return null;
+        }
+
+        return new BundleNote(body, NoteKinds.ToText(kind), flow, step, about, flow is null ? detached : null, NoteAuthorKinds.ToText(author.Kind), author.Id, note.CreatedUtc, note.UpdatedUtc);
+    }
+
+    private static string? CleanSpec(string? spec, bool allowRange, out bool ok)
+    {
+        ok = true;
+        if (string.IsNullOrWhiteSpace(spec))
+        {
+            return null;
+        }
+
+        if (!FeatureComponentSpec.TryParse(spec, out var component, out _) || (component.IsRange && !allowRange))
+        {
+            ok = false;
+            return null;
+        }
+
+        return FeatureComponentSpec.Format(component);
     }
 
     private static BundleMap? CleanMap(string workspace, BundleMap map, NoteList notes)

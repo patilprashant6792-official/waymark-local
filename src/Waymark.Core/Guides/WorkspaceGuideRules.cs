@@ -73,4 +73,15 @@ public static class WorkspaceGuideRules
     }
 
     public static string Hash(string workspaceName, WorkspaceGuideText text) => GuideRules.Hash(Stable(workspaceName, text));
+
+    /// <summary>
+    /// The hash with the owner's pinned notes in it (each 'id:content hash'), so a client hears when a pin changes. Without pins it equals <see cref="Hash(string, WorkspaceGuideText)"/>.
+    /// </summary>
+    public static string Hash(string workspaceName, WorkspaceGuideText text, IReadOnlyList<string> pinned)
+    {
+        ArgumentNullException.ThrowIfNull(pinned);
+        return pinned.Count == 0
+            ? Hash(workspaceName, text)
+            : GuideRules.Hash(Stable(workspaceName, text) + "\npinned:" + string.Join(",", pinned));
+    }
 }

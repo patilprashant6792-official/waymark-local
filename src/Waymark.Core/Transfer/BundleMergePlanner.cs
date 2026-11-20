@@ -14,6 +14,8 @@ public sealed record MapMerge(string Name, string Summary, DateTimeOffset? Updat
 /// <param name="MapsConflicting">Maps whose name is here with other steps: left out, so the map in this workspace stays as it is.</param>
 /// <param name="InstructionsToSet">The summary and instructions to write: only when the workspace has none of its own.</param>
 /// <param name="InstructionsKept">The file has other text than the workspace: left out, so the owner's text here stays as it is.</param>
+/// <param name="NotesToAdd">Notes that are not here yet (same anchor and same text count as here).</param>
+/// <param name="NotesAlreadyThere">Notes of the file that this workspace has already.</param>
 public sealed record WorkspaceMergePlan(
     IReadOnlyList<BundleRule> RulesToAdd,
     int RulesAlreadyThere,
@@ -23,7 +25,9 @@ public sealed record WorkspaceMergePlan(
     int MapsUnchanged,
     int MapsConflicting,
     BundleInstructions? InstructionsToSet = null,
-    bool InstructionsKept = false)
+    bool InstructionsKept = false,
+    IReadOnlyList<BundleNote>? NotesToAdd = null,
+    int NotesAlreadyThere = 0)
 {
     public static WorkspaceMergePlan Empty { get; } = new([], 0, 0, 0, [], 0, 0);
 
@@ -31,10 +35,12 @@ public sealed record WorkspaceMergePlan(
 
     public int StepsToAdd => Maps.Sum(map => map.Steps.Count);
 
+    public int NotesNew => NotesToAdd?.Count ?? 0;
+
     /// <summary>Rules that let tools open one more file type. They widen what Claude can read, so the owner is told before they are added.</summary>
     public int RulesAllowingFileTypes => RulesToAdd.Count(rule => rule is { Kind: AccessRuleKind.AllowExtension, Enabled: true });
 
-    public bool HasChanges => RulesToAdd.Count > 0 || Maps.Count > 0 || InstructionsToSet is not null;
+    public bool HasChanges => RulesToAdd.Count > 0 || Maps.Count > 0 || InstructionsToSet is not null || NotesNew > 0;
 }
 
 /// <summary>
@@ -50,7 +56,8 @@ public static class BundleMergePlanner
         BundleContent content,
         IReadOnlyList<AccessRule> existingRules,
         IReadOnlyList<FeatureMap> existingMaps,
-        WorkspaceGuideText? existingText = null)
+        WorkspaceGuideText? existingText = null,
+        IReadOnlyList<Note>? existingNotes = null)
     {
         ArgumentNullException.ThrowIfNull(incoming);
         ArgumentNullException.ThrowIfNull(existingRules);
@@ -65,9 +72,37 @@ public static class BundleMergePlanner
         var instructions = content.HasFlag(BundleContent.Instructions)
             ? PlanInstructions(incoming.Instructions, existingText ?? WorkspaceGuideText.Empty)
             : (Set: null, Kept: false);
+        var notePlan = content.HasFlag(BundleContent.Notes)
+            ? PlanNotes(incoming.Notes ?? [], existingNotes ?? [])
+            : (Add: new List<BundleNote>(), Already: 0);
         return new WorkspaceMergePlan(
-            ruleCounts.Add, ruleCounts.Already, ruleCounts.Different, ruleCounts.Over, mapPlan.Maps, mapPlan.Unchanged, mapPlan.Conflicting, instructions.Set, instructions.Kept);
+            ruleCounts.Add, ruleCounts.Already, ruleCounts.Different, ruleCounts.Over, mapPlan.Maps, mapPlan.Unchanged, mapPlan.Conflicting, instructions.Set, instructions.Kept,
+            notePlan.Add, notePlan.Already);
     }
+
+    // A note is here already when a note on the same anchor has the same text (active or not: a note the owner retired here is not brought back).
+    private static (List<BundleNote> Add, int Already) PlanNotes(IReadOnlyList<BundleNote> incoming, IReadOnlyList<Note> existing)
+    {
+        var here = existing.Select(note => NoteKey(note.FlowName ?? note.DetachedFrom, note.StepSpec, note.About, note.ContentHash)).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var add = new List<BundleNote>();
+        var already = 0;
+        foreach (var note in incoming)
+        {
+            var key = NoteKey(note.Flow ?? note.DetachedFrom, note.Step, note.About, NoteRules.Hash(note.Body));
+            if (here.Add(key))
+            {
+                add.Add(note);
+            }
+            else
+            {
+                already++;
+            }
+        }
+
+        return (add, already);
+    }
+
+    private static string NoteKey(string? flow, string? step, string? about, string hash) => $"{flow}|{step}|{about}|{hash}";
 
     private static (BundleInstructions? Set, bool Kept) PlanInstructions(BundleInstructions? incoming, WorkspaceGuideText existing)
     {

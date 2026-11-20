@@ -1,0 +1,97 @@
+@using Waymark.Core.Memory
+@using Waymark.Host.Notes
+
+@* One note: who wrote it and when, its kind, whether it may be stale, its text, and the actions the owner may take on it. *@
+<div class="wm-note @(Note.IsActive ? string.Empty : "wm-muted")" role="group" aria-label="@($"Note {Note.Id}")">
+    <div class="wm-row">
+        <WmTag Text="@NoteKinds.ToText(Note.Kind)" />
+        <WmTag Tone="@(Note.Author.IsHuman ? Tone.Neutral : Tone.Info)" Text="@AuthorText" Title="Who wrote it" />
+        <span class="wm-muted wm-caption">#@Note.Id · @Note.UpdatedUtc.ToString("yyyy-MM-dd")</span>
+        @if (Note.Pinned)
+        {
+            <WmTag Tone="Tone.Ok" Text="pinned" Title="In the workspace guide every agent reads" />
+        }
+        @if (Staleness is { MayBeStale: true })
+        {
+            <WmTag Tone="Tone.Warn" Text="may be stale" Title="@($"The {(Staleness.Reason ?? "code")} since the note was written or confirmed")" />
+        }
+        @if (Note.IsDetached)
+        {
+            <WmTag Tone="Tone.Warn" Text="@($"detached from {Note.DetachedFrom}")" Title="Its flow was deleted; the note is kept" />
+        }
+        @if (Note.RetiredUtc is not null)
+        {
+            <WmTag Text="retired" Title="@Note.RetiredBy" />
+        }
+        else if (Note.SupersededUtc is not null)
+        {
+            <WmTag Text="replaced" />
+        }
+        @if (ShowAnchor)
+        {
+            <span class="wm-muted wm-caption wm-mono">@Anchor</span>
+        }
+    </div>
+    <p class="wm-note-body">@Note.Body</p>
+    @if (Note.IsActive && !ReadOnly)
+    {
+        <div class="wm-row">
+            @if (CanEdit)
+            {
+                <WmButton Small="true" Kind="ButtonKind.Ghost" Disabled="Busy" OnClick="() => OnEdit.InvokeAsync(Note)" aria-label="@($"Edit note {Note.Id}")">Edit</WmButton>
+            }
+            @if (Staleness is { MayBeStale: true })
+            {
+                <WmButton Small="true" Kind="ButtonKind.Ghost" Disabled="Busy" OnClick="() => OnConfirm.InvokeAsync(Note)" title="It still holds: take the code as it is now as the new baseline" aria-label="@($"Confirm note {Note.Id}")">Confirm</WmButton>
+            }
+            <WmButton Small="true" Kind="ButtonKind.Ghost" Disabled="Busy" OnClick="() => OnPin.InvokeAsync(Note)" aria-label="@($"{(Note.Pinned ? "Unpin" : "Pin")} note {Note.Id}")">@(Note.Pinned ? "Unpin" : "Pin")</WmButton>
+            <WmButton Small="true" Kind="ButtonKind.Ghost" Disabled="Busy" OnClick="() => OnHistory.InvokeAsync(Note)" aria-label="@($"History of note {Note.Id}")">History</WmButton>
+            <WmButton Small="true" Kind="ButtonKind.Danger" Disabled="Busy" OnClick="() => OnRetire.InvokeAsync(Note)" aria-label="@($"Retire note {Note.Id}")">Retire</WmButton>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter, EditorRequired]
+    public Note Note { get; set; } = default!;
+
+    [Parameter]
+    public NoteStaleness? Staleness { get; set; }
+
+    [Parameter]
+    public bool Busy { get; set; }
+
+    [Parameter]
+    public bool ReadOnly { get; set; }
+
+    /// <summary>Show where the note is anchored (on the Notes page; not under a step, where that is plain).</summary>
+    [Parameter]
+    public bool ShowAnchor { get; set; }
+
+    [Parameter]
+    public EventCallback<Note> OnEdit { get; set; }
+
+    [Parameter]
+    public EventCallback<Note> OnRetire { get; set; }
+
+    [Parameter]
+    public EventCallback<Note> OnConfirm { get; set; }
+
+    [Parameter]
+    public EventCallback<Note> OnPin { get; set; }
+
+    [Parameter]
+    public EventCallback<Note> OnHistory { get; set; }
+
+    // The owner edits only their own notes; anyone else's is retired or kept.
+    private bool CanEdit => NoteRules.CanRevise(NoteAdminService.Owner, Note);
+
+    private string AuthorText => Note.Author.IsHuman && Note.Author.Id == AuthDefaults.AdminActor ? "you" : Note.Author.Label;
+
+    private string Anchor =>
+        Note.StepSpec is not null ? $"{Note.FlowName ?? Note.DetachedFrom} › {NoteEmbedText.Label(Note.StepSpec)}"
+        : Note.FlowName is not null ? $"flow {Note.FlowName}"
+        : Note.About is not null ? Note.About
+        : Note.DetachedFrom is not null ? $"flow {Note.DetachedFrom}"
+        : "workspace";
+}

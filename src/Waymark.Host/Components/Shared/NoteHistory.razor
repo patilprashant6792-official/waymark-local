@@ -1,0 +1,33 @@
+@using Waymark.Core.Memory
+
+@* Every revision of one note, oldest first, read only. *@
+<section class="wm-card" aria-labelledby="note-history-title">
+    <div class="wm-row spread">
+        <h3 id="note-history-title" class="wm-card-title">History of note #@NoteId</h3>
+        <WmButton Small="true" Kind="ButtonKind.Ghost" OnClick="() => OnClose.InvokeAsync()">Close</WmButton>
+    </div>
+    @if (Revisions.Count == 0)
+    {
+        <p class="wm-muted">No revisions.</p>
+    }
+    else
+    {
+        <ol class="wm-stack">
+            @foreach (var revision in Revisions)
+            {
+                <li @key="revision.Id"><NoteRow Note="revision" ReadOnly="true" /></li>
+            }
+        </ol>
+    }
+</section>
+
+@code {
+    [Parameter, EditorRequired]
+    public long NoteId { get; set; }
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<Note> Revisions { get; set; } = [];
+
+    [Parameter]
+    public EventCallback OnClose { get; set; }
+}
