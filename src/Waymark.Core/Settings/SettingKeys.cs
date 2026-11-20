@@ -26,4 +26,24 @@ public static class SettingKeys
 
     /// <summary>True (the default) to show a desktop notification when a command or an app connection waits for the owner's approval.</summary>
     public const string DesktopNotifications = "ui.desktop_notifications";
+
+    /// <summary>True to make notes and flows searchable by meaning through the chosen provider. False by default: nothing is sent.</summary>
+    public const string MemorySemanticEnabled = "memory.semantic_enabled";
+
+    /// <summary>The active embedding provider: voyage, openai or gemini.</summary>
+    public const string MemoryProvider = "memory.provider";
+
+    /// <summary>The embedding model of the active provider.</summary>
+    public const string MemoryModel = "memory.model";
+
+    /// <summary>The vector size asked of the provider (default 1024).</summary>
+    public const string MemoryDimension = "memory.dimension";
+
+    /// <summary>The prefix of the per-provider key settings ('memory.key.voyage'); each value is encrypted, never plain text.</summary>
+    public const string MemoryKeyPrefix = "memory.key.";
+
+    /// <summary>Workspace scope: true when the owner excluded the workspace from search by meaning.</summary>
+    public const string MemorySemanticExcluded = "memory.semantic_excluded";
+
+    public static string MemoryKey(string provider) => MemoryKeyPrefix + provider;
 }

@@ -1,14 +1,17 @@
+using System.Globalization;
 using System.Text;
 using Waymark.Core.Guides;
+using Waymark.Core.Memory;
 using Waymark.Core.Workspaces;
 
 namespace Waymark.Host.Mcp;
 
 /// <summary>
-/// Builds the guide of one workspace: its summary, the owner's instructions for it and its live setup (flows, its own gates).
-/// The hash covers the owner's text only (see <see cref="WorkspaceGuideRules.Stable"/>), so saving a flow never makes a client look outdated.
+/// Builds the guide of one workspace: its summary, the owner's instructions for it and its live setup (flows, pinned notes, its own gates).
+/// The hash covers the owner's text only, instructions and pinned notes (see <see cref="WorkspaceGuideRules.Stable"/>), so saving a flow never makes a client look outdated
+/// but a new pin does.
 /// </summary>
-public sealed class WorkspaceGuideRenderer(IWorkspaceGuides texts, IWorkspaceSetup setup, ILogger<WorkspaceGuideRenderer> logger)
+public sealed class WorkspaceGuideRenderer(IWorkspaceGuides texts, IWorkspaceSetup setup, IPinnedNotes pinned, ILogger<WorkspaceGuideRenderer> logger)
 {
     public async Task<ToolGuide> RenderAsync(Workspace workspace, CancellationToken ct)
     {
@@ -31,15 +34,34 @@ public sealed class WorkspaceGuideRenderer(IWorkspaceGuides texts, IWorkspaceSet
         }
 
         body.Append("## Live setup\n\n").Append(await DescribeSetupAsync(workspace, ct));
-        return new ToolGuide(WorkspaceGuideRules.ModuleKey(workspace.Id), body.ToString(), WorkspaceGuideRules.Hash(workspace.Name, text));
+        var pins = await PinsAsync(workspace, ct);
+        return new ToolGuide(WorkspaceGuideRules.ModuleKey(workspace.Id), body.ToString(), WorkspaceGuideRules.Hash(workspace.Name, text, pins));
     }
 
-    /// <summary>The hash of the owner's text of the workspace, and whether it has instructions. Cheap: no store is read after the first call.</summary>
+    /// <summary>
+    /// The hash of the owner's text of the workspace (instructions and pinned notes), and whether there is any. Cheap: both are cached after the first call.
+    /// </summary>
     public async Task<(string Hash, bool HasInstructions)> HashAsync(Workspace workspace, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(workspace);
         var text = await texts.GetAsync(workspace.Id, ct);
-        return (WorkspaceGuideRules.Hash(workspace.Name, text), text.HasInstructions);
+        var pins = await PinsAsync(workspace, ct);
+        return (WorkspaceGuideRules.Hash(workspace.Name, text, pins), text.HasInstructions || pins.Count > 0);
+    }
+
+    // 'id:content hash' per pinned note. A failure leaves the pins out of the hash rather than failing the call.
+    private async Task<IReadOnlyList<string>> PinsAsync(Workspace workspace, CancellationToken ct)
+    {
+        try
+        {
+            var notes = await pinned.GetAsync(workspace.Id, ct);
+            return [.. notes.Select(note => string.Create(CultureInfo.InvariantCulture, $"{note.Id}:{note.ContentHash}"))];
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "The pinned notes of workspace {Workspace} could not be read for its guide hash", workspace.Name);
+            return [];
+        }
     }
 
     // A failure here costs the agent the flows only; the owner's instructions are still worth sending.

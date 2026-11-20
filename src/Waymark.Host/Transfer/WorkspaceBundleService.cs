@@ -52,6 +52,7 @@ public sealed class WorkspaceBundleService(
     IAuditStore audit,
     IEventBus events,
     IWorkspaceGuides guides,
+    INoteStore notes,
     TimeProvider time,
     ILogger<WorkspaceBundleService> logger)
 {
@@ -106,7 +107,14 @@ public sealed class WorkspaceBundleService(
                 }
             }
 
-            items.Add(new BundleWorkspace(workspace.Name, workspace.Path, workspace.Enabled, exportedRules, exportedMaps, exportedInstructions));
+            List<BundleNote>? exportedNotes = null;
+            if (content.HasFlag(BundleContent.Notes))
+            {
+                var stored = await notes.ListActiveAsync(workspace.Id, ct).ConfigureAwait(false);
+                exportedNotes = [.. stored.Select(ToBundle)];
+            }
+
+            items.Add(new BundleWorkspace(workspace.Name, workspace.Path, workspace.Enabled, exportedRules, exportedMaps, exportedInstructions, exportedNotes));
         }
 
         var now = time.GetUtcNow();
@@ -122,6 +130,7 @@ public sealed class WorkspaceBundleService(
             BundleContent.AccessRules => "-access-rules",
             BundleContent.FeatureMaps => "-feature-maps",
             BundleContent.Instructions => "-instructions",
+            BundleContent.Notes => "-notes",
             _ => string.Empty,
         };
         var fileName = string.Create(CultureInfo.InvariantCulture, $"waymark-{label}{kind}-{now:yyyyMMdd-HHmmss}.json");
@@ -290,6 +299,11 @@ public sealed class WorkspaceBundleService(
                 // More than one flow arrived: whatever indexes flows builds the workspace again.
                 await events.PublishAsync(new FlowChanged(item.Target.Id, 0, FlowChange.Imported)).ConfigureAwait(false);
             }
+
+            if (written.NotesAdded > 0)
+            {
+                await events.PublishAsync(new NoteChanged(item.Target.Id, 0, NoteChange.Imported)).ConfigureAwait(false);
+            }
         }
 
         return results;
@@ -305,8 +319,38 @@ public sealed class WorkspaceBundleService(
         var storedRules = content.HasFlag(BundleContent.AccessRules) ? await rules.ListAsync(existing.Id, ct).ConfigureAwait(false) : [];
         var storedMaps = content.HasFlag(BundleContent.FeatureMaps) ? await LoadMapsAsync(existing.Id, ct).ConfigureAwait(false) : [];
         var storedText = content.HasFlag(BundleContent.Instructions) ? await guides.GetAsync(existing.Id, ct).ConfigureAwait(false) : null;
-        return BundleMergePlanner.Plan(source, content, storedRules, storedMaps, storedText);
+        var storedNotes = content.HasFlag(BundleContent.Notes) ? await LoadNotesAsync(existing.Id, ct).ConfigureAwait(false) : [];
+        return BundleMergePlanner.Plan(source, content, storedRules, storedMaps, storedText, storedNotes);
     }
+
+    // Active and retired notes: a note the owner retired here is not brought back by an import of an older file.
+    private async Task<List<Note>> LoadNotesAsync(long workspaceId, CancellationToken ct)
+    {
+        var all = new List<Note>(await notes.ListActiveAsync(workspaceId, ct).ConfigureAwait(false));
+        for (var page = 0; page < 50; page++)
+        {
+            var retired = await notes.ListWorkspaceAsync(workspaceId, NoteFilter.Retired, page * MapPageSize, MapPageSize, ct).ConfigureAwait(false);
+            all.AddRange(retired.Items);
+            if (retired.Items.Count < MapPageSize)
+            {
+                break;
+            }
+        }
+
+        return all;
+    }
+
+    private static BundleNote ToBundle(Note note) => new(
+        note.Body,
+        NoteKinds.ToText(note.Kind),
+        note.FlowName,
+        note.StepSpec,
+        note.About,
+        note.FlowName is null ? note.DetachedFrom : null,
+        NoteAuthorKinds.ToText(note.Author.Kind),
+        note.Author.Id,
+        note.CreatedUtc,
+        note.UpdatedUtc);
 
     // Written after the rules and maps, through the same checks as the Instructions page. The plan said the workspace had no text of its own;
     // text the owner saved since the preview is kept, as import never replaces what is here.
@@ -421,10 +465,10 @@ public sealed class WorkspaceBundleService(
     private static string Describe(BundleContent content, IReadOnlyList<BundleWorkspace> items) =>
         string.Create(
             CultureInfo.InvariantCulture,
-            $"{content}: {items.Count} workspaces, {items.Sum(item => item.AccessRules.Count)} rules, {items.Sum(item => item.FeatureMaps.Count)} maps, {items.Count(item => item.Instructions is not null)} instructions");
+            $"{content}: {items.Count} workspaces, {items.Sum(item => item.AccessRules.Count)} rules, {items.Sum(item => item.FeatureMaps.Count)} maps, {items.Count(item => item.Instructions is not null)} instructions, {items.Sum(item => item.Notes?.Count ?? 0)} notes");
 
     private static string DescribeApplied(WorkspaceApplied applied, bool created) =>
         string.Create(
             CultureInfo.InvariantCulture,
-            $"{(created ? "workspace created; " : string.Empty)}rules +{applied.RulesAdded}; maps +{applied.MapsAdded} new, {applied.StepsAdded} steps{(applied.InstructionsSet ? "; instructions set" : string.Empty)}");
+            $"{(created ? "workspace created; " : string.Empty)}rules +{applied.RulesAdded}; maps +{applied.MapsAdded} new, {applied.StepsAdded} steps; notes +{applied.NotesAdded}{(applied.InstructionsSet ? "; instructions set" : string.Empty)}");
 }

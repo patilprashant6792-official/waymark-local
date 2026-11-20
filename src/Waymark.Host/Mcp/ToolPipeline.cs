@@ -30,6 +30,7 @@ public sealed class ToolPipeline(
     IContextMeter meter,
     ToolGuideDelivery guideDelivery,
     ToolPayloadService payloads,
+    CallerContext callers,
     ILogger<ToolPipeline> logger)
 {
     private const string UnknownClient = "unknown";
@@ -73,7 +74,9 @@ public sealed class ToolPipeline(
         CancellationToken ct)
     {
         var tool = context.Params?.Name ?? UnknownClient;
-        var client = context.User?.FindFirst(BearerAuthHandler.ClientClaim)?.Value ?? UnknownClient;
+        // The client id comes from the bearer token over HTTP; over stdio there is no token, so the name the client gave at connection is used.
+        // The same value is the audit row's client and the author of the notes the call writes.
+        var client = CallerContext.ClientOf(context.User?.FindFirst(BearerAuthHandler.ClientClaim)?.Value, context.Server?.ClientInfo?.Name);
         var started = Stopwatch.GetTimestamp();
         var purpose = ToolPurpose.From(context.Params?.Arguments);
         using var running = activity.Begin(LogKind.Tool, purpose is null ? tool : $"{tool}  why: {purpose}");
@@ -111,7 +114,11 @@ public sealed class ToolPipeline(
             {
                 using var limit = CancellationTokenSource.CreateLinkedTokenSource(ct);
                 limit.CancelAfter(options.CallTimeout);
-                result = await next(context, limit.Token);
+                using (callers.Enter(client))
+                {
+                    result = await next(context, limit.Token);
+                }
+
                 if (result.IsError == true)
                 {
                     outcome = AuditOutcome.Error;

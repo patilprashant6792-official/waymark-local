@@ -48,6 +48,9 @@ public sealed class MigratorTests
     [InlineData("command_runs")]
     [InlineData("command_gates")]
     [InlineData("command_trust")]
+    [InlineData("notes")]
+    [InlineData("note_fts")]
+    [InlineData("memory_embeddings")]
     public async Task CreatesTheTable(string table)
     {
         await using var db = await TestDatabase.CreateAsync(_ct);

@@ -9,8 +9,11 @@ public static class WorkspaceBundleJson
 {
     public const string FormatName = "waymark-workspace-bundle";
 
-    /// <summary>Version 2 added the depth and link of a step (feature maps became flows). Version 1 files are still read: their maps import as unordered lists.</summary>
-    public const int CurrentVersion = 2;
+    /// <summary>
+    /// Version 2 added the depth and link of a step (feature maps became flows); version 3 added the notes. Versions 1 and 2 are still read: they have no notes,
+    /// and version 1 maps import as unordered lists.
+    /// </summary>
+    public const int CurrentVersion = 3;
 
     public const int MinReadableVersion = 1;
 

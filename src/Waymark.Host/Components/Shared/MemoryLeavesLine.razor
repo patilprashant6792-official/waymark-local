@@ -1,0 +1,34 @@
+@inherits LiveComponentBase
+@using Waymark.Core.Memory
+@using Waymark.Host.Memory
+@inject MemoryAdminService Service
+
+@* One line of 'What leaves this machine', shown only while search by meaning is on. *@
+@if (_settings is { Enabled: true })
+{
+    <li>Search by meaning is on: the text of your notes and flows (names, summaries, step names, notes; never file contents) is sent to @ProviderName to be embedded, and each search query is sent too. Excluded workspaces send nothing.</li>
+}
+
+@code {
+    private MemorySettings? _settings;
+
+    private string ProviderName => Service.Providers.FirstOrDefault(p => p.Id == _settings?.Provider)?.DisplayName ?? _settings?.Provider ?? string.Empty;
+
+    protected override async Task OnInitializedAsync()
+    {
+        RefreshOn<MemorySettingsChanged>(LoadAsync);
+        await LoadAsync();
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            _settings = await Service.GetAsync(Cancel);
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+    }
+}

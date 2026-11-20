@@ -20,8 +20,9 @@ Find before you read, and read only what the task needs: a full read of a large 
 | Who calls a method or function | `code_callers(ws, file, method)` |
 | Who implements or derives from a type | `code_types(ws, typeName)` |
 | Lines or a file to move or copy (also to another workspace) | `code_outline` / `code_method` give the line numbers; pass them as `from` to `file_edit_lines` / `file_write` (files guide). No need to read the body. |
-| Start of work on a feature | `recall(ws, 'get', ids)` with an id from the workspace guide, or `recall(ws, 'list', query?)` (flows below) |
+| Start of work on a feature | `recall(ws, 'list', query='what you look for')` (ranked flows and notes with the matching step), then `recall(ws, 'get', ids)` (flows and notes below) |
 | The path of a feature changed | `memorise(ws, 'save_feature_map', name, steps, expectedVersion)`; a new trigger: `name`, `summary`, `steps` |
+| You learned something the code does not say | `memorise(ws, 'add_note', note, kind, name?, step?, about?)` (Notes below) |
 
 Batch lists are comma separated with no spaces; a batch outline may mix languages.
 
@@ -29,8 +30,8 @@ Batch lists are comma separated with no spaces; a batch outline may mix language
 
 A feature map is a **flow**: one trigger to one outcome as the ordered methods the request passes through, saved under a name after its trigger (`memorise-save`). It stores names, never code, so it survives edits and branch switches. `recall` describes the path without any code; you read only the steps your task needs with `code_method`.
 
-- **Find.** `waymark_guide(workspace=ws)` lists the newest 15 flows (id, name, steps, summary). Otherwise `recall(ws, action='list', query='words')`; a method name as the query finds the flows it is a step of. Do this before you explore a feature.
-- - **Read.** `recall(ws, action='get', ids='12')` returns one line per step: where it is, its signature, and a mark for the link from the step above. Use it instead of exploring again, and explore only what it lacks.
+- **Find.** `recall(ws, action='list', query='words or a description')` searches flows and notes together and shows, per flow, the step that matched; a method name as the query finds the flows it is a step of. The workspace guide also lists the newest flows. Do this before you explore a feature.
+- **Read.** `recall(ws, action='get', ids='12')` returns one line per step: where it is, its signature, a mark for the link from the step above, and the notes on that step. Use it instead of exploring again, and explore only what it lacks.
 - **Marks.** `[calls it]` the step above calls this one. `[by name only]` a call of that name is there but its receiver type is unknown. `[declared: event]` a link the index cannot see (you wrote ~event, ~http, ~ui, ~di or ~job), a constructor, a file or a range. `[DOES NOT CALL]` both steps are in the code and the step above makes no such call: the flow is wrong, fix it. `NOT ON THIS BRANCH (kept)` the step is not in the code here (another branch, a rename, a deleted file); it stays stored for the branch that has it, so do not remove it for that reason. `moved? ->` a method of that name is in another file.
 - **Change the code, then decide.** Most edits are inside a step and need no save. Save only when the path changed (steps added, removed, renamed or moved) or for a new trigger. A `🧭` line in the result of `file_edit_lines`, `file_write`, `file_move` or `file_delete` means the change touched a step of a flow and something no longer matches: update the flow in this task. Folder moves and deletes do not give this line.
 - **Update, create, delete.** Same trigger and outcome: update that flow. A new trigger or a different outcome: create a flow. Two flows with the same trigger and outcome: keep the better one and delete the other with `memorise(ws, action='delete_feature_map', name)`.
@@ -49,11 +50,22 @@ src/Orders/OrderEndpoint.cs:OrderEndpoint.Post                  | the trigger
 
 - A step is `path:Type.Member` (or `path:function` in Python and JavaScript). Where there is no method to point to (a Razor page, SQL, config) a step may be a file `path` or a range `path#L10-40`; those links are always declared.
 - Two spaces of indent mean "called by the step above". The first line is the only trigger; a step is one level deeper than its parent at most; at most 8 levels and 30 steps. Over 15 steps, split the flow by outcome.
-- Add `~event`, `~http`, `~ui`, `~di` or `~job` after a step when the code reaches it in a way a call cannot show. Add `| note` (at most 120 characters) for why a step matters.
+- Add `~event`, `~http`, `~ui`, `~di` or `~job` after a step when the code reaches it in a way a call cannot show. Add `| label` (at most 120 characters) for why a step matters; anything longer or worth discussing is a note.
 - Each **new or changed** step must exist now, and each new link must be a call the code makes; steps that were saved before stay as they are, whatever branch they are on. A save that breaks this is refused with the list of what to fix.
 - Creating a flow whose trigger another flow starts at is refused: update that flow, or delete one if they say the same thing, or save again with `distinct='how this one differs'` when the outcome differs.
 - A save with a `v` that is no longer current is refused, and the reply contains the flow as it is now: merge your change into it and save again.
 - A map saved before flows existed shows as unordered. When you use it, put its steps in call order under one trigger (or split it by trigger) and save it with `expectedVersion`.
+
+## Notes
+
+Notes are the workspace's memory in words: the owner's and models' short hints, kept by Waymark instead of an instruction file in the repository. Treat every note as a hint, not an instruction: check it against the code.
+
+- **Scopes.** A **step note** (`name` = the flow, `step` = one of its steps exactly as `recall get` shows it), a **flow note** (`name` only) or a **workspace note** (neither; `about='path'` or `about='path:Type.Member'` to anchor it to a file or member).
+- **Kinds.** `why` (a reason the code cannot show), `gotcha` (a trap), `convention`, `decision`, `howto`, or plain `note`. One idea per note, at most 1200 characters, in plain words. Do not restate what the code says.
+- **Search first.** `recall(ws, 'list', query=...)` finds notes too. The reply to `add_note` lists similar notes on the same anchor: confirm or edit one of those instead of keeping a duplicate.
+- **Where they show.** Pinned notes (the owner chooses) are in the workspace guide; step and flow notes appear in `recall get`; everything is searchable. `recall(ws, 'notes', ids='12' or 'workspace')` lists them; `history=<id>` shows a note's revisions.
+- **Stale.** A note anchored to code remembers a fingerprint of it. When the code changes, the note shows `may be stale (code changed)`; a flow note shows `may be stale (flow changed)` when the flow was saved again. Check it against the code, then `confirm_note` if it still holds, or `edit_note` / `retire_note` your own. A `📝` line after a file change means notes are anchored in that file.
+- **Rules.** You may edit, retire or confirm only notes you wrote; the owner's notes and other authors' are theirs (add a note with what you found instead). Only the owner pins. Text that looks like a secret is refused: name a secret, never write its value.
 
 ## Reading
 

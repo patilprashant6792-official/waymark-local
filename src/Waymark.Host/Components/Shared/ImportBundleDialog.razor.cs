@@ -72,7 +72,8 @@ public partial class ImportBundleDialog : LiveComponentBase
         BundleContent.AccessRules => "access rules",
         BundleContent.FeatureMaps => "flows",
         BundleContent.Instructions => "summary and instructions",
-        _ => "access rules, flows and instructions",
+        BundleContent.Notes => "notes",
+        _ => "access rules, flows, instructions and notes",
     };
 
     private bool CanImport =>
@@ -263,6 +264,11 @@ public partial class ImportBundleDialog : LiveComponentBase
             parts.Add(source.Instructions is null ? "no instructions" : "a summary and instructions");
         }
 
+        if (Content.HasFlag(BundleContent.Notes))
+        {
+            parts.Add(Count(source.Notes?.Count ?? 0, "note"));
+        }
+
         return "In the file: " + string.Join(", ", parts);
     }
 
@@ -295,6 +301,13 @@ public partial class ImportBundleDialog : LiveComponentBase
             yield return plan.InstructionsToSet is not null
                 ? "Summary and instructions: set from the file (this workspace has none of its own)."
                 : "Summary and instructions: not set (this workspace has its own, and they stay as they are; clear them first to take the ones in the file).";
+        }
+
+        if (Content.HasFlag(BundleContent.Notes) && (plan.NotesNew > 0 || plan.NotesAlreadyThere > 0))
+        {
+            var line = $"Notes: {plan.NotesNew} to add, with their authors";
+            line += plan.NotesAlreadyThere > 0 ? $", {plan.NotesAlreadyThere} here already" : string.Empty;
+            yield return line + ". A note on a flow that is not here is kept as detached.";
         }
 
         if (!preview.CreatesWorkspace && !plan.HasChanges)

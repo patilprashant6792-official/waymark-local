@@ -1,0 +1,57 @@
+@inherits LiveComponentBase
+@using Waymark.Core.Memory
+
+<section class="wm-card" aria-labelledby="setup-memory">
+    <div class="wm-row spread">
+        <h2 id="setup-memory" class="wm-card-title">Search notes and flows by meaning</h2>
+        <WmSwitch Value="_enabled" ValueChanged="SetEnabledAsync" Disabled="@(_busy || (!_enabled && !_tested))" Label="Search by meaning"
+                  Tooltip="@(_enabled ? "On: notes and flows are also found by what they mean" : _tested ? "Off: search uses words only" : "Test a key first; the switch turns on after a test passes")" />
+    </div>
+    <p class="wm-muted">@NoticeText</p>
+
+    @if (_error is not null)
+    {
+        <InlineAlert Severity="Severity.Warning">@_error</InlineAlert>
+    }
+
+    @if (_settings is not null)
+    {
+        <div class="wm-row">
+            <WmSelect TValue="string" Label="Provider" Options="ProviderOptions" Value="_provider" ValueChanged="ChangeProvider" Disabled="_busy" Width="FieldWidth.Small" />
+            <WmTextField Label="Model" @bind-Value="_model" Disabled="_busy" Width="FieldWidth.Medium" MaxLength="120" HelperText="@($"Default: {DefaultModel}")" />
+            <WmTextField Label="Dimension" @bind-Value="_dimension" Disabled="_busy" Width="FieldWidth.Small" MaxLength="4" HelperText="1024 fits every provider" />
+            <WmButton Disabled="@(_busy || !ModelChanged)" OnClick="SaveModelAsync">Use this model</WmButton>
+        </div>
+        <p class="wm-muted wm-caption">In use: @_settings.ModelId. Changing the provider, model or dimension embeds everything again in the background; until then search uses words.</p>
+
+        <WriteOnlyField Label="@($"{ProviderName} API key")" IsSet="@(_key?.Saved == true)" Hint="@_key?.LastFour"
+                        HelperText="Stored encrypted on this computer and sent only to the provider." OnSave="SaveKeyAsync" OnClear="ClearKeyAsync" />
+        @if (_key?.Unreadable == true)
+        {
+            <InlineAlert Severity="Severity.Warning">The saved key can no longer be read on this computer (the key ring changed). Enter it again.</InlineAlert>
+        }
+
+        <div class="wm-row">
+            <WmButton Disabled="@(_busy || _key?.Saved != true || ModelChanged)" OnClick="TestAsync">Test</WmButton>
+            @if (_test is not null)
+            {
+                <WmStatus State="@(_test.Ok ? StatusState.Healthy : StatusState.Failed)" Text="@(_test.Ok ? $"OK · {_test.Dimension} numbers · {(int)_test.Latency.TotalMilliseconds} ms" : "Failed")" Title="@_test.Message" />
+                <span class="wm-muted">@_test.Message</span>
+            }
+        </div>
+
+        <div class="wm-row" aria-live="polite">
+            <WmStatus State="@StateChip.State" Text="@StateChip.Text" Title="@_status.LastError" />
+            <span class="wm-muted">@_status.Embedded embedded · @_status.Pending pending@(_status.LastSuccessUtc is { } at ? $" · last embedded {at:yyyy-MM-dd HH:mm} UTC" : string.Empty)@(_status.RetryAtUtc is { } retry ? $" · next try {retry:HH:mm:ss} UTC" : string.Empty)</span>
+        </div>
+        @if (_status.LastError is not null && _status.State is MemoryIndexState.KeyRejected or MemoryIndexState.Backoff)
+        {
+            <p class="wm-muted wm-caption">Last error: @_status.LastError</p>
+        }
+
+        <div class="wm-row wm-card-actions">
+            <WmButton Disabled="@(_busy || !_enabled)" OnClick="ReembedAsync">Re-embed all</WmButton>
+            <WmButton Kind="ButtonKind.Danger" Disabled="_busy" OnClick="DeleteVectorsAsync">Delete stored vectors</WmButton>
+        </div>
+    }
+</section>

@@ -14,12 +14,19 @@ namespace Waymark.Modules.Code.Memory;
 /// It speaks when a link no longer holds, when a step is gone from its file, and when a file that held steps was moved or deleted.
 /// </para>
 /// </summary>
-internal sealed class FlowEditAdvisor(IPathGuard guard, IFeatureMapStore store, FlowInspector inspector, FlowOptions options, ILogger<FlowEditAdvisor> logger) : IFlowEditAdvisor
+internal sealed class FlowEditAdvisor(
+    IPathGuard guard,
+    IFeatureMapStore store,
+    INoteStore notes,
+    FlowInspector inspector,
+    FlowOptions options,
+    ILogger<FlowEditAdvisor> logger) : IFlowEditAdvisor
 {
     private const int MaxFlows = 3;
     private const int MaxPaths = 10;
     private const int MaxHitsPerPath = 60;
     private const int MaxProblemsPerFlow = 3;
+    private const int MaxNotesCounted = 50;
 
     public async Task<string?> AdviseAsync(string workspace, IReadOnlyList<string> relativePaths, FlowEditKind kind, CancellationToken ct)
     {
@@ -56,15 +63,37 @@ internal sealed class FlowEditAdvisor(IPathGuard guard, IFeatureMapStore store, 
             hits.AddRange((await store.FindByPathAsync(found.Id, path, MaxHitsPerPath, ct).ConfigureAwait(false)).Select(step => (path, step)));
         }
 
+        var noteLine = await NotesLineAsync(found.Id, paths, ct).ConfigureAwait(false);
         if (hits.Count == 0)
+        {
+            return noteLine;
+        }
+
+        var flows = hits.GroupBy(hit => hit.Step.FlowId).Take(MaxFlows).ToList();
+        var flowText = kind == FlowEditKind.Edited
+            ? await EditedAsync(found, paths, flows.Select(group => group.Key).ToList(), ct).ConfigureAwait(false)
+            : Gone(flows, kind);
+        return flowText is null ? noteLine : noteLine is null ? flowText : flowText + "\n" + noteLine;
+    }
+
+    // Notes anchored in a changed file may no longer hold: one line that says how many and how to read them. Silent when there are none.
+    private async Task<string?> NotesLineAsync(long workspaceId, List<string> paths, CancellationToken ct)
+    {
+        var ids = new HashSet<long>();
+        foreach (var path in paths)
+        {
+            ids.UnionWith(await notes.FindActiveByPathAsync(workspaceId, path, MaxNotesCounted, ct).ConfigureAwait(false));
+        }
+
+        if (ids.Count == 0)
         {
             return null;
         }
 
-        var flows = hits.GroupBy(hit => hit.Step.FlowId).Take(MaxFlows).ToList();
-        return kind == FlowEditKind.Edited
-            ? await EditedAsync(found, paths, flows.Select(group => group.Key).ToList(), ct).ConfigureAwait(false)
-            : Gone(flows, kind);
+        var which = paths.Count == 1 ? "this file" : "these files";
+        return ids.Count == 1
+            ? $"📝 1 note is about {which}: recall(action='notes', ids='workspace') shows it with the rest; check it still holds (confirm_note, or edit or retire your own)."
+            : $"📝 {ids.Count} notes are about {which}: recall(action='notes', ids='workspace') shows them; check they still hold (confirm_note, or edit or retire your own).";
     }
 
     // The path the way the flows store it: '/' as the separator, no leading './' or '/'.

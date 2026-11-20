@@ -49,6 +49,26 @@ public enum FlowChange
 /// <summary>One flow of a workspace changed (see <see cref="FlowChange"/>). The pages listen to <see cref="FeatureMapsChanged"/>; this one carries the id for what indexes flows.</summary>
 public sealed record FlowChanged(long WorkspaceId, long FlowId, FlowChange Change);
 
+public enum NoteChange
+{
+    /// <summary>A note was added, revised, confirmed, pinned or unpinned.</summary>
+    Saved,
+
+    /// <summary>A note was retired.</summary>
+    Retired,
+
+    /// <summary>An import added notes; the note id is 0 because it is more than one.</summary>
+    Imported,
+}
+
+/// <summary>A note of a workspace changed, by Claude through memorise, by the owner in the admin UI or by an import.</summary>
+public sealed record NoteChanged(long WorkspaceId, long NoteId, NoteChange Change);
+
+/// <summary>The search-by-meaning settings changed: the switch, the provider or model, a key, or a workspace's exclusion.</summary>
+public sealed record MemorySettingsChanged;
+
+/// <summary>The embedding index changed state or counts (for the Setup page).</summary>
+public sealed record MemoryIndexStatusChanged;
 /// <summary>The NuGet index or its stored results were reloaded, cleared or changed from the admin UI.</summary>
 public sealed record NuGetCacheChanged;
 

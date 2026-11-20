@@ -62,6 +62,19 @@ else
                         {
                             <WmTag Tone="Tone.Error" Text="@($"{broken} {(broken == 1 ? "link does" : "links do")} not call")" Title="Both steps are in the code, and the step above makes no such call" />
                         }
+                        @{ var noteCount = NotesOf(map).Count; var staleCount = NotesOf(map).Count(n => NoteStalenessOf(n) is { MayBeStale: true }); var orphanCount = OrphanNotes(map).Count; }
+                        @if (noteCount > 0)
+                        {
+                            <WmTag Text="@($"{noteCount} {(noteCount == 1 ? "note" : "notes")}")" Title="Notes on this flow and its steps" />
+                        }
+                        @if (staleCount > 0)
+                        {
+                            <WmTag Tone="Tone.Warn" Text="@($"{staleCount} may be stale")" Title="The code or the flow changed since these notes were written or confirmed" />
+                        }
+                        @if (orphanCount > 0)
+                        {
+                            <WmTag Tone="Tone.Warn" Text="@($"{orphanCount} detached")" Title="Notes on steps that are no longer in this flow" />
+                        }
                         <span class="wm-muted">Updated @DisplayFormat.Ago(map.UpdatedUtc, Time.GetUtcNow())</span>
                     </Summary>
                     <ChildContent>
@@ -73,11 +86,30 @@ else
                         {
                             <p class="wm-muted">Kept next to another flow with the same trigger: @map.DistinctReason</p>
                         }
+                        @if (_historyOf is { } historyId && NotesOf(map).Any(n => n.Id == historyId))
+                        {
+                            <NoteHistory NoteId="historyId" Revisions="_history" OnClose="() => _historyOf = null" />
+                        }
+                        <div class="wm-stack" aria-label="@($"Notes on the flow {map.Name}")">
+                            @foreach (var note in FlowNotes(map))
+                            {
+                                <NoteRow @key="note.Id" Note="note" Staleness="NoteStalenessOf(note)" Busy="_busy"
+                                         OnEdit="StartEditNote" OnRetire="RetireNoteAsync" OnConfirm="ConfirmNoteAsync" OnPin="TogglePinAsync" OnHistory="ShowHistoryAsync" />
+                            }
+                            @if (IsEditorFor(map, null))
+                            {
+                                <NoteEditor Title="@EditorTitle(map, null)" Editing="_editingNote" Busy="_busy" Error="_noteError" OnSave="v => SaveNoteAsync(map, null, v)" OnCancel="CloseNoteEditor" />
+                            }
+                            else
+                            {
+                                <div><WmButton Small="true" Kind="ButtonKind.Ghost" Icon="@Icons.Material.Outlined.Add" Disabled="_busy" OnClick="() => StartAddNote(map, null)">Note on this flow</WmButton></div>
+                            }
+                        </div>
                         <div class="wm-table-wrap">
                             <table class="wm-table">
                                 <caption class="visually-hidden">Steps of the flow @map.Name</caption>
                                 <thead>
-                                    <tr><th scope="col">Step</th><th scope="col">Note</th><th scope="col">In the code now</th><th scope="col">Link from the step above</th><th scope="col">Actions</th></tr>
+                                    <tr><th scope="col">Step</th><th scope="col">Label</th><th scope="col">In the code now</th><th scope="col">Link from the step above</th><th scope="col">Actions</th></tr>
                                 </thead>
                                 <tbody>
                                     @for (var i = 0; i < map.Steps.Count; i++)
@@ -125,12 +157,44 @@ else
                                                     <span class="wm-muted">Trigger</span>
                                                 }
                                             </td>
-                                            <td class="wm-flow-state"><WmButton Kind="ButtonKind.Danger" Small="true" Disabled="@(_busy || whyNot is not null)" title="@whyNot" OnClick="() => RemoveStepAsync(map, index)">Remove</WmButton></td>
+                                            <td class="wm-flow-state">
+                                                <WmButton Kind="ButtonKind.Ghost" Small="true" Disabled="_busy" OnClick="() => StartAddNote(map, step.Spec)" aria-label="@($"Add a note to step {i + 1}")">+ Note</WmButton>
+                                                <WmButton Kind="ButtonKind.Danger" Small="true" Disabled="@(_busy || whyNot is not null)" title="@whyNot" OnClick="() => RemoveStepAsync(map, index)">Remove</WmButton>
+                                            </td>
                                         </tr>
+                                        var stepNotes = StepNotes(map, step.Spec);
+                                        if (stepNotes.Count > 0 || IsEditorFor(map, step.Spec))
+                                        {
+                                            <tr class="wm-flow-notes">
+                                                <td colspan="5" class="@IndentClass(step)">
+                                                    @foreach (var note in stepNotes)
+                                                    {
+                                                        <NoteRow @key="note.Id" Note="note" Staleness="NoteStalenessOf(note)" Busy="_busy"
+                                                                 OnEdit="StartEditNote" OnRetire="RetireNoteAsync" OnConfirm="ConfirmNoteAsync" OnPin="TogglePinAsync" OnHistory="ShowHistoryAsync" />
+                                                    }
+                                                    @if (IsEditorFor(map, step.Spec))
+                                                    {
+                                                        var spec = step.Spec;
+                                                        <NoteEditor Title="@EditorTitle(map, spec)" Editing="_editingNote" Busy="_busy" Error="_noteError" OnSave="v => SaveNoteAsync(map, spec, v)" OnCancel="CloseNoteEditor" />
+                                                    }
+                                                </td>
+                                            </tr>
+                                        }
                                     }
                                 </tbody>
                             </table>
                         </div>
+                        @if (OrphanNotes(map).Count > 0)
+                        {
+                            <h3 class="wm-card-title">Notes on steps no longer in this flow</h3>
+                            <div class="wm-stack">
+                                @foreach (var note in OrphanNotes(map))
+                                {
+                                    <NoteRow @key="note.Id" Note="note" Staleness="NoteStalenessOf(note)" Busy="_busy" ShowAnchor="true"
+                                             OnEdit="StartEditNote" OnRetire="RetireNoteAsync" OnConfirm="ConfirmNoteAsync" OnPin="TogglePinAsync" OnHistory="ShowHistoryAsync" />
+                                }
+                            </div>
+                        }
                         <div class="wm-row wm-card-actions">
                             <CopyButton Text="@StepsText(map)" Label="Copy steps" />
                             <WmButton Kind="ButtonKind.Danger" Disabled="_busy" OnClick="() => DeleteMapAsync(map)">Delete flow</WmButton>

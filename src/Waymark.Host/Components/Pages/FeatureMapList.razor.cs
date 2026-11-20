@@ -6,6 +6,7 @@ using Waymark.Core.Memory;
 using Waymark.Core.Workspaces;
 using Waymark.Host.Components.Shared;
 using Waymark.Host.FeatureMaps;
+using Waymark.Host.Notes;
 using Waymark.Host.Ui;
 
 namespace Waymark.Host.Components.Pages;
@@ -29,12 +30,22 @@ public partial class FeatureMapList : LiveComponentBase
     private bool _loaded;
     private bool _busy;
     private bool _checking;
+    private IReadOnlyList<Note> _notes = [];
+    private IReadOnlyDictionary<long, NoteStaleness> _noteStaleness = new Dictionary<long, NoteStaleness>();
+    private (long MapId, string? Spec)? _editorAt;
+    private Note? _editingNote;
+    private string? _noteError;
+    private long? _historyOf;
+    private IReadOnlyList<Note> _history = [];
 
     [Parameter, EditorRequired]
     public Workspace Workspace { get; set; } = default!;
 
     [Inject]
     private FeatureMapAdminService Service { get; set; } = default!;
+
+    [Inject]
+    private NoteAdminService Notes { get; set; } = default!;
 
     [Inject]
     private IDialogService Dialogs { get; set; } = default!;
@@ -48,7 +59,11 @@ public partial class FeatureMapList : LiveComponentBase
     [Inject]
     private ILogger<FeatureMapList> Logger { get; set; } = default!;
 
-    protected override void OnInitialized() => RefreshOn<FeatureMapsChanged>(OnChangedAsync);
+    protected override void OnInitialized()
+    {
+        RefreshOn<FeatureMapsChanged>(OnChangedAsync);
+        RefreshOn<NoteChanged>(changed => changed.WorkspaceId == Workspace.Id ? LoadNotesAsync() : Task.CompletedTask);
+    }
 
     // The parent renders again whenever the workspace index moves; only a different workspace reloads the maps.
     protected override async Task OnParametersSetAsync()
@@ -78,6 +93,7 @@ public partial class FeatureMapList : LiveComponentBase
             _maps = view.Maps;
             _total = view.Total;
             _error = null;
+            await LoadNotesAsync();
 
             // Show the maps at once: the check reads and parses every file the steps name, which takes seconds when there are many maps.
             _status = NoStatus;
@@ -94,6 +110,7 @@ public partial class FeatureMapList : LiveComponentBase
             {
                 _status = status;
                 _checkedUtc = Time.GetUtcNow();
+                _noteStaleness = await Notes.CheckAsync(Workspace, _notes, Cancel);
             }
         }
         catch (OperationCanceledException)
@@ -139,6 +156,7 @@ public partial class FeatureMapList : LiveComponentBase
         async () =>
         {
             _status = await Service.CheckAsync(Workspace, _maps, Cancel);
+            _noteStaleness = await Notes.CheckAsync(Workspace, _notes, Cancel);
             _checkedUtc = Time.GetUtcNow();
             _error = null;
         },
@@ -273,6 +291,140 @@ public partial class FeatureMapList : LiveComponentBase
         };
     }
 
+    private async Task LoadNotesAsync()
+    {
+        try
+        {
+            _notes = _maps.Count == 0 ? [] : await Notes.ForFlowsAsync(Workspace.Id, [.. _maps.Select(map => map.Id)], Cancel);
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "The notes of the flows of workspace {WorkspaceId} could not be loaded", Workspace.Id);
+            _error = "The notes could not be loaded.";
+        }
+    }
+
+    private IReadOnlyList<Note> NotesOf(FeatureMap map) => [.. _notes.Where(note => note.MapId == map.Id)];
+
+    private IReadOnlyList<Note> FlowNotes(FeatureMap map) => [.. _notes.Where(note => note.MapId == map.Id && note.StepSpec is null)];
+
+    private IReadOnlyList<Note> StepNotes(FeatureMap map, string spec) =>
+        [.. _notes.Where(note => note.MapId == map.Id && string.Equals(note.StepSpec, spec, StringComparison.OrdinalIgnoreCase))];
+
+    // Notes on a step that the flow no longer has: kept, shown apart, so the owner can retire them or Claude can move what still holds.
+    private IReadOnlyList<Note> OrphanNotes(FeatureMap map) =>
+        [.. _notes.Where(note => note.MapId == map.Id && note.StepSpec is { } spec && !map.Steps.Any(step => string.Equals(step.Spec, spec, StringComparison.OrdinalIgnoreCase)))];
+
+    private NoteStaleness? NoteStalenessOf(Note note) => _noteStaleness.TryGetValue(note.Id, out var found) ? found : null;
+
+    private bool IsEditorFor(FeatureMap map, string? spec) =>
+        _editorAt is { } at && at.MapId == map.Id && string.Equals(at.Spec, spec, StringComparison.OrdinalIgnoreCase);
+
+    private string EditorTitle(FeatureMap map, string? spec) =>
+        _editingNote is not null ? $"Edit note #{_editingNote.Id}"
+        : spec is null ? $"New note on the flow {map.Name}"
+        : $"New note on step {NoteEmbedText.Label(spec)}";
+
+    private void StartAddNote(FeatureMap map, string? spec)
+    {
+        _editingNote = null;
+        _noteError = null;
+        _editorAt = (map.Id, spec);
+    }
+
+    private void StartEditNote(Note note)
+    {
+        var map = _maps.FirstOrDefault(m => m.Id == note.MapId);
+        var onStep = map is not null && note.StepSpec is { } spec && map.Steps.Any(step => string.Equals(step.Spec, spec, StringComparison.OrdinalIgnoreCase));
+        _editingNote = note;
+        _noteError = null;
+        _editorAt = note.MapId is { } mapId ? (mapId, onStep ? note.StepSpec : null) : null;
+    }
+
+    private void CloseNoteEditor()
+    {
+        _editorAt = null;
+        _editingNote = null;
+        _noteError = null;
+    }
+
+    private async Task SaveNoteAsync(FeatureMap map, string? spec, NoteEditorValue value)
+    {
+        _busy = true;
+        try
+        {
+            if (_editingNote is { } editing)
+            {
+                await Notes.EditAsync(Workspace, editing.Id, value.Body, value.Kind, Cancel);
+                Snackbar.Add("Saved as a new revision.", Severity.Success);
+            }
+            else
+            {
+                var saved = await Notes.AddAsync(Workspace, map.Name, spec, null, value.Kind, value.Body, Cancel);
+                Snackbar.Add(saved.Similar.Count > 0 ? $"Saved. {saved.Similar.Count} similar note(s) are on the same step." : "Saved.", Severity.Success);
+            }
+
+            CloseNoteEditor();
+        }
+        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or KeyNotFoundException)
+        {
+            _noteError = ex.Message;
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "A note could not be saved");
+            _noteError = "The note could not be saved.";
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task RetireNoteAsync(Note note)
+    {
+        var confirmed = await ConfirmDialogs.AskAsync(Dialogs, "Retire this note?", $"Note #{note.Id} is no longer shown or searched. It is kept as history.", "Retire", destructive: true);
+        if (confirmed)
+        {
+            await NoteActionAsync(() => Notes.RetireAsync(Workspace, note.Id, Cancel), "Retired.");
+        }
+    }
+
+    private Task ConfirmNoteAsync(Note note) => NoteActionAsync(() => Notes.ConfirmAsync(Workspace, note.Id, Cancel), "Confirmed against the code as it is now.");
+
+    private Task TogglePinAsync(Note note) =>
+        NoteActionAsync(() => Notes.SetPinnedAsync(Workspace, note.Id, !note.Pinned, Cancel), note.Pinned ? "Unpinned." : "Pinned: it is in the workspace guide now.");
+
+    private Task ShowHistoryAsync(Note note) => RunBusyAsync(
+        async () =>
+        {
+            _history = await Notes.HistoryAsync(Workspace.Id, note.Id, Cancel);
+            _historyOf = note.Id;
+        },
+        "The history could not be loaded.");
+
+    private Task NoteActionAsync(Func<Task<Note>> action, string done) => RunBusyAsync(
+        async () =>
+        {
+            try
+            {
+                await action();
+                Snackbar.Add(done, Severity.Success);
+            }
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException or KeyNotFoundException)
+            {
+                Snackbar.Add(ex.Message, Severity.Warning);
+            }
+        },
+        "The note could not be changed.");
     private string Caption()
     {
         var count = $"{DisplayFormat.Count(_total)} {(_total == 1 ? "map" : "maps")}";

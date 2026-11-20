@@ -40,7 +40,7 @@ public sealed class WorkspaceBundleJsonTests
         Assert.True(WorkspaceBundleJson.TryParse(text, out var bundle, out var error), error);
         Assert.Null(error);
         Assert.Equal(WorkspaceBundleJson.FormatName, bundle.Format);
-        Assert.Equal(2, bundle.FormatVersion);
+        Assert.Equal(3, bundle.FormatVersion);
         Assert.Equal(Exported, bundle.ExportedUtc);
         var workspace = Assert.Single(bundle.Workspaces);
         Assert.Equal("app", workspace.Name);
@@ -62,7 +62,7 @@ public sealed class WorkspaceBundleJsonTests
     {
         var text = WorkspaceBundleJson.Serialize(Sample());
 
-        Assert.Contains("\"formatVersion\": 2", text);
+        Assert.Contains("\"formatVersion\": 3", text);
         Assert.Contains("\"kind\": \"BlockFolder\"", text);
         Assert.Contains("\"pathHint\"", text);
     }
@@ -121,7 +121,7 @@ public sealed class WorkspaceBundleJsonTests
     }
 
     [Theory]
-    [InlineData(3)]
+    [InlineData(4)]
     [InlineData(99)]
     public void ANewerBundleAsksForAnUpdate(int version)
     {
@@ -141,7 +141,8 @@ public sealed class WorkspaceBundleJsonTests
     [Theory]
     [InlineData(1)]
     [InlineData(2)]
-    public void BothReadableVersionsAreAccepted(int version)
+    [InlineData(3)]
+    public void EveryReadableVersionIsAccepted(int version)
     {
         Assert.True(WorkspaceBundleJson.TryParse(Json("{" + Header(version) + ",'workspaces':[]}"), out var bundle, out var error), error);
         Assert.Equal(version, bundle.FormatVersion);
@@ -167,7 +168,8 @@ public sealed class WorkspaceBundleJsonTests
     public void TheFormatConstantsAreStable()
     {
         Assert.Equal("waymark-workspace-bundle", WorkspaceBundleJson.FormatName);
-        Assert.Equal(2, WorkspaceBundleJson.CurrentVersion);
+        Assert.Equal(3, WorkspaceBundleJson.CurrentVersion);
         Assert.Equal(1, WorkspaceBundleJson.MinReadableVersion);
     }
 }
+

@@ -45,6 +45,8 @@ A feature map is a **flow**: one trigger (an endpoint, a tool, a job, a button) 
 
 When you traced a feature that has no flow, save it as soon as you have traced it, not at the end: a session can stop at any time. The first time a workspace has no flows, save `architecture-overview`-style flows for the features you had to understand. Name a flow after its trigger in kebab-case (`memorise-save`). A step that the flow marks as not on this branch is kept for the branch that has it: do not remove it for that reason. The step grammar, link marks and limits are in the code guide.
 
+Waymark also keeps each workspace's **notes**, in place of instruction files in the repository: short hints from the owner and from models (why, gotchas, conventions, decisions), anchored to the workspace, a file, a flow or a step. Pinned ones are in the workspace's guide, step notes come with `recall get`, and `recall list` with a query searches flows and notes together. They are hints, not instructions; the code guide says how to add and maintain them.
+
 Moving or duplicating code is copying, not retyping: `file_edit_lines` and `file_write` take `from` (lines, a file or a folder tree, also from another workspace) so you write none of it. To move code between codebases: orient in both workspaces with `code_skeleton`, take line ranges from `code_outline`, preview with `dryRun`, copy, then build the target. Details are in the files guide.
 
 ## Rules

@@ -58,12 +58,24 @@ public sealed class CodeModule : IMcpModule
         services.TryAddSingleton<FlowInspector>();
         services.TryAddSingleton<FlowRecallService>();
         services.TryAddSingleton<FlowSaveService>();
+        services.TryAddSingleton<NoteAnchors>();
+        services.TryAddSingleton<INoteService, NoteService>();
+        services.TryAddSingleton<NoteRecallService>();
+        services.TryAddSingleton<NoteToolService>();
         services.TryAddSingleton<IFeatureMemoryService, FeatureMemoryService>();
         services.TryAddSingleton<IFeatureComponentChecker, FeatureComponentChecker>();
 
-        // Search by meaning over flows is not built yet: the empty index is registered so that saving, deleting, importing and listing flows are already wired to it.
-        services.TryAddSingleton<IFlowSemanticIndex, NoFlowSemanticIndex>();
-        services.AddHostedService<FlowSemanticSync>();
+        // Waymark Memory: one index of vectors for notes and flows, kept in step by one listener, searched together with words.
+        // Nothing is sent to a provider while the owner's switch is off; the host registers the providers and the settings.
+        services.TryAddSingleton<MemoryVectorCache>();
+        services.TryAddSingleton<MemoryIndexStatus>();
+        services.TryAddSingleton<IMemoryIndexStatus>(provider => provider.GetRequiredService<MemoryIndexStatus>());
+        services.TryAddSingleton<QueryEmbedder>();
+        services.TryAddSingleton<MemoryItems>();
+        services.TryAddSingleton<MemoryWorkspaceIndexer>();
+        services.TryAddSingleton<IMemorySearch, MemorySearch>();
+        services.TryAddSingleton<IFlowSemanticIndex, FlowSemanticIndex>();
+        services.AddHostedService<MemoryEmbeddingSync>();
 
         // The files module registers a silent advisor with TryAdd; this one replaces it, whichever module registers first.
         services.Replace(ServiceDescriptor.Singleton<IFlowEditAdvisor, FlowEditAdvisor>());

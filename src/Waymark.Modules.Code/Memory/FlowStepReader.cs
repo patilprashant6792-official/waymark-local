@@ -18,9 +18,13 @@ internal enum StepKind
     Lines,
 }
 
+/// <summary>A range of lines, 1-based and inclusive.</summary>
+internal readonly record struct LineSpan(int Start, int End);
+
 /// <summary>
 /// One step as the code on disk shows it: whether it is there, where, and its signature. Never its body: the agent reads the bodies it needs with code_method.
 /// <paramref name="Owner"/> and <paramref name="Member"/> are the declaring type and the member of a method step; <paramref name="File"/> is the parsed file, kept for the link check.
+/// <paramref name="Ranges"/> are the lines of every overload of a method step in file order (for a note's code fingerprint); null means just StartLine..EndLine.
 /// </summary>
 internal sealed record StepView(
     FeatureComponent Component,
@@ -33,7 +37,12 @@ internal sealed record StepView(
     int Overloads,
     CodeTypeEntry? Owner,
     CodeMemberEntry? Member,
-    FileView? File);
+    FileView? File,
+    IReadOnlyList<LineSpan>? Ranges = null)
+{
+    /// <summary>The lines this step covers, in file order.</summary>
+    public IReadOnlyList<LineSpan> AllRanges => Ranges ?? [new LineSpan(StartLine, EndLine)];
+}
 
 /// <summary>
 /// Looks up the steps of a flow in the code that is on disk now, through the path guard and with the parsers of code_outline and code_method.
@@ -125,9 +134,11 @@ internal sealed class FlowStepReader(IPathGuard guard, LanguageIndexers language
             return Missing(component, $"no such type or member in the file (it has: {have})", file);
         }
 
-        var first = members.OrderBy(m => m.StartLine).First();
+        var ordered = members.OrderBy(m => m.StartLine).ToList();
+        var first = ordered[0];
         var owner = first.TypeIndex is { } typeIndex ? index.Types[typeIndex] : null;
-        return new StepView(component, true, null, StepKind.Method, first.Signature, first.StartLine, first.EndLine, members.Count, owner, first, file);
+        var ranges = ordered.Select(m => new LineSpan(m.StartLine, m.EndLine)).ToList();
+        return new StepView(component, true, null, StepKind.Method, first.Signature, first.StartLine, first.EndLine, members.Count, owner, first, file, ranges);
     }
 
     private static StepView TypeView(FeatureComponent component, CodeFileIndex index, int typeIndex, FileView file)

@@ -12,10 +12,13 @@ internal static class FlowRecallRenderer
 {
     private const int SignatureChars = 90;
 
-    public static string Flow(FlowReport report)
+    /// <param name="notes">The notes of this flow (and maybe others; only this flow's are used), or null for none.</param>
+    public static string Flow(FlowReport report, FlowNotes? notes = null)
     {
         ArgumentNullException.ThrowIfNull(report);
         var map = report.Map;
+        List<Note> own = notes is null ? [] : [.. notes.Notes.Where(note => note.MapId == map.Id && note.IsActive)];
+        var budget = new NoteBudget(NoteRules.MaxNoteCharsPerFlow);
         var text = new StringBuilder();
         text.AppendLine($"## Flow '{map.Name}' (id {map.Id}, v{map.Version})").AppendLine();
         if (map.Summary.Length > 0)
@@ -28,10 +31,50 @@ internal static class FlowRecallRenderer
             text.AppendLine($"Kept next to another flow with the same trigger: {map.DistinctReason}").AppendLine();
         }
 
+        var flowNotes = own.Where(note => note.StepSpec is null).ToList();
+        if (flowNotes.Count > 0)
+        {
+            foreach (var note in flowNotes)
+            {
+                budget.Add(text, "    ", note, notes!);
+            }
+
+            text.AppendLine();
+        }
+
         text.AppendLine(Counts(report)).AppendLine();
+        var specs = new HashSet<string>(report.Steps.Select(step => step.Spec), StringComparer.OrdinalIgnoreCase);
         for (var i = 0; i < report.Steps.Count; i++)
         {
             text.AppendLine(Line(report, i));
+            var step = report.Steps[i];
+            var stepNotes = own.Where(note => string.Equals(note.StepSpec, step.Spec, StringComparison.OrdinalIgnoreCase)).ToList();
+            var indent = new string(' ', 6 + (step.Depth * FlowStepText.IndentWidth));
+            for (var n = 0; n < stepNotes.Count; n++)
+            {
+                if (n >= NoteRules.MaxNotesPerStepShown)
+                {
+                    budget.Hidden += stepNotes.Count - n;
+                    break;
+                }
+
+                budget.Add(text, indent, stepNotes[n], notes!);
+            }
+        }
+
+        var orphans = own.Where(note => note.StepSpec is not null && !specs.Contains(note.StepSpec)).ToList();
+        if (orphans.Count > 0)
+        {
+            text.AppendLine().AppendLine("Notes on steps no longer in this flow:");
+            foreach (var note in orphans)
+            {
+                budget.Add(text, "    ", note, notes!);
+            }
+        }
+
+        if (budget.Hidden > 0)
+        {
+            text.AppendLine(CultureInfo.InvariantCulture, $"    +{budget.Hidden} more: recall(action='notes', ids='{map.Id}')");
         }
 
         if (!map.Ordered)
@@ -41,6 +84,27 @@ internal static class FlowRecallRenderer
         }
 
         return text.ToString();
+    }
+
+    /// <summary>Counts the note lines of one flow against its character budget; what does not fit is counted as hidden.</summary>
+    private sealed class NoteBudget(int chars)
+    {
+        private int _left = chars;
+
+        public int Hidden { get; set; }
+
+        public void Add(StringBuilder text, string indent, Note note, FlowNotes notes)
+        {
+            var line = NoteLines.Line(note, notes.StalenessOf(note.Id));
+            if (line.Length > _left)
+            {
+                Hidden++;
+                return;
+            }
+
+            _left -= line.Length;
+            text.Append(indent).AppendLine(line);
+        }
     }
 
     /// <summary>How to read a step and how to change the flow; once per answer, not per step.</summary>
