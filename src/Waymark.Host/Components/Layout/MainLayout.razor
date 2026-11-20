@@ -38,6 +38,7 @@
         <div class="wm-header-actions">
             <CommandPalette />
             <WmIconButton Icon="@Icons.Material.Outlined.Keyboard" Label="Keyboard shortcuts ( ? )" OnClick="ToggleShortcutsAsync" />
+            <WmIconButton Icon="@Icons.Material.Outlined.Feedback" Label="Send feedback" OnClick="OpenFeedbackAsync" />
             <WmIconButton Icon="@(_dark ? Icons.Material.Outlined.LightMode : Icons.Material.Outlined.DarkMode)"
                           Label="@(_dark ? "Switch to the light theme" : "Switch to the dark theme")"
                           OnClick="ToggleThemeAsync" />
@@ -67,7 +68,7 @@
                 </NavLink>
             }
         }
-        <div class="wm-nav-foot">v0.3 &middot; admin: local only</div>
+        <div class="wm-nav-foot">v@(Waymark.Host.Ui.AppInfo.Version) &middot; admin: local only</div>
     </nav>
 
     <main id="main" class="wm-main" tabindex="-1">

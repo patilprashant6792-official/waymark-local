@@ -1,0 +1,58 @@
+@inherits LiveComponentBase
+@using Waymark.Host.Feedback
+
+@* The feedback form, used by the header dialog and by the Feedback page. It only prepares an email: the owner's own mail app sends it. *@
+<div class="wm-stack">
+    <p class="wm-muted wm-flush">Tell the author what worked, what broke or what is missing. Waymark opens an email in your own mail app, addressed to <strong>@Options.Recipient</strong>. Nothing is sent until you press Send there.</p>
+
+    @if (_error is not null)
+    {
+        <InlineAlert Severity="Severity.Error">@_error</InlineAlert>
+    }
+
+    <WmSegmented TValue="FeedbackKind" Label="Kind of feedback" Options="KindOptions" Value="_kind" ValueChanged="OnKindChanged" />
+    <WmTextField Label="Message" Value="@_message" ValueChanged="OnMessageChanged" Immediate="true" Lines="8" MaxLength="FeedbackOptions.MaxMessageLength"
+                 Width="FieldWidth.Full" HelperText="@Counter" Placeholder="What happened, what you expected, and how to see it again" />
+    <div class="wm-row">
+        <WmSwitch Label="Include version and OS" Value="_includeSystem" ValueChanged="OnSystemChanged" />
+        <span class="wm-muted">Include the Waymark, OS and .NET versions. No paths, names or addresses.</span>
+    </div>
+
+    <div class="wm-actions">
+        @if (OnClose.HasDelegate)
+        {
+            <WmButton OnClick="OnClose">Close</WmButton>
+        }
+        @if (_mail is { } ready)
+        {
+            <CopyButton Text="@ready.CopyText" Label="Copy instead" />
+            <WmButton Kind="ButtonKind.Primary" Icon="@Icons.Material.Outlined.Send" Href="@ready.MailtoUri">Open in mail app</WmButton>
+        }
+        else
+        {
+            <WmButton Kind="ButtonKind.Primary" Icon="@Icons.Material.Outlined.Preview" Busy="_busy" Disabled="@(!CanPreview)" OnClick="PreviewAsync">Preview email</WmButton>
+        }
+    </div>
+
+    @if (_mail is { } mail)
+    {
+        <div class="wm-stack" aria-live="polite">
+            @if (mail.SecretsHidden)
+            {
+                <InlineAlert Severity="Severity.Warning">Text that looked like a secret was replaced by a [redacted:...] marker before it was put in the email.</InlineAlert>
+            }
+            @if (mail.Shortened)
+            {
+                <InlineAlert Severity="Severity.Info">The message is too long for an email link, so your mail app gets a shortened copy. Use Copy instead to paste the whole message.</InlineAlert>
+            }
+            <dl class="wm-dl">
+                <dt>To</dt>
+                <dd>@mail.Recipient</dd>
+                <dt>Subject</dt>
+                <dd>@mail.Subject</dd>
+            </dl>
+            <pre class="wm-mono wm-preview" tabindex="0" aria-label="Email text">@mail.Body</pre>
+            <p class="wm-muted wm-flush">Nothing opened? This computer may have no mail app set up. Use Copy instead and paste it into any email to @mail.Recipient.</p>
+        </div>
+    }
+</div>

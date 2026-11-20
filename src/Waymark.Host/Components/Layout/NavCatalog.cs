@@ -41,7 +41,8 @@ public static class NavCatalog
         new("Vault", "vault", Icons.Material.Outlined.Lock, NavGroup.Configure, "Named secrets", "secrets passwords", Hidden: true),
         new("Safety", "safety", Icons.Material.Outlined.Shield, NavGroup.Configure, "Risks, safeguards, exposure ledger", "risk danger leak redact secrets exposure"),
         new("Access keys", "access-keys", Icons.Material.Outlined.VpnKey, NavGroup.Configure, "Keys for clients", "api tokens"),
-        new("Setup", "setup", Icons.Material.Outlined.Settings, NavGroup.Setup, "Tunnel, public address and local MCP address", "ngrok tunnel domain mcp local localhost url connector claude code cursor codex")
+        new("Setup", "setup", Icons.Material.Outlined.Settings, NavGroup.Setup, "Tunnel, public address and local MCP address", "ngrok tunnel domain mcp local localhost url connector claude code cursor codex"),
+        new("Feedback", "feedback", Icons.Material.Outlined.Feedback, NavGroup.Setup, "Send feedback to the author", "bug idea question report email contact mail")
     ];
 
     public static IEnumerable<NavEntry> Visible => All.Where(entry => !entry.Hidden);
