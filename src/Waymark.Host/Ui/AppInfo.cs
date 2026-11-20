@@ -2,26 +2,47 @@ using System.Reflection;
 
 namespace Waymark.Host.Ui;
 
-/// <summary>The product version: shown at the foot of the menu and sent with feedback, so both always say the same.</summary>
+/// <summary>
+/// The product version. It comes from the Version property in Directory.Build.props, the one place to bump it; the menu, feedback
+/// emails and the MCP server info all read it here, so they always say the same.
+/// </summary>
 public static class AppInfo
 {
-    /// <summary>The release, as people see it. Change it with each release.</summary>
-    public const string Version = "0.3";
+    private const string Unknown = "0.0.0";
 
-    /// <summary>The release plus the short commit the build came from, when the SDK stamped one: "0.3 (eb7f7da)".</summary>
-    public static string VersionWithBuild { get; } =
-        Describe(typeof(AppInfo).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion);
+    // Declared before the properties: static initializers run in the order they are written.
+    private static readonly string? Informational =
+        typeof(AppInfo).Assembly.GetCustomAttribute<AssemblyInformationalVersionAttribute>()?.InformationalVersion;
 
-    /// <summary>The SDK writes the commit after a '+' in the informational version ("1.0.0+eb7f7da..."); only that part is used.</summary>
+    /// <summary>The release, such as "0.4.0".</summary>
+    public static string Version { get; } = ReleaseOf(Informational);
+
+    /// <summary>The release plus the short commit the build came from, when the SDK stamped one: "0.4.0 (eb7f7da)".</summary>
+    public static string VersionWithBuild { get; } = Describe(Informational);
+
+    /// <summary>The SDK writes the informational version as the release, then '+' and the commit ("0.4.0+eb7f7da...").</summary>
+    internal static string ReleaseOf(string? informationalVersion)
+    {
+        if (string.IsNullOrWhiteSpace(informationalVersion))
+        {
+            return Unknown;
+        }
+
+        var plus = informationalVersion.IndexOf('+', StringComparison.Ordinal);
+        var release = (plus < 0 ? informationalVersion : informationalVersion[..plus]).Trim();
+        return release.Length == 0 ? Unknown : release;
+    }
+
     internal static string Describe(string? informationalVersion)
     {
+        var release = ReleaseOf(informationalVersion);
         var plus = informationalVersion?.IndexOf('+', StringComparison.Ordinal) ?? -1;
         if (informationalVersion is null || plus < 0 || plus == informationalVersion.Length - 1)
         {
-            return Version;
+            return release;
         }
 
         var commit = informationalVersion[(plus + 1)..];
-        return Version + " (" + commit[..Math.Min(7, commit.Length)] + ")";
+        return release + " (" + commit[..Math.Min(7, commit.Length)] + ")";
     }
 }

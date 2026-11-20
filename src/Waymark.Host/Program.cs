@@ -75,7 +75,18 @@ builder.Services.AddWaymarkTools(
     builder.Configuration,
     [typeof(WaymarkTools).Assembly, .. modules.Select(module => module.GetType().Assembly)]);
 
-var mcpServer = builder.Services.AddMcpServer(options => options.ServerInstructions = GuideRules.ServerInstructions);
+var mcpServer = builder.Services.AddMcpServer(options =>
+{
+    options.ServerInstructions = GuideRules.ServerInstructions;
+
+    // Clients see this version at initialize. It comes from Directory.Build.props through AppInfo; the name stays the assembly name.
+    options.ServerInfo = new ModelContextProtocol.Protocol.Implementation
+    {
+        Name = typeof(AppInfo).Assembly.GetName().Name ?? "Waymark.Host",
+        Title = "Waymark",
+        Version = AppInfo.Version
+    };
+});
 var mcp = (isStdio ? mcpServer.WithStdioServerTransport() : mcpServer.WithHttpTransport(options => options.Stateless = true))
     .WithTools<WaymarkTools>()
     .WithWaymarkToolPipeline();
