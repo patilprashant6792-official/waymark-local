@@ -46,11 +46,17 @@ public sealed class FeedbackOptionsTests
         Assert.Throws<InvalidOperationException>(() => FeedbackOptions.FromConfiguration(Config(("Feedback:SubjectPrefix", "a\nb"))));
 
     [Theory]
-    [InlineData(null, "0.3")]
-    [InlineData("1.0.0", "0.3")]
-    [InlineData("1.0.0+", "0.3")]
-    [InlineData("1.0.0+eb7f7da0123456789", "0.3 (eb7f7da)")]
-    [InlineData("1.0.0+abc", "0.3 (abc)")]
+    [InlineData(null, "0.0.0")]
+    [InlineData("0.4.0", "0.4.0")]
+    [InlineData("0.4.0+", "0.4.0")]
+    [InlineData("0.4.0+eb7f7da0123456789", "0.4.0 (eb7f7da)")]
+    [InlineData("0.4.0+abc", "0.4.0 (abc)")]
+    [InlineData("+abc", "0.0.0 (abc)")]
     public void VersionCarriesTheShortCommitWhenStamped(string? informational, string expected) =>
         Assert.Equal(expected, AppInfo.Describe(informational));
+
+    // Directory.Build.props sets Version once; the assembly version and what the UI shows must agree.
+    [Fact]
+    public void TheShownVersionIsTheBuildVersion() =>
+        Assert.Equal(typeof(AppInfo).Assembly.GetName().Version!.ToString(3), AppInfo.Version);
 }

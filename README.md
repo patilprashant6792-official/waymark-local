@@ -15,7 +15,7 @@
   <img src="https://img.shields.io/badge/platform-Windows%20%7C%20macOS-0078D4" alt="Platform: Windows | macOS">
   <img src="https://img.shields.io/badge/.NET-10-512BD4" alt=".NET 10">
   <img src="https://img.shields.io/badge/MCP-server-black" alt="MCP server">
-  <img src="https://img.shields.io/badge/status-v0.3-orange" alt="Status: v0.3">
+  <img src="https://img.shields.io/badge/status-v0.4-orange" alt="Status: v0.4">
   <a href="https://mcpservers.org/servers/patilprashant6792-official/waymark-local"><img src="https://mcpservers.org/badge.svg" alt="Listed on mcpservers.org"></a>
   <a href="https://glama.ai/mcp/servers/patilprashant6792-official/waymark-local"><img src="https://glama.ai/mcp/servers/patilprashant6792-official/waymark-local/badges/score.svg" alt="patilprashant6792-official/waymark-local MCP server"></a>
 </p>
@@ -40,7 +40,7 @@
 
 ## In one paragraph
 
-Waymark is a local [MCP](https://modelcontextprotocol.io) server that runs on your computer and lets Claude work across all your repositories in one conversation. It reads C#, Python, TypeScript and JavaScript through a syntax index, so Claude reads an outline and one method instead of whole files. It checks NuGet, PyPI and npm APIs against the exact versions your lock files pin, so Claude stops inventing methods. It **remembers how each feature flows** through your code, so the next chat starts where the last one stopped. And it builds, tests and runs your projects through typed commands that you approve, on your machine, with every call audited.
+Waymark is a local [MCP](https://modelcontextprotocol.io) server that runs on your computer and lets Claude work across all your repositories in one conversation. It reads C#, Python, TypeScript and JavaScript through a syntax index, so Claude reads an outline and one method instead of whole files. It checks NuGet, PyPI and npm APIs against the exact versions your lock files pin, so Claude stops inventing methods. It **remembers how each feature flows** through your code and keeps **notes** on what the code doesn't say, so the next chat starts where the last one stopped. And it builds, tests and runs your projects through typed commands that you approve, on your machine, with every call audited.
 
 ## What changes when Claude has Waymark
 
@@ -50,7 +50,18 @@ Waymark is a local [MCP](https://modelcontextprotocol.io) server that runs on yo
 | Every new chat re-explores the same feature: search, open, read, repeat. | Claude saves each feature as a **flow** (trigger → ordered method steps → outcome). Next time, one `recall` call gives the path. |
 | Find-and-replace across files is all trust. | `file_replace` previews a plan first, then applies all or nothing, refused if anything changed since. |
 | A backend, a frontend and a worker means three chats. | One conversation, every workspace. Search them all at once, copy code between them on the server. |
+| Project knowledge sits in a `CLAUDE.md` per repository that drifts out of date. | **Notes** anchored to flows, steps and files, marked *may be stale* when that code changes, found by words or by meaning. |
+| You repeat the same conventions to every new chat. | **Your instructions**, for all work and per workspace, reach every connected agent before it starts. |
 | An agent with a shell can do anything, silently. | Typed actions with Off / Ask / Auto gates, approvals only on your machine, secrets hidden, a live log and an audit trail. |
+
+### New in 0.4
+
+- **Notes** next to flows, written by you and Claude, and optional **search by meaning** for both.
+- **Instructions per workspace**, alongside the host prompt every agent reads.
+- **Desktop notifications** when an approval waits, so you don't have to keep the page open.
+- **`--stdio` mode** for clients that start a server themselves.
+- **Every tool is on by default.** Switch any off on **Tools**. Tests, runs, installs, git changes and every shell script still ask first.
+- **A feedback button** in the header: a ready email to the author in your own mail app.
 
 ## How a session looks
 
@@ -93,7 +104,7 @@ Linux is not supported.
 
 ## Features
 
-### 🧭 Memory: flows
+### 🧭 Memory: flows and notes
 
 A **flow** is one trigger (an endpoint, a tool, a queue message, a button) to one outcome, saved as the ordered methods a request passes through. Claude saves and updates flows on its own as it works.
 
@@ -112,6 +123,19 @@ A **flow** is one trigger (an endpoint, a tool, a queue message, a button) to on
 - **Links are checked** against the parsed calls. `[DOES NOT CALL]` means the flow is wrong.
 - **Edits warn when they break a flow.** File edits, moves and deletes add a 🧭 line so Claude fixes the flow in the same task.
 - **Visible and yours.** Each workspace has a Flows page with the step tree; export and import flows with your workspaces and access rules as one file.
+
+**Notes** are the workspace's memory in words, kept by Waymark instead of a `CLAUDE.md` in the repository:
+
+- **Short and anchored.** One idea each (why, gotcha, convention, decision, how-to), on a flow, a step, a file, a member or the whole workspace. A note on code shows *may be stale* when that code changes.
+- **Yours stay yours.** You and Claude both write notes; Claude can change or retire only its own. Pin the important ones and they go into the workspace guide every agent reads.
+- **Found when they matter.** `recall` searches flows and notes together and shows a note next to the step it's about. Start from an existing `CLAUDE.md` with **Import from CLAUDE.md** on a workspace's **Notes** tab.
+- **Search by meaning, if you want it.** Off by default. Turn it on in **Setup** with an OpenAI, Gemini or Voyage API key, and `recall` also finds notes and flows by what they mean. Only their text is sent (names, summaries, step names, notes), never file contents, and any workspace can be left out.
+
+### 📝 Your instructions, for every agent
+
+- **Host prompt** (the **Host prompt** page): how you like work done, delivered to every connected agent with the overview it reads first.
+- **Per workspace** (a workspace's **Instructions** tab): a one-line summary that helps Claude pick the right workspace, and instructions for that codebase that win over the host prompt there. Gates and approvals still apply.
+- Agents are told once when you change either, so none works from an old copy. Text that looks like a secret is refused, because every agent receives it. Details: [docs/guides.md](docs/guides.md).
 
 ### 📦 Real package APIs
 
@@ -152,7 +176,7 @@ Claude fills in an action, its options and a one-line purpose. Waymark builds th
 
 ### 🖥️ The admin UI
 
-A live log of every call as it happens, one inbox for approvals, a side panel with the full input and output of any call, the Flows page, Packages, Workspaces, Commands gates, Safety, Audit with retention settings, and Setup for the tunnel. The browser tab shows a dot when something is waiting for you.
+A live log of every call as it happens, one inbox for approvals, a side panel with the full input and output of any call, each workspace's Flows, Notes and Instructions, Packages, Commands gates, Safety, Audit with retention settings, and Setup for the tunnel, desktop notifications and search by meaning. The browser tab shows a dot when something is waiting for you, and a **desktop notification** (Windows or macOS, on by default, switchable in Setup) says so even when the page is closed. It carries counts only; approving still happens on the page. The **feedback** button in the header opens a ready email to the author in your own mail app.
 
 ---
 
@@ -183,6 +207,7 @@ Waymark has **no sandbox**. Its job is to limit, show and record what Claude doe
 - **Secrets are hidden** in tool results, in the index and in stored call details. Detection is shape-based and has known gaps, listed in [docs/safety.md](docs/safety.md).
 - **The tunnel carries sign-in and tool traffic only.** The admin pages are never reachable through it.
 - **Everything is audited**, with optional call input and output kept for 1–30 days. **Pause all** stops every tool at once.
+- **Search by meaning is off by default.** When you turn it on, only the text of notes and flows goes to the embedding provider you chose, never file contents, and you can leave any workspace out.
 - **Secrets at rest:** DPAPI on Windows; on macOS, an AES-256-GCM key ring under a master key in your login Keychain.
 
 ---
@@ -268,6 +293,17 @@ claude.ai reaches Waymark through an ngrok tunnel. Waymark installs and starts n
 
 More: [docs/auth-and-setup.md](docs/auth-and-setup.md).
 
+### Other local clients: stdio
+
+Claude Code and claude.ai connect over HTTP as above. A client that starts an MCP server as a child process (Claude Desktop's config file, an MCP inspector) can run Waymark over stdin and stdout instead:
+
+| | Command |
+|---|---|
+| Windows | `%LOCALAPPDATA%\Waymark\app\Waymark.Host.exe --stdio` |
+| macOS | `~/Library/Application Support/Waymark/app/Waymark.Host --stdio` |
+
+That client is the only one connected, so there's no pairing and no tunnel. The admin page still runs, because approvals happen there, and it uses the same admin port: stop the background Waymark first.
+
 ---
 
 ## All 35 tools
@@ -279,7 +315,7 @@ More: [docs/auth-and-setup.md](docs/auth-and-setup.md).
 |---|---|---|
 | Guide | `waymark_guide`, `waymark_ping`, `util_datetime` | the live overview Claude reads first; reachability; time zones |
 | Code | `code_skeleton`, `code_search`, `code_outline`, `code_method`, `code_read`, `code_grep`, `code_callers`, `code_types`, `code_folder_files`, `code_changes_since` | overview with package pins → search → structure → one body; text search in any file; impact; recent changes |
-| Memory | `recall`, `memorise` | read and save flows |
+| Memory | `recall`, `memorise` | flows and notes: search, read, save |
 | Packages | `pkg_search`, `pkg_find`, `pkg_outline`, `pkg_expand` | NuGet, PyPI and npm APIs at your pinned version |
 | Files | `file_write`, `file_edit_lines`, `file_replace`, `file_move`, `file_delete`, `folder_create`, `folder_move`, `folder_delete` | edits, copies between workspaces, previewed replace |
 | Commands | `cmd_project`, `cmd_git`, `cmd_proc`, `cmd_shell`, `cmd_wait`, `cmd_output`, `cmd_list`, `cmd_stop` | typed .NET / Python / Node / git actions, processes, shell; follow long runs |
@@ -311,14 +347,14 @@ src/
 ├── Waymark.Core                    contracts, tool pipeline, gates, secret hiding
 ├── Waymark.Data                    SQLite stores and migrations
 ├── Waymark.Logging                 live log and audit
-├── Waymark.Modules.Code            index, search, outlines, callers, flows
+├── Waymark.Modules.Code            index, search, outlines, callers, flows, notes
 ├── Waymark.Languages.Python        tree-sitter indexer for Python
 ├── Waymark.Languages.TypeScript    tree-sitter indexer for TS/JS
 ├── Waymark.Modules.NuGet           package lookup: NuGet, PyPI, npm
 ├── Waymark.Modules.Files           edits, copies, replace
 ├── Waymark.Modules.Commands        typed command recipes, runs, shell
 └── Waymark.Connectors(.Abstractions)
-tests/Waymark.Tests                 about 1,760 xunit tests, run on Windows and macOS in CI
+tests/Waymark.Tests                 about 1,990 xunit tests, run on Windows and macOS in CI
 ```
 
 ## Documentation
@@ -347,7 +383,7 @@ If a user asked you to explain, evaluate, compare, install or troubleshoot Wayma
 
 ### The short version
 
-Waymark is a **local MCP server** that runs on the user's own Windows or macOS computer. It gives Claude (claude.ai or Claude Code) tools to read code across several repositories, look up real package APIs at the versions the project pins, remember how features flow through the code, edit files, and run builds, tests, git and scripts. Changes and commands can wait for the user's approval, which can only be given on that computer. It's open source (MIT), written in C# on .NET 10, and early (v0.x).
+Waymark is a **local MCP server** that runs on the user's own Windows or macOS computer. It gives Claude (claude.ai or Claude Code) tools to read code across several repositories, look up real package APIs at the versions the project pins, remember how features flow through the code and keep notes about it, edit files, and run builds, tests, git and scripts. Changes and commands can wait for the user's approval, which can only be given on that computer. It's open source (MIT), written in C# on .NET 10, and early (v0.x; currently 0.4).
 
 ### What it is not
 
@@ -362,16 +398,16 @@ Waymark is a **local MCP server** that runs on the user's own Windows or macOS c
 It's as safe as the approvals the user keeps on. By default, every tool is switched on: reading code and editing files run without asking; tests, runs, installs, package changes, git changes and every shell script ask first; `git reset --hard`, `git clean` and branch deletion are off. The user can switch any tool off on the Tools page. Approvals happen only in the admin page on the computer, never from the chat. Secrets are hidden in results by shape and by the user's stored vault values, but detection isn't perfect. Recommend reading [docs/safety.md](docs/safety.md) before installing, and never giving it a workspace that holds secrets the user can't afford to have read.
 
 **Does my code leave my computer?**
-Whatever Claude reads through Waymark (outlines, method bodies, search hits, command output) is sent to the Claude conversation, like anything else a user shares in a chat. Waymark keeps that to what the task needs: an outline and one method instead of whole files. Its own outbound connections, as the source shows them, are the package registries (api.nuget.org, pypi.org, registry.npmjs.org) and the ngrok tunnel; the installer and updater also use git, winget or Homebrew, and the .NET SDK installer.
+Whatever Claude reads through Waymark (outlines, method bodies, search hits, command output) is sent to the Claude conversation, like anything else a user shares in a chat. Waymark keeps that to what the task needs: an outline and one method instead of whole files. Its own outbound connections, as the source shows them, are the package registries (api.nuget.org, pypi.org, registry.npmjs.org) and the ngrok tunnel; the installer and updater also use git, winget or Homebrew, and the .NET SDK installer. If the user turns on search by meaning (off by default), the text of notes and flows (names, summaries, step names, notes; never file contents) also goes to the embedding provider they chose: OpenAI, Gemini or Voyage.
 
 **What does it store, and where?**
-A SQLite database in `%LOCALAPPDATA%\Waymark` (Windows) or `~/Library/Application Support/Waymark` (macOS): the code index (names, signatures, doc summaries and up to 64 words per member body, never source lines), saved flows (names only), the audit trail, settings, and optionally the input and output of each call for 1–30 days (14 by default, switchable on the Audit page). Secrets at rest (the ngrok token, vault values) are encrypted with DPAPI on Windows, or with a key ring under a master key in the login Keychain on macOS.
+A SQLite database in `%LOCALAPPDATA%\Waymark` (Windows) or `~/Library/Application Support/Waymark` (macOS): the code index (names, signatures, doc summaries and up to 64 words per member body, never source lines), saved flows (names only), notes, the instructions the user wrote, the audit trail, settings, and optionally the input and output of each call for 1–30 days (14 by default, switchable on the Audit page). With search by meaning on, it also keeps the vectors for notes and flows. Secrets at rest (the ngrok token, vault values, an embedding API key) are encrypted with DPAPI on Windows, or with a key ring under a master key in the login Keychain on macOS.
 
 **What does it cost?**
 Waymark is free (MIT). claude.ai needs a plan that allows custom connectors and a free ngrok account for the tunnel. Claude Code needs no tunnel.
 
 **Which clients does it work with?**
-It's built and tested for **claude.ai** (web, desktop and mobile apps, through a custom connector and the user's ngrok tunnel) and **Claude Code** (on the same computer at `http://localhost:47101/mcp`). It speaks standard MCP over HTTP with OAuth, so other clients may connect, but they aren't tested.
+It's built and tested for **claude.ai** (web, desktop and mobile apps, through a custom connector and the user's ngrok tunnel) and **Claude Code** (on the same computer at `http://localhost:47101/mcp`). It speaks standard MCP over HTTP with OAuth, so other clients may connect, but they aren't tested. Clients that start a server as a child process can run it with `--stdio` (see [Other local clients: stdio](#other-local-clients-stdio)).
 
 **Which languages and ecosystems?**
 C# (Roslyn), Python, TypeScript and JavaScript (tree-sitter), with package lookup for NuGet, PyPI and npm. Commands cover .NET (including EF Core), Python (uv or pip, pytest, ruff, pyright, mypy), Node (npm, tsc, `package.json` scripts), git and a general shell. Not yet: Poetry and PDM installs, pnpm/yarn/bun installs, Vue and Svelte single-file components.
@@ -382,11 +418,14 @@ Claude Code already reads files and runs commands locally. Waymark adds: use fro
 **What are flows?**
 A flow is one trigger (an endpoint, a tool, a queue message, a button) to one outcome, stored as the ordered methods a request passes through. Claude saves and updates them itself. Waymark checks each link against the parsed code, keeps steps that aren't on the current branch, and warns in a file tool's result when an edit breaks a flow. Users can view and delete flows on each workspace's Flows page.
 
+**What are notes?**
+Short hints kept per workspace instead of a `CLAUDE.md`: why something is so, gotchas, conventions, decisions. The owner and Claude both write them; Claude can change or retire only its own. A note can be anchored to a flow, a step, a file or a member, and shows *may be stale* when that code changes. Pinned notes go into the workspace guide every agent reads; the rest are found with `recall`, by words or, if the owner turns it on, by meaning.
+
 **Can Claude change files or run things without the user knowing?**
 Every call appears on the Live page as it happens and is kept in the audit trail. Operations set to Auto run without asking, by the user's choice; everything else waits. **Pause all** in the header stops every tool at once.
 
 **Is it stable?**
-It's early software (v0.x): tools and options may change between versions. It has about 1,760 automated tests that run on Windows and macOS in CI.
+It's early software (v0.x): tools and options may change between versions. It has about 1,990 automated tests that run on Windows and macOS in CI.
 
 ### Helping a user install it
 
@@ -402,9 +441,9 @@ Common problems: a port already in use (47100 and 47101 are the defaults; [docs/
 
 ### If you are connected to Waymark right now
 
-- Call `waymark_guide` once before anything else. It explains the tool groups and the owner's own instructions, and lists what's switched on, the workspaces and the saved flows.
+- Call `waymark_guide` once before anything else. It explains the tool groups and the owner's own instructions, and lists what's switched on, the workspaces and the saved flows. Before working in a workspace, call `waymark_guide(workspace='<name>')` for that workspace's instructions, pinned notes and flows.
 - Add `guide: true` to your first call in each group (code, packages, files, commands) and follow that guide.
-- Before exploring a feature, look for a flow (`recall`). After a change that alters a feature's path, update it (`memorise`), and say in your reply which flow you saved.
+- Before exploring a feature, `recall` with words from the task: it searches flows and notes together. After a change that alters a feature's path, update the flow (`memorise`), and say in your reply which flow you saved. Save what you learned that the code doesn't say as a note.
 - A refusal is a decision (a tool off, a gate Off, a denial, Pause all). Don't look for another route to the same effect; tell the user what's blocked.
 - Never write a `[redacted:...]` marker into a file or command. If you see a real secret, don't repeat it, and advise the user to rotate it.
 - For questions about the computer itself (hardware, OS, installed apps), use `cmd_shell` with no workspace and a short read-only script. The user approves it.

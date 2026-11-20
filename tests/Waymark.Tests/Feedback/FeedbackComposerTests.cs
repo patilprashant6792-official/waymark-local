@@ -5,7 +5,7 @@ namespace Waymark.Tests.Feedback;
 
 public sealed class FeedbackComposerTests
 {
-    private static readonly FeedbackSystemInfo System = new("0.3 (test)", "Test OS 1.0", ".NET 10.0.0");
+    private static readonly FeedbackSystemInfo System = new("0.4.0 (test)", "Test OS 1.0", ".NET 10.0.0");
 
     private readonly CancellationToken _ct = TestContext.Current.CancellationToken;
 
@@ -116,7 +116,7 @@ public sealed class FeedbackComposerTests
         var with = await ComposeAsync("Hi", system: true);
         var without = await ComposeAsync("Hi", system: false);
 
-        Assert.Contains("Waymark: 0.3 (test)", with.Body, StringComparison.Ordinal);
+        Assert.Contains("Waymark: 0.4.0 (test)", with.Body, StringComparison.Ordinal);
         Assert.Contains("OS: Test OS 1.0", with.Body, StringComparison.Ordinal);
         Assert.DoesNotContain("Waymark: ", without.Body, StringComparison.Ordinal);
         Assert.DoesNotContain("OS: ", without.Body, StringComparison.Ordinal);
