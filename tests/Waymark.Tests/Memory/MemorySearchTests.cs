@@ -25,7 +25,9 @@ public sealed class MemorySearchTests
 
         Assert.False(result.UsedMeaning);
         Assert.Null(result.Notice);
-        Assert.Equal(note.Id, Assert.Single(result.Hits).Id);
+        var only = Assert.Single(result.Hits);
+        Assert.Equal(note.Id, only.Id);
+        Assert.Null(only.Similarity);
         Assert.Equal(0, kit.Provider.Calls);
     }
 
@@ -43,6 +45,25 @@ public sealed class MemorySearchTests
         Assert.True(result.UsedMeaning);
         var hit = Assert.Single(result.Hits, h => h.Id == note.Id);
         Assert.Equal(MemoryMatch.Meaning, hit.MatchedBy);
+        Assert.NotNull(hit.Similarity);
+        Assert.InRange(hit.Similarity.Value, 0.99, 1.01);
+    }
+
+    [Fact]
+    public async Task AFlowTakesTheBestSimilarityOfItselfAndTheNotesGroupedUnderIt()
+    {
+        await using var kit = await Kit.CreateAsync(_ct);
+        var map = await kit.CreateFlowAsync("guide-delivery");
+        await kit.Notes.AddAsync(new NewNote(kit.Workspace.Id, map, "src/A.cs:A.Run", null, NoteKind.Gotcha, "one notice per call", Claude, null, 1), Now, _ct);
+        kit.Provider.Meanings["notice"] = MemoryEmbeddingStoreTests.Hot(5);
+        kit.Provider.Meanings["reminder"] = MemoryEmbeddingStoreTests.Hot(5);
+        await kit.IndexAsync();
+
+        var result = await kit.Search.SearchAsync(kit.Workspace.Id, "single reminder", 10, _ct);
+
+        var hit = Assert.Single(result.Hits, h => h.Kind == MemoryHitKind.Flow && h.Id == map);
+        Assert.NotNull(hit.Similarity);
+        Assert.InRange(hit.Similarity.Value, 0.99, 1.01);
     }
 
     [Fact]

@@ -84,4 +84,21 @@ public static class WorkspaceGuideRules
             ? Hash(workspaceName, text)
             : GuideRules.Hash(Stable(workspaceName, text) + "\npinned:" + string.Join(",", pinned));
     }
+
+    /// <summary>
+    /// The hash with the pinned notes and whether search by meaning is on. Search by meaning changes what the guide asks of an agent (the flows are no
+    /// longer listed; recall finds them), so switching it makes a client look outdated. With it off the hash equals
+    /// <see cref="Hash(string, WorkspaceGuideText, IReadOnlyList{string})"/>, so a workspace with search by meaning off keeps the hash it had.
+    /// </summary>
+    public static string Hash(string workspaceName, WorkspaceGuideText text, IReadOnlyList<string> pinned, bool meaningOn)
+    {
+        ArgumentNullException.ThrowIfNull(pinned);
+        if (!meaningOn)
+        {
+            return Hash(workspaceName, text, pinned);
+        }
+
+        var pins = pinned.Count == 0 ? string.Empty : "\npinned:" + string.Join(",", pinned);
+        return GuideRules.Hash(Stable(workspaceName, text) + pins + "\nmeaning:on");
+    }
 }

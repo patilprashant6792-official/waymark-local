@@ -54,7 +54,7 @@ public sealed class SetupSummary(
         // One line per workspace. Its flows, its own gates and the owner's instructions for it are in its own guide, so this list stays short
         // however many workspaces and flows there are.
         var texts = await workspaceGuides.ListAsync(ct);
-        var index = await featureMaps.ListNamesAsync(1, ct);
+        var counts = await featureMaps.CountByWorkspaceAsync(ct);
         text.Append("- Workspaces (each has its own guide with the owner's instructions for it, its flows and its own command gates: call ")
             .Append(GuideRules.OverviewTool)
             .AppendLine(" with workspace='<name>' before you work in one; 'has instructions' marks those the owner wrote instructions for):");
@@ -65,7 +65,7 @@ public sealed class SetupSummary(
 
         foreach (var folder in folders.OrderBy(w => w.Name, StringComparer.OrdinalIgnoreCase))
         {
-            text.AppendLine(WorkspaceLine(folder, texts.GetValueOrDefault(folder.Id), index.TryGetValue(folder.Id, out var entry) ? entry.Total : 0));
+            text.AppendLine(WorkspaceLine(folder, texts.GetValueOrDefault(folder.Id), counts.GetValueOrDefault(folder.Id)));
         }
         text.Append("- Tools switched off (not in your list; ask the owner to turn one on): ").AppendLine(Names(off));
 

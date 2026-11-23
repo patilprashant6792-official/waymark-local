@@ -29,7 +29,7 @@ Orient the way a developer explores a new repository: start from the `code_skele
 
 A feature map is a **flow**: one trigger (an endpoint, a tool, a job, a button) to one outcome, as the ordered methods the request passes through. Waymark keeps what you learn so the next session does not search for "what is called next". `recall` gives you the path without any code; you open only the methods the task needs with the usual code tools. Follow this loop:
 
-1. **Find.** Look under "Flows saved" in the workspace's guide (`waymark_guide(workspace='<name>')`), or `recall(ws, action='list', query='...')` with words from the task, or with the name of a method you are about to change (it finds the flows that method is a step of).
+1. **Find.** With search by meaning off, the workspace's guide (`waymark_guide(workspace='<name>')`) has an index of the newest flows (name and id; `recall(ws, action='list', page=2)` pages through the rest). With it on, the guide lists none: describe the task to `recall(ws, action='list', query='...')` and pick from the closest flows by their match score. A method name you are about to change as the query finds the flows it is a step of.
 2. **Read.** `recall(ws, action='get', ids='12')` returns each step's place, signature and whether its link to the step above still holds. It never returns code. Read only the steps you need with `code_method`; explore only what the flow lacks.
 3. **Change** the code. A `🧭` line in the result of a file tool means the change touched a step of a flow and a link no longer holds: fix the flow in this task.
 4. **Decide whether the path changed.** Most edits change code inside a step and need no save.

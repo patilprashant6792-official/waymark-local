@@ -15,8 +15,9 @@ public sealed class MemoryTools(IFeatureMemoryService memory, ICallerContext cal
     [Description(
         "Returns this workspace's memory from earlier sessions: saved flows (each one feature as ordered method steps, from its trigger to its outcome) and notes (short hints the owner and models wrote: why, gotchas, conventions, decisions). Reads only.\n" +
         "CALL IT FIRST when you start work on a feature, before searching the code.\n" +
-        "action='list' with query: one ranked search over flows and notes (words, and meaning when the owner switched it on), with the step that matched; often enough to go straight to code_method. " +
-        "Without query: the table of all flows (id, name, steps, version, summary), paged. A method name as the query finds the flows it is a step of.\n" +
+        "action='list' with query: one ranked search over flows and notes. With search by meaning on (the workspace guide says so) the answer is short: per flow its name, match score (closeness in meaning, 0 to 1) and id; pick one and recall get it. " +
+        "With it off: words only, each flow with the step that matched; often enough to go straight to code_method. " +
+        "Without query: the flow index (name and id, newest first), 50 per page; the workspace guide lists page 1 when search by meaning is off. A method name as the query finds the flows it is a step of.\n" +
         "action='get' with ids (up to 5): each step's signature and file location, whether its link to the step above still holds, which steps are not on this branch, and the notes on each step, marked may be stale when the code changed since. " +
         "It never returns code: read only the steps your task needs with code_method.\n" +
         "action='notes': every note of some flows (ids='12,15') or of the workspace (ids='workspace'); history=<note id> shows a note's revisions.\n" +
@@ -30,7 +31,7 @@ public sealed class MemoryTools(IFeatureMemoryService memory, ICallerContext cal
         string? query = null,
         [Description("list without query: page number, starting at 1 (default 1)")]
         int? page = null,
-        [Description("list: flows per page, or results of a query (default 20 and 10, at most 50)")]
+        [Description("list: flows per page, or results of a query (default 50 and 10, at most 50)")]
         int? pageSize = null,
         [Description("get: flow ids from list, comma separated (at most 5). notes: flow ids, or 'workspace' for all notes of the workspace")]
         string? ids = null,

@@ -293,21 +293,33 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
         return rows.Select(row => new FeatureMapOverlap(row.Id, row.Name, (int)row.Shared)).ToList();
     }
 
-    public async Task<IReadOnlyDictionary<long, FeatureMapIndex>> ListNamesAsync(int perWorkspace, CancellationToken ct)
+    public async Task<FeatureMapIndex> ListNamesAsync(long workspaceId, int take, CancellationToken ct)
+    {
+        var parameters = new DynamicParameters();
+        parameters.Add("workspaceId", workspaceId);
+        parameters.Add("take", Math.Clamp(take, 1, MaxPageSize));
+        await using var connection = await connections.OpenAsync(ct);
+        var total = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
+            "SELECT COUNT(*) FROM feature_maps WHERE workspace_id = @workspaceId", parameters, cancellationToken: ct));
+        if (total == 0)
+        {
+            return new FeatureMapIndex(0, []);
+        }
+
+        var rows = await connection.QueryAsync<NameRow>(new CommandDefinition(
+            "SELECT m.id, m.name FROM feature_maps m WHERE m.workspace_id = @workspaceId ORDER BY m.updated_utc DESC, m.id DESC LIMIT @take",
+            parameters,
+            cancellationToken: ct));
+        return new FeatureMapIndex((int)total, rows.Select(row => new FeatureMapName(row.Id, row.Name)).ToList());
+    }
+
+    public async Task<IReadOnlyDictionary<long, int>> CountByWorkspaceAsync(CancellationToken ct)
     {
         await using var connection = await connections.OpenAsync(ct);
-        var rows = await connection.QueryAsync<NameRow>(new CommandDefinition(
-            "SELECT m.id, m.workspace_id, m.name, m.summary, m.ordered, (SELECT COUNT(*) FROM feature_components c WHERE c.map_id = m.id) AS step_count " +
-            "FROM feature_maps m ORDER BY m.updated_utc DESC, m.id DESC",
+        var rows = await connection.QueryAsync<CountRow>(new CommandDefinition(
+            "SELECT m.workspace_id, COUNT(*) AS total FROM feature_maps m GROUP BY m.workspace_id",
             cancellationToken: ct));
-        var keep = Math.Max(1, perWorkspace);
-        return rows
-            .GroupBy(row => row.WorkspaceId)
-            .ToDictionary(
-                group => group.Key,
-                group => new FeatureMapIndex(
-                    group.Count(),
-                    group.Take(keep).Select(row => new FeatureMapName(row.Id, row.Name, row.Summary, (int)row.StepCount, row.Ordered != 0)).ToList()));
+        return rows.ToDictionary(row => row.WorkspaceId, row => (int)row.Total);
     }
 
     public Task<long?> DeleteAsync(long workspaceId, string name, CancellationToken ct)
@@ -465,14 +477,13 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
     {
         public long Id { get; set; }
 
+        public string Name { get; set; } = string.Empty;
+    }
+
+    private sealed class CountRow
+    {
         public long WorkspaceId { get; set; }
 
-        public string Name { get; set; } = string.Empty;
-
-        public string Summary { get; set; } = string.Empty;
-
-        public long Ordered { get; set; }
-
-        public long StepCount { get; set; }
+        public long Total { get; set; }
     }
 }

@@ -29,8 +29,8 @@ public sealed record FeatureMapPage(IReadOnlyList<FeatureMapSummary> Items, int 
 /// <summary>Another map of the same workspace that holds some of the same steps.</summary>
 public sealed record FeatureMapOverlap(long Id, string Name, int Shared);
 
-/// <summary>A map as the live setup lists it for agents: enough to choose a flow without listing first.</summary>
-public sealed record FeatureMapName(long Id, string Name, string Summary, int StepCount, bool Ordered);
+/// <summary>A map as the workspace guide lists it for agents: an index line, name and id only; recall get describes the map.</summary>
+public sealed record FeatureMapName(long Id, string Name);
 
 /// <param name="Total">All maps of the workspace.</param>
 /// <param name="Newest">The most recently changed ones, newest first.</param>
@@ -114,8 +114,14 @@ public interface IFeatureMapStore
     /// <summary>The other maps of the workspace that share steps with this one, most shared first (at most 3).</summary>
     Task<IReadOnlyList<FeatureMapOverlap>> FindOverlapsAsync(long workspaceId, long mapId, CancellationToken ct);
 
-    /// <summary>Per workspace id: how many maps it has and the newest <paramref name="perWorkspace"/>; a workspace with none is absent.</summary>
-    Task<IReadOnlyDictionary<long, FeatureMapIndex>> ListNamesAsync(int perWorkspace, CancellationToken ct);
+    /// <summary>
+    /// The flow index of one workspace for its guide: how many maps it has and the newest <paramref name="take"/> by name and id only.
+    /// The count and the page are two queries, so the guide never loads the maps themselves.
+    /// </summary>
+    Task<FeatureMapIndex> ListNamesAsync(long workspaceId, int take, CancellationToken ct);
+
+    /// <summary>Per workspace id: how many maps it has. A workspace with none is absent.</summary>
+    Task<IReadOnlyDictionary<long, int>> CountByWorkspaceAsync(CancellationToken ct);
 
     /// <summary>Deletes the map of this name with its steps. The id that it had, or null when there is none.</summary>
     Task<long?> DeleteAsync(long workspaceId, string name, CancellationToken ct);

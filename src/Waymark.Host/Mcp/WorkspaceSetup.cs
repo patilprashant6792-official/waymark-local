@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Globalization;
 using System.Text;
 using Waymark.Core.Commands;
@@ -8,8 +9,10 @@ using Waymark.Core.Workspaces;
 namespace Waymark.Host.Mcp;
 
 /// <summary>
-/// Tells an agent what is live in one workspace: the flows saved for it, the owner's pinned notes, how many other notes there are, and the command gates
-/// the owner set for it alone. Names and switches only, like the overview's live setup: no paths, no secrets.
+/// Tells an agent what is live in one workspace: the index of the flows saved for it, the owner's pinned notes, how many other notes there are, and the
+/// command gates the owner set for it alone. Names and switches only, like the overview's live setup: no paths, no secrets.
+/// Nothing is loaded whole: with search by meaning off the guide carries the name and id of the newest <see cref="FlowIndex.PageSize"/> flows; with it on it
+/// lists none, so it stays the same size however many flows are saved, and recall finds them by meaning.
 /// </summary>
 public sealed class WorkspaceSetup(
     IFeatureMapStore featureMaps,
@@ -19,13 +22,18 @@ public sealed class WorkspaceSetup(
     IMemorySettings memory,
     TimeProvider time) : IWorkspaceSetup
 {
-    internal const int MaxMapNamesPerWorkspace = 15;
+    /// <summary>The flows the guide lists with search by meaning off: the first page of recall list, so page 2 continues where the guide stops.</summary>
+    internal const int MaxMapNamesPerWorkspace = FlowIndex.PageSize;
 
-    /// <summary>With search by meaning on, one recall list query finds the right flow, so the guide lists only the newest few.</summary>
-    internal const int MaxMapNamesWithMeaning = 5;
-
-    private const int MaxSummaryChars = 60;
     private const int MaxPinnedLineChars = 240;
+
+    /// <summary>
+    /// How long the search-by-meaning switch is remembered per workspace. The guide hash reads it on every tool call in a workspace with instructions,
+    /// and the settings are several reads; a switch shows within this time.
+    /// </summary>
+    private static readonly TimeSpan MeaningCacheTime = TimeSpan.FromSeconds(30);
+
+    private readonly ConcurrentDictionary<long, (bool On, DateTimeOffset At)> _meaning = new();
 
     public async Task<string> DescribeAsync(Workspace workspace, CancellationToken ct)
     {
@@ -37,28 +45,13 @@ public sealed class WorkspaceSetup(
             ? "- State: on."
             : "- State: OFF. Every tool call in this workspace is refused until the owner switches it on in the admin UI.");
 
-        var meaning = await MeaningOnAsync(workspace.Id, ct);
-        var shown = meaning ? MaxMapNamesWithMeaning : MaxMapNamesPerWorkspace;
-        var index = await featureMaps.ListNamesAsync(MaxMapNamesPerWorkspace, ct);
-        text.Append("- Flows saved (a flow is one trigger to one outcome as ordered method steps; recall with action 'get' and an id describes one in a single call, with no code; action 'list' with a query searches flows and notes")
-            .Append(meaning ? ", search by meaning is on" : string.Empty)
-            .AppendLine("; memorise saves or changes one):");
-        if (!index.TryGetValue(workspace.Id, out var entry) || entry.Total == 0)
+        if (await MeaningOnAsync(workspace.Id, ct))
         {
-            text.AppendLine("  - none yet");
+            await DescribeFlowsByMeaningAsync(text, workspace.Id, ct);
         }
         else
         {
-            var newest = entry.Newest.Take(shown).ToList();
-            foreach (var map in newest)
-            {
-                text.Append("  - ").AppendLine(FlowLine(map));
-            }
-
-            if (entry.Total > newest.Count)
-            {
-                text.AppendLine(string.Create(CultureInfo.InvariantCulture, $"  - and {entry.Total - newest.Count} more (action 'list')"));
-            }
+            await DescribeFlowIndexAsync(text, workspace.Id, ct);
         }
 
         await DescribeNotesAsync(text, workspace.Id, ct);
@@ -75,6 +68,74 @@ public sealed class WorkspaceSetup(
             ? "none"
             : string.Join(", ", own.Select(row => $"{row.Key} {GateWord(row.Here)}")));
         return text.ToString();
+    }
+
+    /// <summary>
+    /// Search by meaning shortens the guide only when it actually runs for this workspace; any doubt (settings unreadable) keeps the index.
+    /// Remembered for <see cref="MeaningCacheTime"/>, because the guide hash asks on every tool call.
+    /// </summary>
+    public async Task<bool> MeaningOnAsync(long workspaceId, CancellationToken ct)
+    {
+        var now = time.GetUtcNow();
+        if (_meaning.TryGetValue(workspaceId, out var known) && now - known.At < MeaningCacheTime)
+        {
+            return known.On;
+        }
+
+        bool on;
+        try
+        {
+            var settings = await memory.GetAsync(ct);
+            on = settings.IsActive && !await memory.IsExcludedAsync(workspaceId, ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // Not remembered: the next call tries again.
+            return false;
+        }
+
+        _meaning[workspaceId] = (on, now);
+        return on;
+    }
+
+    // Search by meaning on: no flow is listed. One line with the count and how to find a flow, so the guide stays the same size however many there are.
+    private async Task DescribeFlowsByMeaningAsync(StringBuilder text, long workspaceId, CancellationToken ct)
+    {
+        var index = await featureMaps.ListNamesAsync(workspaceId, 1, ct);
+        if (index.Total == 0)
+        {
+            text.AppendLine("- Flows: none saved yet (search by meaning is on). When you trace a feature from its trigger to its outcome, save it with memorise(action='save_feature_map').");
+            return;
+        }
+
+        text.AppendLine(string.Create(
+            CultureInfo.InvariantCulture,
+            $"- Flows: {index.Total} saved, not listed here because search by meaning is on. Describe what you are working on to recall(action='list', query='...'): it answers with the closest flows as name, match score and id. Pick one and read its path with recall(action='get', ids='<id>')."));
+    }
+
+    // Search by meaning off: an index of the newest flows, name and id only. The rest are paged with recall list, in the same order and page size.
+    private async Task DescribeFlowIndexAsync(StringBuilder text, long workspaceId, CancellationToken ct)
+    {
+        var index = await featureMaps.ListNamesAsync(workspaceId, MaxMapNamesPerWorkspace, ct);
+        text.AppendLine("- Flows saved, newest first (name and id; recall(action='get', ids='<id>') gives a flow's path without code; recall(action='list', query='...') searches flows and notes):");
+        if (index.Total == 0)
+        {
+            text.AppendLine("  - none yet");
+            return;
+        }
+
+        foreach (var map in index.Newest)
+        {
+            text.Append("  - ").AppendLine(FlowLine(map));
+        }
+
+        var more = index.Total - index.Newest.Count;
+        if (more > 0)
+        {
+            text.AppendLine(string.Create(
+                CultureInfo.InvariantCulture,
+                $"  - and {more} more: recall(action='list', page=2) continues this list, {FlowIndex.PageSize} per page; page through only when you need to."));
+        }
     }
 
     private async Task DescribeNotesAsync(StringBuilder text, long workspaceId, CancellationToken ct)
@@ -111,32 +172,11 @@ public sealed class WorkspaceSetup(
         return string.Create(CultureInfo.InvariantCulture, $"#{note.Id} {NoteKinds.ToText(note.Kind)} ({anchor}): {NoteRules.OneLine(note.Body, MaxPinnedLineChars)}");
     }
 
-    // Search by meaning shortens the flow list only when it actually runs for this workspace; any doubt keeps the full list.
-    private async Task<bool> MeaningOnAsync(long workspaceId, CancellationToken ct)
-    {
-        try
-        {
-            var settings = await memory.GetAsync(ct);
-            return settings.IsActive && !await memory.IsExcludedAsync(workspaceId, ct);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            return false;
-        }
-    }
-
-    // One line on one flow: enough for an agent to pick it without listing first. The summary is cut short; recall get has the rest.
+    // One index line on one flow: its name and id. recall get describes it.
     internal static string FlowLine(FeatureMapName map)
     {
         ArgumentNullException.ThrowIfNull(map);
-        var steps = $"{map.StepCount} {(map.StepCount == 1 ? "step" : "steps")}{(map.Ordered ? string.Empty : ", unordered")}";
-        var summary = map.Summary.Replace('\n', ' ').Replace('\r', ' ').Trim();
-        if (summary.Length > MaxSummaryChars)
-        {
-            summary = summary[..(MaxSummaryChars - 3)] + "...";
-        }
-
-        return summary.Length == 0 ? $"{map.Id} {map.Name} ({steps})" : $"{map.Id} {map.Name} ({steps}): {summary}";
+        return FlowIndex.Line(map.Id, map.Name);
     }
 
     private static string GateWord(CommandGate gate) => gate switch
