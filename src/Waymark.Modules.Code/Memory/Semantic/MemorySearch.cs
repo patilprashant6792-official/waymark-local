@@ -41,9 +41,9 @@ internal sealed class MemorySearch(
         var meaning = await MeaningAsync(workspaceId, text, ct).ConfigureAwait(false);
 
         var fused = new Dictionary<(MemoryHitKind Kind, long Id), Fused>();
-        Add(fused, noteWords.Select(id => (MemoryHitKind.Note, id)), byWords: true);
-        Add(fused, flowWords.Select(match => (MemoryHitKind.Flow, match.FlowId)), byWords: true);
-        Add(fused, meaning.Hits.Select(hit => (hit.Kind == EmbeddingItemKind.Flow ? MemoryHitKind.Flow : MemoryHitKind.Note, hit.ItemId)), byWords: false);
+        Add(fused, noteWords.Select(id => (MemoryHitKind.Note, id, (double?)null)), byWords: true);
+        Add(fused, flowWords.Select(match => (MemoryHitKind.Flow, match.FlowId, (double?)null)), byWords: true);
+        Add(fused, meaning.Hits.Select(hit => (hit.Kind == EmbeddingItemKind.Flow ? MemoryHitKind.Flow : MemoryHitKind.Note, hit.ItemId, (double?)hit.Score)), byWords: false);
 
         var noteIds = fused.Keys.Where(key => key.Kind == MemoryHitKind.Note).Select(key => key.Id).ToList();
         var found = noteIds.Count == 0 ? new Dictionary<long, Note>() : (await notes.GetAsync(workspaceId, noteIds, ct).ConfigureAwait(false)).Where(note => note.IsActive).ToDictionary(note => note.Id);
@@ -80,7 +80,7 @@ internal sealed class MemorySearch(
         foreach (var ((_, id), entry) in fused.Where(pair => pair.Key.Kind == MemoryHitKind.Flow))
         {
             List<string> steps = stepsByFlow.TryGetValue(id, out var matched) ? [.. matched] : [];
-            flowHits[id] = new GroupedFlow(entry.Score, entry.Match, steps, []);
+            flowHits[id] = new GroupedFlow(entry.Score, entry.Match, entry.Similarity, steps, []);
         }
 
         foreach (var ((_, id), entry) in fused.Where(pair => pair.Key.Kind == MemoryHitKind.Note).OrderByDescending(pair => pair.Value.Score))
@@ -90,12 +90,13 @@ internal sealed class MemorySearch(
             {
                 if (!flowHits.TryGetValue(mapId, out var group))
                 {
-                    group = new GroupedFlow(entry.Score, entry.Match, [], []);
+                    group = new GroupedFlow(entry.Score, entry.Match, entry.Similarity, [], []);
                     flowHits[mapId] = group;
                 }
 
                 group.Score = Math.Max(group.Score, entry.Score);
                 group.Match = Combine(group.Match, entry.Match);
+                group.Similarity = Best(group.Similarity, entry.Similarity);
                 group.Notes.Add(id);
                 if (note.StepSpec is { } spec && !group.Steps.Contains(spec, StringComparer.OrdinalIgnoreCase))
                 {
@@ -105,34 +106,39 @@ internal sealed class MemorySearch(
                 continue;
             }
 
-            standalone.Add(new MemoryHit(MemoryHitKind.Note, id, null, note.StepSpec, entry.Score, entry.Match, [], []));
+            standalone.Add(new MemoryHit(MemoryHitKind.Note, id, null, note.StepSpec, entry.Score, entry.Match, [], [], entry.Similarity));
         }
 
-        var all = flowHits.Select(pair => new MemoryHit(MemoryHitKind.Flow, pair.Key, pair.Key, null, pair.Value.Score, pair.Value.Match, pair.Value.Steps, pair.Value.Notes))
+        var all = flowHits.Select(pair => new MemoryHit(MemoryHitKind.Flow, pair.Key, pair.Key, null, pair.Value.Score, pair.Value.Match, pair.Value.Steps, pair.Value.Notes, pair.Value.Similarity))
             .Concat(standalone);
         return [.. all.OrderByDescending(hit => hit.Score).ThenBy(hit => hit.Kind).ThenBy(hit => hit.Id)];
     }
 
-    private static void Add(Dictionary<(MemoryHitKind Kind, long Id), Fused> fused, IEnumerable<(MemoryHitKind Kind, long Id)> ranked, bool byWords)
+    // Reciprocal rank fusion of one leg. A meaning leg also carries each item's similarity to the query; the best one is kept for display only.
+    private static void Add(Dictionary<(MemoryHitKind Kind, long Id), Fused> fused, IEnumerable<(MemoryHitKind Kind, long Id, double? Similarity)> ranked, bool byWords)
     {
         var rank = 0;
-        foreach (var key in ranked)
+        foreach (var (kind, id, similarity) in ranked)
         {
             rank++;
             var score = 1.0 / (RrfK + rank);
+            var key = (kind, id);
             if (fused.TryGetValue(key, out var entry))
             {
                 entry.Score += score;
                 entry.Match = Combine(entry.Match, byWords ? MemoryMatch.Words : MemoryMatch.Meaning);
+                entry.Similarity = Best(entry.Similarity, similarity);
             }
             else
             {
-                fused[key] = new Fused { Score = score, Match = byWords ? MemoryMatch.Words : MemoryMatch.Meaning };
+                fused[key] = new Fused { Score = score, Match = byWords ? MemoryMatch.Words : MemoryMatch.Meaning, Similarity = similarity };
             }
         }
     }
 
     private static MemoryMatch Combine(MemoryMatch a, MemoryMatch b) => a == b ? a : MemoryMatch.Both;
+
+    private static double? Best(double? a, double? b) => a is null ? b : b is null ? a : Math.Max(a.Value, b.Value);
 
     // The query is the flow's name ('waymark guide delivery' or 'waymark-guide-delivery'), or one of its words is a step's member name.
     private static bool IsExact(FeatureMap map, string query, IReadOnlyList<string> words)
@@ -210,13 +216,18 @@ internal sealed class MemorySearch(
         public double Score { get; set; }
 
         public MemoryMatch Match { get; set; }
+
+        /// <summary>The similarity from the meaning leg, or null when only words found the item.</summary>
+        public double? Similarity { get; set; }
     }
 
-    private sealed class GroupedFlow(double score, MemoryMatch match, List<string> steps, List<long> notes)
+    private sealed class GroupedFlow(double score, MemoryMatch match, double? similarity, List<string> steps, List<long> notes)
     {
         public double Score { get; set; } = score;
 
         public MemoryMatch Match { get; set; } = match;
+
+        public double? Similarity { get; set; } = similarity;
 
         public List<string> Steps { get; } = steps;
 

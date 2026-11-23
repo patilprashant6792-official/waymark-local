@@ -17,7 +17,8 @@ internal sealed class FlowRecallService(
     IMemorySearch search,
     ToolPipelineOptions pipeline)
 {
-    private const int DefaultPageSize = 20;
+    // The same page size as the workspace guide's index, so page 2 continues exactly where the guide stops.
+    private const int DefaultPageSize = FlowIndex.PageSize;
     private const int MaxPageSize = 50;
     private const int SearchTake = 10;
     private const int ReservedChars = 600;
@@ -40,7 +41,7 @@ internal sealed class FlowRecallService(
         }
 
         var pages = Math.Max(1, (result.Total + size - 1) / size);
-        return FlowRecallRenderer.List(found.Name, null, number, pages, result.Total, result.Items, []);
+        return FlowRecallRenderer.List(found.Name, number, pages, result.Total, result.Items);
     }
 
     public async Task<string> GetAsync(string? workspace, string? ids, CancellationToken ct)
@@ -142,7 +143,11 @@ internal sealed class FlowRecallService(
         var take = Math.Clamp(pageSize ?? SearchTake, 1, MaxPageSize);
         var result = await search.SearchAsync(workspaceId, query, take, ct).ConfigureAwait(false);
         var flowIds = result.Hits.Select(hit => hit.Kind == MemoryHitKind.Flow ? hit.Id : hit.FlowId).OfType<long>().Distinct().ToList();
-        var noteIds = result.Hits.SelectMany<MemoryHit, long>(hit => hit.Kind == MemoryHitKind.Note ? new[] { hit.Id } : hit.Notes).Distinct().ToList();
+
+        // The short index form (search by meaning on) shows only the notes that stand alone; notes grouped under a flow come with recall get.
+        var noteIds = result.MeaningOn
+            ? result.Hits.Where(hit => hit.Kind == MemoryHitKind.Note).Select(hit => hit.Id).Distinct().ToList()
+            : result.Hits.SelectMany<MemoryHit, long>(hit => hit.Kind == MemoryHitKind.Note ? new[] { hit.Id } : hit.Notes).Distinct().ToList();
         IReadOnlyList<FeatureMap> maps = flowIds.Count == 0 ? [] : await store.GetAsync(workspaceId, flowIds, ct).ConfigureAwait(false);
         IReadOnlyList<Note> found = noteIds.Count == 0 ? [] : await notes.GetAsync(workspaceId, noteIds, ct).ConfigureAwait(false);
         return MemorySearchRenderer.Render(workspaceName, query, result, maps.ToDictionary(map => map.Id), found.ToDictionary(note => note.Id));

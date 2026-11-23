@@ -38,4 +38,10 @@ public interface IWorkspaceGuides
 public interface IWorkspaceSetup
 {
     Task<string> DescribeAsync(Workspace workspace, CancellationToken ct);
+
+    /// <summary>
+    /// Whether search by meaning is switched on for this workspace. The guide then lists no flows, so the guide's hash includes it: a client hears when it changes.
+    /// Any doubt (settings unreadable) answers false.
+    /// </summary>
+    Task<bool> MeaningOnAsync(long workspaceId, CancellationToken ct);
 }

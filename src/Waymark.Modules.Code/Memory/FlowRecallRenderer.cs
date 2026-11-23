@@ -112,46 +112,35 @@ internal static class FlowRecallRenderer
         $"Read a step with code_method('{workspace}', path, member, className=type), or code_outline for a file. " +
         "After a change that alters the path, save the whole flow again with memorise(expectedVersion=the v shown). A step marked not on this branch is kept: do not remove it for that reason.";
 
-    public static string List(string workspace, string? query, int page, int pages, int total, IReadOnlyList<FeatureMapSummary> items, IReadOnlyList<FeatureMapSummary> similar)
+    /// <summary>
+    /// One page of the flow index (recall list without a query): name and id per flow, newest first, the same lines and order as the workspace guide.
+    /// recall get describes a flow; nothing else of it is loaded here.
+    /// </summary>
+    public static string List(string workspace, int page, int pages, int total, IReadOnlyList<FeatureMapSummary> items)
     {
-        var filter = string.IsNullOrWhiteSpace(query) ? string.Empty : $", matching '{query}'";
+        ArgumentNullException.ThrowIfNull(items);
         var text = new StringBuilder();
-        text.AppendLine($"# Flows: workspace {workspace}{filter}").AppendLine();
-        text.AppendLine($"{total} found, page {page} of {pages}.").AppendLine();
+        text.AppendLine(CultureInfo.InvariantCulture, $"# Flows: workspace {workspace}").AppendLine();
+        text.AppendLine(CultureInfo.InvariantCulture, $"{total} saved, newest first, page {page} of {pages}.").AppendLine();
         if (items.Count == 0)
         {
             text.AppendLine("This page is past the last one.");
         }
         else
         {
-            Table(text, items);
+            foreach (var item in items)
+            {
+                text.Append("- ").AppendLine(FlowIndex.Line(item.Id, item.Name));
+            }
         }
 
-        if (similar.Count > 0)
-        {
-            text.AppendLine().AppendLine("Close in meaning to the query:").AppendLine();
-            Table(text, similar);
-        }
-
-        text.AppendLine().Append($"Read flows with recall(action='get', ids='12,15') using the ids above (at most {FlowArgs.MaxIdsPerGet} per call). A method name as the query finds the flows it is a step of.");
+        text.AppendLine().Append(CultureInfo.InvariantCulture, $"Read flows with recall(action='get', ids='12,15') using the ids above (at most {FlowArgs.MaxIdsPerGet} per call). recall(action='list', query='...') searches flows and notes; a method name as the query finds the flows it is a step of.");
         if (page < pages)
         {
-            text.Append($" More: page={page + 1}.");
+            text.Append(CultureInfo.InvariantCulture, $" More: page={page + 1}.");
         }
 
         return text.ToString();
-    }
-
-    private static void Table(StringBuilder text, IReadOnlyList<FeatureMapSummary> items)
-    {
-        text.AppendLine("| id | name | steps | version | summary | updated |");
-        text.AppendLine("|---|---|---|---|---|---|");
-        foreach (var item in items)
-        {
-            var updated = item.UpdatedUtc.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
-            var version = item.Ordered ? $"v{item.Version}" : $"v{item.Version} unordered";
-            text.AppendLine($"| {item.Id} | {item.Name} | {item.StepCount} | {version} | {FlowArgs.Cell(item.Summary)} | {updated} |");
-        }
     }
 
     private static string Counts(FlowReport report) => Counts(report.Steps.Count, report.Inspection, report.Map.Ordered);

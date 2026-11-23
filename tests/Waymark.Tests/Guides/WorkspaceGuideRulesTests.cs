@@ -67,6 +67,19 @@ public sealed class WorkspaceGuideRulesTests
     }
 
     [Fact]
+    public void SearchByMeaningOnChangesTheHashAndOffKeepsIt()
+    {
+        var text = Text("s", "i");
+        IReadOnlyList<string> pins = ["3:abc"];
+
+        Assert.Equal(WorkspaceGuideRules.Hash("api", text, pins), WorkspaceGuideRules.Hash("api", text, pins, meaningOn: false));
+        Assert.Equal(WorkspaceGuideRules.Hash("api", text), WorkspaceGuideRules.Hash("api", text, [], meaningOn: false));
+        Assert.NotEqual(WorkspaceGuideRules.Hash("api", text, pins), WorkspaceGuideRules.Hash("api", text, pins, meaningOn: true));
+        Assert.NotEqual(WorkspaceGuideRules.Hash("api", text), WorkspaceGuideRules.Hash("api", text, [], meaningOn: true));
+        Assert.NotEqual(WorkspaceGuideRules.Hash("api", text, [], meaningOn: true), WorkspaceGuideRules.Hash("api", text, pins, meaningOn: true));
+    }
+
+    [Fact]
     public void TheLimitsLeaveRoomForTheWarning()
     {
         Assert.True(WorkspaceGuideRules.WarnTokens * 4 < WorkspaceGuideRules.MaxInstructionsChars);

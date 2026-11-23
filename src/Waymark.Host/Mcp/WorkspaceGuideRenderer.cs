@@ -8,8 +8,8 @@ namespace Waymark.Host.Mcp;
 
 /// <summary>
 /// Builds the guide of one workspace: its summary, the owner's instructions for it and its live setup (flows, pinned notes, its own gates).
-/// The hash covers the owner's text only, instructions and pinned notes (see <see cref="WorkspaceGuideRules.Stable"/>), so saving a flow never makes a client look outdated
-/// but a new pin does.
+/// The hash covers the owner's text only, instructions and pinned notes (see <see cref="WorkspaceGuideRules.Stable"/>), and whether search by meaning is on,
+/// so saving a flow never makes a client look outdated but a new pin or switching search by meaning does.
 /// </summary>
 public sealed class WorkspaceGuideRenderer(IWorkspaceGuides texts, IWorkspaceSetup setup, IPinnedNotes pinned, ILogger<WorkspaceGuideRenderer> logger)
 {
@@ -35,18 +35,21 @@ public sealed class WorkspaceGuideRenderer(IWorkspaceGuides texts, IWorkspaceSet
 
         body.Append("## Live setup\n\n").Append(await DescribeSetupAsync(workspace, ct));
         var pins = await PinsAsync(workspace, ct);
-        return new ToolGuide(WorkspaceGuideRules.ModuleKey(workspace.Id), body.ToString(), WorkspaceGuideRules.Hash(workspace.Name, text, pins));
+        var meaning = await setup.MeaningOnAsync(workspace.Id, ct);
+        return new ToolGuide(WorkspaceGuideRules.ModuleKey(workspace.Id), body.ToString(), WorkspaceGuideRules.Hash(workspace.Name, text, pins, meaning));
     }
 
     /// <summary>
-    /// The hash of the owner's text of the workspace (instructions and pinned notes), and whether there is any. Cheap: both are cached after the first call.
+    /// The hash of the owner's text of the workspace (instructions and pinned notes) with whether search by meaning is on, and whether there is any owner text.
+    /// Cheap: all of it is cached after the first call.
     /// </summary>
     public async Task<(string Hash, bool HasInstructions)> HashAsync(Workspace workspace, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(workspace);
         var text = await texts.GetAsync(workspace.Id, ct);
         var pins = await PinsAsync(workspace, ct);
-        return (WorkspaceGuideRules.Hash(workspace.Name, text, pins), text.HasInstructions || pins.Count > 0);
+        var meaning = await setup.MeaningOnAsync(workspace.Id, ct);
+        return (WorkspaceGuideRules.Hash(workspace.Name, text, pins, meaning), text.HasInstructions || pins.Count > 0);
     }
 
     // 'id:content hash' per pinned note. A failure leaves the pins out of the hash rather than failing the call.
