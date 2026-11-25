@@ -12,7 +12,7 @@ namespace Waymark.Tests.Memory;
 public sealed class MemorySearchTests
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 12, 9, 0, 0, TimeSpan.Zero);
-    private static readonly NoteAuthor Claude = new(NoteAuthorKind.ClaudeClient, "claude-ai");
+    private static readonly NoteAuthor Claude = new(NoteAuthorKind.Agent, "claude-ai");
     private readonly CancellationToken _ct = TestContext.Current.CancellationToken;
 
     [Fact]
@@ -184,7 +184,7 @@ public sealed class MemorySearchTests
             Cache = new MemoryVectorCache(Vectors);
             Queries = new QueryEmbedder(Provider, Settings);
             Indexer = new MemoryWorkspaceIndexer(new MemoryItems(Notes, Maps), Vectors, Cache, TimeProvider.System, NullLogger<MemoryWorkspaceIndexer>.Instance);
-            Search = new MemorySearch(Notes, Maps, Settings, Queries, Cache, NullLogger<MemorySearch>.Instance);
+            Search = new MemorySearch(Notes, new FlowWordCache(Maps, new EventBus(NullLogger<EventBus>.Instance)), Settings, Queries, Cache, NullLogger<MemorySearch>.Instance);
         }
 
         public TestDatabase Db { get; }

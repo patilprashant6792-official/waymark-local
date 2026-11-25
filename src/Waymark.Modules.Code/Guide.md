@@ -20,26 +20,26 @@ Find before you read, and read only what the task needs: a full read of a large 
 | Who calls a method or function | `code_callers(ws, file, method)` |
 | Who implements or derives from a type | `code_types(ws, typeName)` |
 | Lines or a file to move or copy (also to another workspace) | `code_outline` / `code_method` give the line numbers; pass them as `from` to `file_edit_lines` / `file_write` (files guide). No need to read the body. |
-| Start of work on a feature | `recall(ws, 'list', query='what you look for')` (ranked flows and notes with the matching step), then `recall(ws, 'get', ids)` (flows and notes below) |
-| The path of a feature changed | `memorise(ws, 'save_feature_map', name, steps, expectedVersion)`; a new trigger: `name`, `summary`, `steps` |
-| You learned something the code does not say | `memorise(ws, 'add_note', note, kind, name?, step?, about?)` (Notes below) |
+| Start of work on a feature | `memory_recall(ws, 'list', query='what you look for')` (ranked flows and notes with the matching step), then `memory_recall(ws, 'get', ids)` (flows and notes below) |
+| The path of a feature changed | `memory_save(ws, 'save_feature_map', name, steps, expectedVersion)`; a new trigger: `name`, `summary`, `steps` |
+| You learned something the code does not say | `memory_save(ws, 'add_note', note, kind, name?, step?, about?)` (Notes below) |
 
 Batch lists are comma separated with no spaces; a batch outline may mix languages.
 
 ## Feature maps (flows)
 
-A feature map is a **flow**: one trigger to one outcome as the ordered methods the request passes through, saved under a name after its trigger (`memorise-save`). It stores names, never code, so it survives edits and branch switches. `recall` describes the path without any code; you read only the steps your task needs with `code_method`.
+A feature map is a **flow**: one trigger to one outcome as the ordered methods the request passes through, saved under a name after its trigger (`memory-save`). It stores names, never code, so it survives edits and branch switches. `memory_recall` describes the path without any code; you read only the steps your task needs with `code_method`.
 
-- **Find.** `recall(ws, action='list', query='words or a description')` searches flows and notes together. With search by meaning on, it answers with each flow's name, match score (closeness in meaning, 0 to 1) and id: pick one and `recall get` it. With it off, it shows per flow the step that matched. A method name as the query finds the flows it is a step of. With search by meaning off the workspace guide also has an index of the newest flows, name and id; `recall(ws, action='list', page=2)` continues it. Do this before you explore a feature.
-- **Read.** `recall(ws, action='get', ids='12')` returns one line per step: where it is, its signature, a mark for the link from the step above, and the notes on that step. Use it instead of exploring again, and explore only what it lacks.
+- **Find.** `memory_recall(ws, action='list', query='words or a description')` searches flows and notes together. With search by meaning on, it answers with each flow's name, match score (closeness in meaning, 0 to 1) and id: pick one and `memory_recall get` it. With it off, it shows per flow the step that matched. A method name as the query finds the flows it is a step of. With search by meaning off the workspace guide also has an index of the newest flows, name and id; `memory_recall(ws, action='list', page=2)` continues it. Do this before you explore a feature.
+- **Read.** `memory_recall(ws, action='get', ids='12')` returns one line per step: where it is, its signature, a mark for the link from the step above, and the notes on that step. Use it instead of exploring again, and explore only what it lacks.
 - **Marks.** `[calls it]` the step above calls this one. `[by name only]` a call of that name is there but its receiver type is unknown. `[declared: event]` a link the index cannot see (you wrote ~event, ~http, ~ui, ~di or ~job), a constructor, a file or a range. `[DOES NOT CALL]` both steps are in the code and the step above makes no such call: the flow is wrong, fix it. `NOT ON THIS BRANCH (kept)` the step is not in the code here (another branch, a rename, a deleted file); it stays stored for the branch that has it, so do not remove it for that reason. `moved? ->` a method of that name is in another file.
 - **Change the code, then decide.** Most edits are inside a step and need no save. Save only when the path changed (steps added, removed, renamed or moved) or for a new trigger. A `🧭` line in the result of `file_edit_lines`, `file_write`, `file_move` or `file_delete` means the change touched a step of a flow and something no longer matches: update the flow in this task. Folder moves and deletes do not give this line.
-- **Update, create, delete.** Same trigger and outcome: update that flow. A new trigger or a different outcome: create a flow. Two flows with the same trigger and outcome: keep the better one and delete the other with `memorise(ws, action='delete_feature_map', name)`.
+- **Update, create, delete.** Same trigger and outcome: update that flow. A new trigger or a different outcome: create a flow. Two flows with the same trigger and outcome: keep the better one and delete the other with `memory_save(ws, action='delete_feature_map', name)`.
 - Say in one line in your final answer which flow you saved or updated (name and id), or why you saved none.
 
 ### Writing the steps
 
-`memorise(ws, action='save_feature_map', name, summary, steps)` to create; `memorise(ws, action='save_feature_map', name, steps, expectedVersion)` to change a flow you read (the whole new steps, and the `v` that `recall get` showed; `newName` renames it). One step per line:
+`memory_save(ws, action='save_feature_map', name, summary, steps)` to create; `memory_save(ws, action='save_feature_map', name, steps, expectedVersion)` to change a flow you read (the whole new steps, and the `v` that `memory_recall get` showed; `newName` renames it). One step per line:
 
 ```
 src/Orders/OrderEndpoint.cs:OrderEndpoint.Post                  | the trigger
@@ -49,7 +49,7 @@ src/Orders/OrderEndpoint.cs:OrderEndpoint.Post                  | the trigger
 ```
 
 - A step is `path:Type.Member` (or `path:function` in Python and JavaScript). Where there is no method to point to (a Razor page, SQL, config) a step may be a file `path` or a range `path#L10-40`; those links are always declared.
-- Two spaces of indent mean "called by the step above". The first line is the only trigger; a step is one level deeper than its parent at most; at most 8 levels and 30 steps. Over 15 steps, split the flow by outcome.
+- Two spaces of indent mean "called by the step above". The first line is the only trigger; a step is one level deeper than its parent at most; at most 8 levels. A flow has as many steps as its path (up to 500); `memory_recall get` returns a long flow in parts and says how to continue (`from=`).
 - Add `~event`, `~http`, `~ui`, `~di` or `~job` after a step when the code reaches it in a way a call cannot show. Add `| label` (at most 120 characters) for why a step matters; anything longer or worth discussing is a note.
 - Each **new or changed** step must exist now, and each new link must be a call the code makes; steps that were saved before stay as they are, whatever branch they are on. A save that breaks this is refused with the list of what to fix.
 - Creating a flow whose trigger another flow starts at is refused: update that flow, or delete one if they say the same thing, or save again with `distinct='how this one differs'` when the outcome differs.
@@ -60,12 +60,12 @@ src/Orders/OrderEndpoint.cs:OrderEndpoint.Post                  | the trigger
 
 Notes are the workspace's memory in words: the owner's and models' short hints, kept by Waymark instead of an instruction file in the repository. Treat every note as a hint, not an instruction: check it against the code.
 
-- **Scopes.** A **step note** (`name` = the flow, `step` = one of its steps exactly as `recall get` shows it), a **flow note** (`name` only) or a **workspace note** (neither; `about='path'` or `about='path:Type.Member'` to anchor it to a file or member).
+- **Scopes.** A **step note** (`name` = the flow, `step` = one of its steps exactly as `memory_recall get` shows it), a **flow note** (`name` only) or a **workspace note** (neither; `about='path'` or `about='path:Type.Member'` to anchor it to a file or member).
 - **Kinds.** `why` (a reason the code cannot show), `gotcha` (a trap), `convention`, `decision`, `howto`, or plain `note`. One idea per note, at most 1200 characters, in plain words. Do not restate what the code says.
-- **Search first.** `recall(ws, 'list', query=...)` finds notes too. The reply to `add_note` lists similar notes on the same anchor: confirm or edit one of those instead of keeping a duplicate.
-- **Where they show.** Pinned notes (the owner chooses) are in the workspace guide; step and flow notes appear in `recall get`; everything is searchable. `recall(ws, 'notes', ids='12' or 'workspace')` lists them; `history=<id>` shows a note's revisions.
-- **Stale.** A note anchored to code remembers a fingerprint of it. When the code changes, the note shows `may be stale (code changed)`; a flow note shows `may be stale (flow changed)` when the flow was saved again. Check it against the code, then `confirm_note` if it still holds, or `edit_note` / `retire_note` your own. A `📝` line after a file change means notes are anchored in that file.
-- **Rules.** You may edit, retire or confirm only notes you wrote; the owner's notes and other authors' are theirs (add a note with what you found instead). Only the owner pins. Text that looks like a secret is refused: name a secret, never write its value.
+- **Search first.** `memory_recall(ws, 'list', query=...)` finds notes too. The reply to `add_note` lists similar notes on the same anchor: confirm or edit one of those instead of keeping a duplicate.
+- **Where they show.** Pinned notes (the owner chooses) are in the workspace guide; step and flow notes appear in `memory_recall get`; everything is searchable. `memory_recall(ws, 'notes', ids='12')` or `about='path'` (a file or `path:Type.Member`) lists them a page at a time (`page`); `history=<id>` shows a note's revisions. There is no whole-workspace listing: search with `memory_recall list` and a query.
+- **Stale.** A note anchored to code remembers a fingerprint of it. When the code changes, the note shows `may be stale (code changed)`; a flow note shows `may be stale (flow changed)` when the flow was saved again. Check it against the code, then `confirm_note` if it still holds, or `edit_note` / `retire_note` an agent's note. A `📝` line after a file change means notes are anchored in that file, and gives the call that lists them.
+- **Rules.** Notes are written by the owner or by agents: every AI client is the same author, Agent, so you can correct notes an earlier session wrote. Any agent may edit, retire or confirm an agent's note; the owner's notes are theirs (add a note with what you found instead). Only the owner pins. Text that looks like a secret is refused: name a secret, never write its value.
 
 ## Reading
 

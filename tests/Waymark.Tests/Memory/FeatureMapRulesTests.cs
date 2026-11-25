@@ -48,8 +48,7 @@ public sealed class FeatureMapRulesTests
     [Fact]
     public void LimitsAreTheDocumentedOnes()
     {
-        Assert.Equal(30, FeatureMapRules.MaxComponentsPerMap);
+        Assert.Equal(500, FeatureMapRules.MaxStepsPerFlow);
         Assert.Equal(8, FeatureMapRules.MaxDepth);
-        Assert.True(FeatureMapRules.SplitHintSteps < FeatureMapRules.MaxComponentsPerMap);
     }
 }

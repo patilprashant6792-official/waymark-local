@@ -1,19 +1,22 @@
 namespace Waymark.Core.Memory;
 
-/// <summary>Who wrote a note: the owner in the admin UI, an MCP client (Claude) or a model Waymark runs itself.</summary>
+/// <summary>
+/// Who wrote a note: the owner in the admin UI, or an agent. Every AI client is the same author, Agent, so a re-paired client can still correct its older notes.
+/// InternalModel is never written; a stored 'internal-model' is read as an agent.
+/// </summary>
 public enum NoteAuthorKind
 {
     Human,
-    ClaudeClient,
+    Agent,
     InternalModel,
 }
 
-/// <summary>The stored text forms of <see cref="NoteAuthorKind"/>: 'human', 'claude-client', 'internal-model'.</summary>
+/// <summary>The stored text forms of <see cref="NoteAuthorKind"/>: 'human', 'claude-client' (an agent; the name is kept so the stored rows and older bundles stay valid), 'internal-model'.</summary>
 public static class NoteAuthorKinds
 {
     public static string ToText(NoteAuthorKind kind) => kind switch
     {
-        NoteAuthorKind.ClaudeClient => "claude-client",
+        NoteAuthorKind.Agent => "claude-client",
         NoteAuthorKind.InternalModel => "internal-model",
         _ => "human",
     };
@@ -26,7 +29,8 @@ public static class NoteAuthorKinds
                 kind = NoteAuthorKind.Human;
                 return true;
             case "claude-client":
-                kind = NoteAuthorKind.ClaudeClient;
+            case "agent":
+                kind = NoteAuthorKind.Agent;
                 return true;
             case "internal-model":
                 kind = NoteAuthorKind.InternalModel;
@@ -43,7 +47,8 @@ public static class NoteAuthorKinds
 
 /// <summary>
 /// The writer of a note. It always comes from the server (the tool pipeline or the admin UI), never from tool arguments, so a model cannot claim to be the owner.
-/// <paramref name="Id"/> is the client id for a model, the admin actor for the owner.
+/// Rules use only the kind: the owner, or an agent (any AI client). <paramref name="Id"/> is provenance: the client id of the agent that wrote this revision,
+/// or the admin actor for the owner. It is kept per revision and in the audit trail, never used to decide who may change a note.
 /// </summary>
 public sealed record NoteAuthor(NoteAuthorKind Kind, string Id)
 {
@@ -51,11 +56,11 @@ public sealed record NoteAuthor(NoteAuthorKind Kind, string Id)
 
     public bool IsHuman => Kind == NoteAuthorKind.Human;
 
-    /// <summary>The label shown next to a note: 'human: admin-ui', 'claude-client: claude-ai'.</summary>
-    public string Label => $"{NoteAuthorKinds.ToText(Kind)}: {Id}";
+    /// <summary>Any author that is not the owner: an agent.</summary>
+    public bool IsAgent => !IsHuman;
 
-    /// <summary>True when both name the same writer (same kind and the same id, compared exactly).</summary>
-    public bool SameAs(NoteAuthor other) => other is not null && Kind == other.Kind && string.Equals(Id, other.Id, StringComparison.Ordinal);
+    /// <summary>The label shown next to a note: 'owner' or 'agent'.</summary>
+    public string Label => IsHuman ? "owner" : "agent";
 
     /// <summary>An author with an id that fits the column: trimmed, at most <see cref="MaxIdChars"/> characters, 'unknown' when empty.</summary>
     public static NoteAuthor Of(NoteAuthorKind kind, string? id)

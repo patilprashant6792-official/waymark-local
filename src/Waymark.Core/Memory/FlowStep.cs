@@ -80,7 +80,7 @@ public static class FlowLinkKinds
 public sealed record FlowStep(FeatureComponent Component, int Depth, FlowLinkKind Link, string Note, string Spec, bool Valid = true);
 
 /// <summary>
-/// The text form of a flow, one step per line. Pure. Shared by memorise (Claude), the import of a bundle (the owner) and the pages, so all of them accept the same flows.
+/// The text form of a flow, one step per line. Pure. Shared by memory_save (Claude), the import of a bundle (the owner) and the pages, so all of them accept the same flows.
 /// <code>
 /// src/Orders/OrderEndpoint.cs:OrderEndpoint.Post                | the trigger
 ///   src/Orders/OrderService.cs:OrderService.Place               | totals are computed here
@@ -180,9 +180,9 @@ public static class FlowStepText
             problems.Add("A flow needs at least one step.");
         }
 
-        if (result.Count > FeatureMapRules.MaxComponentsPerMap)
+        if (result.Count > FeatureMapRules.MaxStepsPerFlow)
         {
-            problems.Add($"A flow holds at most {FeatureMapRules.MaxComponentsPerMap} steps and this one has {result.Count}. Leave out detail, or split it by outcome.");
+            problems.Add($"A flow holds at most {FeatureMapRules.MaxStepsPerFlow} steps and this one has {result.Count}.");
         }
 
         errors = problems.Take(MaxErrors).ToList();

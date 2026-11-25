@@ -30,7 +30,7 @@ public sealed record NoteWordHit(long NoteId, double Score);
 
 /// <summary>
 /// The notes of the workspaces. Every write is one transaction that also keeps the full-text row (note_fts) in step: only active notes have one.
-/// Writer rules are enforced in SQL as well as by the caller: a model author changes only its own notes.
+/// Writer rules are enforced in SQL as well as by the caller: an agent never changes the owner's notes.
 /// </summary>
 public interface INoteStore
 {
@@ -38,15 +38,15 @@ public interface INoteStore
     Task<Note> AddAsync(NewNote note, DateTimeOffset now, CancellationToken ct);
 
     /// <summary>
-    /// Supersedes the note and inserts the new revision (same anchor, pin and author, <see cref="Note.ReplacesId"/> set) in one transaction; the full-text row moves to the new id.
-    /// Only the note's own author may revise it.
+    /// Supersedes the note and inserts the new revision (same anchor, pin and last-used time, <see cref="Note.ReplacesId"/> set) in one transaction; the full-text row moves to the new id.
+    /// The revision is written by <paramref name="author"/>. The owner may revise any note; an agent only an agent's note.
     /// </summary>
     Task<NoteWriteResult> ReviseAsync(long workspaceId, long id, NoteAuthor author, string body, NoteKind kind, string? codeHash, int? flowVersion, DateTimeOffset now, CancellationToken ct);
 
-    /// <summary>Retires the note (kept, no longer active, unpinned, full-text row removed). A human may retire any note; a model only its own.</summary>
+    /// <summary>Retires the note (kept, no longer active, unpinned, full-text row removed). The owner may retire any note; an agent only an agent's note.</summary>
     Task<NoteWriteResult> RetireAsync(long workspaceId, long id, NoteAuthor author, DateTimeOffset now, CancellationToken ct);
 
-    /// <summary>Stores the code hash and flow version the note now agrees with. A human may confirm any note; a model only its own.</summary>
+    /// <summary>Stores the code hash and flow version the note now agrees with. The owner may confirm any note; an agent only an agent's note.</summary>
     Task<NoteWriteResult> ConfirmAsync(long workspaceId, long id, NoteAuthor author, string? codeHash, int? flowVersion, DateTimeOffset now, CancellationToken ct);
 
     /// <summary>Pins or unpins an active note. Who may pin and the pin budget are the caller's rules.</summary>
@@ -58,8 +58,17 @@ public interface INoteStore
     /// <summary>The active notes attached to these flows (flow and step notes), newest first.</summary>
     Task<IReadOnlyList<Note>> ListForFlowsAsync(long workspaceId, IReadOnlyList<long> mapIds, CancellationToken ct);
 
-    /// <summary>A page of the workspace's notes, newest first.</summary>
-    Task<NotePage> ListWorkspaceAsync(long workspaceId, NoteFilter filter, int skip, int take, CancellationToken ct);
+    /// <summary>A page of the workspace's notes, newest first (or last used first).</summary>
+    Task<NotePage> ListWorkspaceAsync(long workspaceId, NoteFilter filter, int skip, int take, CancellationToken ct, MemoryOrder order = MemoryOrder.Changed);
+
+    /// <summary>A page of the active notes attached to these flows (flow and step notes), last changed first, with the total.</summary>
+    Task<NotePage> PageForFlowsAsync(long workspaceId, IReadOnlyList<long> mapIds, int skip, int take, CancellationToken ct);
+
+    /// <summary>
+    /// A page of the active notes anchored in a file ('path': notes about it or a member of it, step notes on it) or on one member ('path:Type.Member'),
+    /// last changed first, with the total.
+    /// </summary>
+    Task<NotePage> PageByPathAsync(long workspaceId, string path, int skip, int take, CancellationToken ct);
 
     /// <summary>Every revision of the note, oldest first (following <see cref="Note.ReplacesId"/> both ways). Empty when the note is not in this workspace.</summary>
     Task<IReadOnlyList<Note>> HistoryAsync(long workspaceId, long id, CancellationToken ct);

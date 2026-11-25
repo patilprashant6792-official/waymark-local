@@ -7,7 +7,7 @@ using Waymark.Core.Workspaces;
 namespace Waymark.Modules.Code.Memory;
 
 /// <summary>
-/// memorise: creates a flow, replaces its steps, or deletes it.
+/// memory_save: creates a flow, replaces its steps, or deletes it.
 /// <para>
 /// Replacing needs the version that was read, so an agent cannot change a flow it has not read, and two sessions cannot overwrite each other.
 /// Only what is new or changed has to be in the code on this branch: a step that was stored already stays, whatever branch it came from.
@@ -20,6 +20,7 @@ internal sealed class FlowSaveService(
     FlowInspector inspector,
     IContentInspector contentInspector,
     IEventBus events,
+    IMemoryUsage usage,
     TimeProvider time)
 {
     private const int MaxProblemsListed = 6;
@@ -54,7 +55,7 @@ internal sealed class FlowSaveService(
         var found = await guard.GetWorkspaceAsync(workspace, ct).ConfigureAwait(false);
         var cleanName = FlowArgs.CleanName(name);
         var id = await store.DeleteAsync(found.Id, cleanName, ct).ConfigureAwait(false)
-            ?? throw new KeyNotFoundException($"No flow named '{cleanName}' in workspace '{found.Name}'. recall(action='list') shows the names.");
+            ?? throw new KeyNotFoundException($"No flow named '{cleanName}' in workspace '{found.Name}'. memory_recall(action='list') shows the names.");
         await events.PublishAsync(new FeatureMapsChanged(found.Id)).ConfigureAwait(false);
         await events.PublishAsync(new FlowChanged(found.Id, id, FlowChange.Deleted)).ConfigureAwait(false);
         return $"Deleted flow '{cleanName}' from workspace '{found.Name}'.";
@@ -72,13 +73,13 @@ internal sealed class FlowSaveService(
     {
         if (newName is not null)
         {
-            throw new ArgumentException("newName renames a flow that exists: read it with recall, then save it with expectedVersion and newName. To create a flow, leave newName out.");
+            throw new ArgumentException("newName renames a flow that exists: read it with memory_recall, then save it with expectedVersion and newName. To create a flow, leave newName out.");
         }
 
         if (stored is not null)
         {
             throw new ArgumentException(
-                $"A flow named '{name}' exists (id {stored.Id}, v{stored.Version}). Read it with recall(action='get', ids='{stored.Id}'), then save the changed flow with expectedVersion={stored.Version}. For a different flow, choose another name.");
+                $"A flow named '{name}' exists (id {stored.Id}, v{stored.Version}). Read it with memory_recall(action='get', ids='{stored.Id}'), then save the changed flow with expectedVersion={stored.Version}. For a different flow, choose another name.");
         }
 
         if (string.IsNullOrWhiteSpace(summary))
@@ -100,14 +101,14 @@ internal sealed class FlowSaveService(
             var list = string.Join("; ", same.Select(flow => $"'{flow.Name}' (id {flow.Id}): {FlowArgs.Cell(flow.Summary).TrimEnd('.')}"));
             throw new ArgumentException(
                 $"Nothing was saved: {(same.Count == 1 ? "another flow starts" : "other flows start")} at the same step: {list}. " +
-                "Same trigger and same outcome: update that flow (read it with recall, save it with expectedVersion). Two flows that already say the same thing: delete one with memorise(action='delete_feature_map'). " +
+                "Same trigger and same outcome: update that flow (read it with memory_recall, save it with expectedVersion). Two flows that already say the same thing: delete one with memory_save(action='delete_feature_map'). " +
                 "A different outcome from the same trigger: save again with distinct='how this one differs'.");
         }
 
         var saved = await store.CreateAsync(found.Id, name, summary, reason, StepsToStore(steps), time.GetUtcNow(), ct).ConfigureAwait(false);
         if (saved.Outcome != FlowWrite.Saved)
         {
-            throw new ArgumentException($"A flow named '{name}' exists now. Read it with recall and save it with expectedVersion.");
+            throw new ArgumentException($"A flow named '{name}' exists now. Read it with memory_recall and save it with expectedVersion.");
         }
 
         return await ReplyAsync(found, saved, steps, inspection, true, [], ct).ConfigureAwait(false);
@@ -125,7 +126,7 @@ internal sealed class FlowSaveService(
     {
         if (stored is null)
         {
-            throw new KeyNotFoundException($"No flow named '{name}' in workspace '{found.Name}'. To create it, leave expectedVersion out. recall(action='list') shows the names.");
+            throw new KeyNotFoundException($"No flow named '{name}' in workspace '{found.Name}'. To create it, leave expectedVersion out. memory_recall(action='list') shows the names.");
         }
 
         if (stored.Version != expectedVersion)
@@ -159,6 +160,9 @@ internal sealed class FlowSaveService(
                 var current = await store.GetByNameAsync(found.Id, name, ct).ConfigureAwait(false) ?? stored;
                 throw new InvalidOperationException(await ConflictAsync(found, current, expectedVersion, ct).ConfigureAwait(false));
         }
+
+        // Saving a flow it read (with its version) is a use by the agent.
+        usage.Touch(found.Id, MemoryItemKind.Flow, [saved.Id]);
 
         var stillBroken = new List<string>();
         for (var i = 0; i < steps.Count; i++)
@@ -224,22 +228,17 @@ internal sealed class FlowSaveService(
         await events.PublishAsync(new FlowChanged(found.Id, saved.Id, FlowChange.Saved)).ConfigureAwait(false);
         var message = new StringBuilder();
         message.Append($"Saved flow '{saved.Name}' (id {saved.Id}, v{saved.Version}) in workspace '{found.Name}'. {FlowRecallRenderer.Counts(steps.Count, inspection, ordered)}");
-        message.Append($"\nRead it back with recall(action='get', ids='{saved.Id}').");
+        message.Append($"\nRead it back with memory_recall(action='get', ids='{saved.Id}').");
         foreach (var line in stillBroken)
         {
             message.Append($"\nStill not matching the code (it was already stored like this): {line}. Fix it in this task.");
-        }
-
-        if (steps.Count > FeatureMapRules.SplitHintSteps)
-        {
-            message.Append($"\nThis flow has {steps.Count} steps. Consider splitting it by outcome: a flow is one trigger to one outcome.");
         }
 
         var overlaps = (await store.FindOverlapsAsync(found.Id, saved.Id, ct).ConfigureAwait(false)).Where(o => o.Shared * 2 >= steps.Count).ToList();
         foreach (var overlap in overlaps)
         {
             message.Append(
-                $"\nNote: '{overlap.Name}' (id {overlap.Id}) shares {overlap.Shared} of these {steps.Count} steps. If it describes the same trigger and outcome, keep the better one and delete the other with memorise(action='delete_feature_map', name='{overlap.Name}').");
+                $"\nNote: '{overlap.Name}' (id {overlap.Id}) shares {overlap.Shared} of these {steps.Count} steps. If it describes the same trigger and outcome, keep the better one and delete the other with memory_save(action='delete_feature_map', name='{overlap.Name}').");
         }
 
         return message.ToString();

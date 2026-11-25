@@ -9,14 +9,14 @@ public sealed record NoteSaved(Note Note, IReadOnlyList<Note> Similar);
 public sealed record NoteStaleness(long NoteId, bool MayBeStale, string? Reason);
 
 /// <summary>
-/// The only write path for notes, for Claude (memorise) and for the owner (admin UI). Each call takes the author from the server, checks the text
-/// (length, secrets), the anchor (the flow and step must exist; a step is the exact text recall shows) and the writer rules, then stores and publishes NoteChanged.
+/// The only write path for notes, for Claude (memory_save) and for the owner (admin UI). Each call takes the author from the server, checks the text
+/// (length, secrets), the anchor (the flow and step must exist; a step is the exact text memory_recall shows) and the writer rules, then stores and publishes NoteChanged.
 /// Expected refusals are <see cref="ArgumentException"/>, <see cref="KeyNotFoundException"/> or <see cref="InvalidOperationException"/> with a message that says how to fix the call.
 /// </summary>
 public interface INoteService
 {
     /// <param name="flow">A flow name for a flow or step note; null for a workspace note.</param>
-    /// <param name="step">A step of that flow, as recall shows it; null for a flow note.</param>
+    /// <param name="step">A step of that flow, as memory_recall shows it; null for a flow note.</param>
     /// <param name="about">For a workspace note: 'path' or 'path:Type.Member'.</param>
     Task<NoteSaved> AddAsync(Workspace workspace, NoteAuthor author, string? flow, string? step, string? about, string? kind, string? body, CancellationToken ct);
 

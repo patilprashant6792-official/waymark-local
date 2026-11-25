@@ -3,7 +3,7 @@
 @using Waymark.Core.Transfer
 @using Waymark.Host.Ui
 
-<SectionHeader Title="Notes" Lead="Short notes kept by Waymark instead of a CLAUDE.md in the repository: why something is so, gotchas, conventions, decisions. You and Claude both write them; Claude can never change or retire yours. Pinned notes go into the workspace guide every agent reads; the rest are found by search and shown next to the flow steps they are about. A note on code shows 'may be stale' when that code changes.">
+<SectionHeader Title="Notes" Lead="Short notes kept by Waymark instead of a CLAUDE.md in the repository: why something is so, gotchas, conventions, decisions. You and agents both write them; every AI client is one author, Agent, and agents can never change or retire yours, while you can edit or retire theirs. Pinned notes go into the workspace guide every agent reads; the rest are found by search and shown next to the flow steps they are about. A note on code shows 'may be stale' when that code changes, and 'used' says when an agent last opened it.">
     <Actions>
         <BundleToolbar WorkspaceId="Workspace.Id" Content="BundleContent.Notes" ExportLabel="Export notes" Hint="Keep your notes when you move to another computer." />
     </Actions>
@@ -18,6 +18,7 @@
     <h2 id="notes-find" class="wm-card-title">Find</h2>
     <div class="wm-row">
         <WmSelect TValue="NotesView" Label="Show" Options="ViewOptions" Value="_view" ValueChanged="ChangeViewAsync" Width="FieldWidth.Small" />
+        <WmSelect TValue="MemoryOrder" Label="Order" Options="OrderOptions" Value="_order" ValueChanged="ChangeOrderAsync" Width="FieldWidth.Small" />
         <WmTextField Label="Search" @bind-Value="_query" Immediate="true" Width="FieldWidth.Large" MaxLength="200" HelperText="Words, or what you mean when search by meaning is on" OnKeyUp="OnSearchKey" />
         <WmButton OnClick="SearchAsync" Disabled="@(_busy || string.IsNullOrWhiteSpace(_query))">Search</WmButton>
         @if (_search is not null)
@@ -45,7 +46,7 @@
 
 @if (_editorOpen)
 {
-    <NoteEditor Title="@(_editing is null ? "New workspace note" : $"Edit note #{_editing.Id}")" Editing="_editing" AllowAbout="@(_editing is null)" Busy="_busy" Error="_editorError"
+    <NoteEditor Title="@(_editing is null ? "New workspace note" : $"Edit note #{_editing.Id}")" Editing="_editing" AllowAbout="@(_editing is null)" Busy="_busy" Error="@_editorError"
                 OnSave="SaveAsync" OnCancel="CloseEditor" />
 }
 
@@ -108,7 +109,7 @@ else if (_search is not null)
         {
             <div @key="note.Id" class="wm-stack-item">
                 <WmTag Text="@MatchText(match)" Title="Which part of the search found it" />
-                <NoteRow Note="note" Staleness="StalenessOf(note)" Busy="_busy" ShowAnchor="true"
+                <NoteRow Note="note" Staleness="StalenessOf(note)" LastUsed="LastUsedOf(note)" Busy="_busy" ShowAnchor="true"
                          OnEdit="StartEdit" OnRetire="RetireAsync" OnConfirm="ConfirmAsync" OnPin="TogglePinAsync" OnHistory="ShowHistoryAsync" />
             </div>
         }
@@ -116,15 +117,23 @@ else if (_search is not null)
 }
 else if (Shown.Count == 0)
 {
-    <EmptyState Icon="@Icons.Material.Outlined.StickyNote2" Title="No notes here" Text="Add one, import a CLAUDE.md, or let Claude add them with memorise as it learns the workspace." />
+    <EmptyState Icon="@Icons.Material.Outlined.StickyNote2" Title="No notes here" Text="Add one, import a CLAUDE.md, or let Claude add them with memory_save as it learns the workspace." />
 }
 else
 {
     @foreach (var note in Shown)
     {
         <div @key="note.Id" class="wm-stack-item">
-            <NoteRow Note="note" Staleness="StalenessOf(note)" Busy="_busy" ShowAnchor="true"
+            <NoteRow Note="note" Staleness="StalenessOf(note)" LastUsed="LastUsedOf(note)" Busy="_busy" ShowAnchor="true"
                      OnEdit="StartEdit" OnRetire="RetireAsync" OnConfirm="ConfirmAsync" OnPin="TogglePinAsync" OnHistory="ShowHistoryAsync" />
         </div>
+    }
+    @if (Paged)
+    {
+        <nav class="wm-row" aria-label="Pages of notes">
+            <WmButton Kind="ButtonKind.Ghost" Disabled="@(_busy || _page == 0)" OnClick="() => GoToPageAsync(_page - 1)">Previous</WmButton>
+            <span class="wm-muted wm-caption">Page @(_page + 1) of @Pages</span>
+            <WmButton Kind="ButtonKind.Ghost" Disabled="@(_busy || _page + 1 >= Pages)" OnClick="() => GoToPageAsync(_page + 1)">Next</WmButton>
+        </nav>
     }
 }

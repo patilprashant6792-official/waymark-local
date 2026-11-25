@@ -11,12 +11,12 @@ namespace Waymark.Tests.Memory;
 
 /// <summary>
 /// Pull-only memory: the workspace guide carries an index of flows (name and id) only with search by meaning off and none with it on,
-/// recall pages the rest in the same order and size, and the search answer with search by meaning on is name, match score and id.
+/// memory_recall pages the rest in the same order and size, and the search answer with search by meaning on is name, match score and id.
 /// </summary>
 public sealed class FlowIndexTests
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 23, 9, 0, 0, TimeSpan.Zero);
-    private static readonly NoteAuthor Claude = new(NoteAuthorKind.ClaudeClient, "claude-ai");
+    private static readonly NoteAuthor Claude = new(NoteAuthorKind.Agent, "claude-ai");
     private readonly CancellationToken _ct = TestContext.Current.CancellationToken;
 
     [Fact]
@@ -66,7 +66,7 @@ public sealed class FlowIndexTests
         Assert.Contains($"  - flow-{FlowIndex.PageSize + 2}  id ", text, StringComparison.Ordinal);
         Assert.Contains("  - flow-3  id ", text, StringComparison.Ordinal);
         Assert.DoesNotContain("  - flow-2  id ", text, StringComparison.Ordinal);
-        Assert.Contains("  - and 3 more: recall(action='list', page=2)", text, StringComparison.Ordinal);
+        Assert.Contains("  - and 3 more: memory_recall(action='list', page=2)", text, StringComparison.Ordinal);
         Assert.DoesNotContain("steps", text, StringComparison.Ordinal);
         Assert.DoesNotContain("A flow.", text, StringComparison.Ordinal);
     }
@@ -154,7 +154,7 @@ public sealed class FlowIndexTests
         Assert.DoesNotContain("A flow summary.", text, StringComparison.Ordinal);
         Assert.DoesNotContain("step 1", text, StringComparison.Ordinal);
         Assert.DoesNotContain("[both]", text, StringComparison.Ordinal);
-        Assert.Contains("recall(action='get', ids='<id>')", text, StringComparison.Ordinal);
+        Assert.Contains("memory_recall(action='get', ids='<id>')", text, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -165,7 +165,7 @@ public sealed class FlowIndexTests
 
         var text = MemorySearchRenderer.Render("waymark", "pipeline", result, new Dictionary<long, FeatureMap>(), new Dictionary<long, Note> { [57] = note });
 
-        Assert.Contains("1. note #57 convention [claude-client: claude-ai] about src/Waymark.Host/Mcp/ToolPipeline.cs: Every call passes here  0.70", text, StringComparison.Ordinal);
+        Assert.Contains("1. note #57 convention [agent] about src/Waymark.Host/Mcp/ToolPipeline.cs: Every call passes here  0.70", text, StringComparison.Ordinal);
         Assert.Contains(NoteRules.HintLine, text, StringComparison.Ordinal);
     }
 

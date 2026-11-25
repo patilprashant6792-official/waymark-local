@@ -39,7 +39,7 @@ public sealed class FileOperationTools(IFileManager manager, ToolPipelineOptions
         "ALL OR NOTHING: every entry is checked first (source exists and is a file, destination free, no two entries to the same place, access rules). If any entry fails, nothing is moved and each problem is listed.\n" +
         "An existing destination is never overwritten: delete it first with file_delete if it must be replaced. At most 50 entries per call.\n" +
         "Contents are not changed: C# namespaces, imports and references to the old path stay as they were, so fix them afterwards (file_replace) and build. " +
-        "Saved flows whose steps lived in a moved file are named in the reply, to update with memorise.\n" +
+        "Saved flows whose steps lived in a moved file are named in the reply, to update with memory_save.\n" +
         "WHEN TO USE: renaming or reorganising files. For a whole folder use folder_move; to copy a file use file_write with a copy entry.\n" +
         "RETURNS: one line per file with its new path, or the reasons nothing was moved.")]
     public async Task<string> MoveFile(
@@ -60,7 +60,7 @@ public sealed class FileOperationTools(IFileManager manager, ToolPipelineOptions
         "Deletes one or more files from a workspace for good: no backup and no recycle bin; only git can bring back a tracked file.\n" +
         "Each file is handled on its own, so some can succeed while others fail. A missing file is an error for that entry; a folder path is refused (use folder_delete). At most 50 paths per call.\n" +
         "BLOCKED: files in restricted folders (bin, obj, .git and the like), files that hold secrets, keys or databases, and anything the workspace's access rules hide.\n" +
-        "Saved flows whose steps lived in a deleted file are named in the reply, to update with memorise.\n" +
+        "Saved flows whose steps lived in a deleted file are named in the reply, to update with memory_save.\n" +
         "WHEN TO USE: removing files that are no longer needed, after code_callers or code_grep shows nothing still uses them. To rename or move instead use file_move; to empty a file use file_write.\n" +
         "RETURNS: one line per file: deleted, or the error.")]
     public async Task<string> DeleteFile(

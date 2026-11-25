@@ -2,6 +2,7 @@
 using MudBlazor;
 using Waymark.Core.Code;
 using Waymark.Core.Events;
+using Waymark.Core.Memory;
 using Waymark.Core.Workspaces;
 using Waymark.Host.Components.Shared;
 using Waymark.Host.Ui;
@@ -13,6 +14,7 @@ public partial class Workspaces : LiveComponentBase
     private readonly Dictionary<long, CodeIndexStats> _stats = [];
     private readonly Dictionary<long, CodeIndexProgress> _progress = [];
     private Dictionary<long, GitHubRepo> _repos = [];
+    private IReadOnlyDictionary<long, MemoryTotals> _memory = new Dictionary<long, MemoryTotals>();
     private IReadOnlyList<Workspace> _items = [];
     private string? _error;
     private string? _pathRoot;
@@ -23,6 +25,9 @@ public partial class Workspaces : LiveComponentBase
 
     [Inject]
     private ICodeIndexStore Index { get; set; } = default!;
+
+    [Inject]
+    private IMemoryStatsStore MemoryStats { get; set; } = default!;
 
     [Inject]
     private IDialogService Dialogs { get; set; } = default!;
@@ -38,6 +43,25 @@ public partial class Workspaces : LiveComponentBase
         await LoadAsync();
         RefreshOn<WorkspaceChanged>(LoadAsync);
         RefreshOn<CodeIndexProgress>(OnProgressAsync);
+        RefreshOn<FeatureMapsChanged>(LoadMemoryAsync);
+        RefreshOn<NoteChanged>(LoadMemoryAsync);
+    }
+
+    // Flow and note counts of every workspace: two GROUP BY queries, whatever the number of cards.
+    private async Task LoadMemoryAsync()
+    {
+        try
+        {
+            _memory = await MemoryStats.CountAllAsync(Cancel);
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "The memory counts of the workspaces could not be loaded");
+        }
     }
 
     private async Task OnProgressAsync(CodeIndexProgress progress)
@@ -62,6 +86,7 @@ public partial class Workspaces : LiveComponentBase
             _pathRoot = WorkspacePathDisplay.CommonParent(_items.Select(item => item.Path));
             _repos = await WorkspaceView.DetectReposAsync(_items, Cancel);
             await LoadStatsAsync();
+            await LoadMemoryAsync();
             _error = null;
         }
         catch (OperationCanceledException)

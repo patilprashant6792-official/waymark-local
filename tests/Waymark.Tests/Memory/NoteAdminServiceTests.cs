@@ -17,7 +17,7 @@ public sealed class NoteAdminServiceTests
     {
         var notes = new RecordingNoteService();
         var audit = new FakeAuditStore();
-        var service = new NoteAdminService(notes, null!, new EmptyMemorySearch(), audit, TimeProvider.System);
+        var service = new NoteAdminService(notes, null!, new EmptyMemorySearch(), null!, audit, TimeProvider.System);
 
         await service.AddAsync(Ws, null, null, "src/A.cs", NoteKind.Why, "because", _ct);
         await service.RetireAsync(Ws, 5, _ct);
@@ -34,7 +34,7 @@ public sealed class NoteAdminServiceTests
     {
         var notes = new RecordingNoteService { RefuseBody = "bad" };
         var audit = new FakeAuditStore();
-        var service = new NoteAdminService(notes, null!, new EmptyMemorySearch(), audit, TimeProvider.System);
+        var service = new NoteAdminService(notes, null!, new EmptyMemorySearch(), null!, audit, TimeProvider.System);
 
         var result = await service.ImportAsync(Ws, [new NoteDraft("good", NoteKind.Note, null), new NoteDraft("bad", NoteKind.Note, null)], _ct);
 

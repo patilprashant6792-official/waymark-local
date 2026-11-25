@@ -1,4 +1,5 @@
 @using Waymark.Core.Code
+@using Waymark.Core.Memory
 @using Waymark.Core.Workspaces
 @using Waymark.Host.Ui
 
@@ -36,6 +37,9 @@
         </div>
     }
     <p class="wm-tile-sub">@WorkspaceView.StatsText(Stats)</p>
+    <p class="wm-tile-sub">
+        <a href="@WorkspaceSections.Flows.Href(Workspace.Id)">@MemoryText</a>
+    </p>
     <footer class="wm-ws-foot">
         <span class="wm-muted">Indexed @DisplayFormat.Ago(Workspace.LastIndexedUtc, Now)</span>
         <WorkspaceActions Workspace="Workspace" />
@@ -52,6 +56,10 @@
     [Parameter]
     public CodeIndexProgress? Progress { get; set; }
 
+    /// <summary>The workspace's flows and active notes; null when it has none (or they are not loaded yet).</summary>
+    [Parameter]
+    public MemoryTotals? Memory { get; set; }
+
     /// <summary>Set when the workspace folder is the root of a GitHub checkout.</summary>
     [Parameter]
     public GitHubRepo? Repo { get; set; }
@@ -65,4 +73,8 @@
 
     private static string GitHubTitle(GitHubRepo repo) =>
         repo.Branch is null ? $"{repo.FullName} on GitHub" : $"{repo.FullName} on GitHub (branch {repo.Branch})";
+
+    private string MemoryText => Memory is { } totals && (totals.Flows > 0 || totals.Notes > 0)
+        ? $"{DisplayFormat.Count(totals.Flows)} {(totals.Flows == 1 ? "flow" : "flows")} · {DisplayFormat.Count(totals.Notes)} {(totals.Notes == 1 ? "note" : "notes")}"
+        : "No memory yet";
 }

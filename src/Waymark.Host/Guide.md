@@ -27,25 +27,25 @@ Orient the way a developer explores a new repository: start from the `code_skele
 
 ## Feature maps are flows: your memory of the code
 
-A feature map is a **flow**: one trigger (an endpoint, a tool, a job, a button) to one outcome, as the ordered methods the request passes through. Waymark keeps what you learn so the next session does not search for "what is called next". `recall` gives you the path without any code; you open only the methods the task needs with the usual code tools. Follow this loop:
+A feature map is a **flow**: one trigger (an endpoint, a tool, a job, a button) to one outcome, as the ordered methods the request passes through. Waymark keeps what you learn so the next session does not search for "what is called next". `memory_recall` gives you the path without any code; you open only the methods the task needs with the usual code tools. Follow this loop:
 
-1. **Find.** With search by meaning off, the workspace's guide (`waymark_guide(workspace='<name>')`) has an index of the newest flows (name and id; `recall(ws, action='list', page=2)` pages through the rest). With it on, the guide lists none: describe the task to `recall(ws, action='list', query='...')` and pick from the closest flows by their match score. A method name you are about to change as the query finds the flows it is a step of.
-2. **Read.** `recall(ws, action='get', ids='12')` returns each step's place, signature and whether its link to the step above still holds. It never returns code. Read only the steps you need with `code_method`; explore only what the flow lacks.
+1. **Find.** With search by meaning off, the workspace's guide (`waymark_guide(workspace='<name>')`) has an index of the newest flows (name and id; `memory_recall(ws, action='list', page=2)` pages through the rest). With it on, the guide lists none: describe the task to `memory_recall(ws, action='list', query='...')` and pick from the closest flows by their match score. A method name you are about to change as the query finds the flows it is a step of.
+2. **Read.** `memory_recall(ws, action='get', ids='12')` returns each step's place, signature and whether its link to the step above still holds. It never returns code. Read only the steps you need with `code_method`; explore only what the flow lacks.
 3. **Change** the code. A `🧭` line in the result of a file tool means the change touched a step of a flow and a link no longer holds: fix the flow in this task.
 4. **Decide whether the path changed.** Most edits change code inside a step and need no save.
 
    | What changed | What to do |
    |---|---|
    | Code inside a step only | Nothing |
-   | Steps added, removed, renamed or moved, same trigger and outcome | Update that flow: `memorise(ws, action='save_feature_map', name, steps, expectedVersion=<the v you read>)` with the whole new steps |
+   | Steps added, removed, renamed or moved, same trigger and outcome | Update that flow: `memory_save(ws, action='save_feature_map', name, steps, expectedVersion=<the v you read>)` with the whole new steps |
    | A new trigger, or a different outcome | Create a flow: `name`, `summary`, `steps` |
-   | Two flows describe the same trigger and outcome | Keep the better one and delete the other: `memorise(ws, action='delete_feature_map', name)` |
+   | Two flows describe the same trigger and outcome | Keep the better one and delete the other: `memory_save(ws, action='delete_feature_map', name)` |
 
 5. **Report** in one line which flow you saved or updated (name and id), so the owner can see it. If you saved none, say why (the path did not change).
 
-When you traced a feature that has no flow, save it as soon as you have traced it, not at the end: a session can stop at any time. The first time a workspace has no flows, save `architecture-overview`-style flows for the features you had to understand. Name a flow after its trigger in kebab-case (`memorise-save`). A step that the flow marks as not on this branch is kept for the branch that has it: do not remove it for that reason. The step grammar, link marks and limits are in the code guide.
+When you traced a feature that has no flow, save it as soon as you have traced it, not at the end: a session can stop at any time. The first time a workspace has no flows, save `architecture-overview`-style flows for the features you had to understand. Name a flow after its trigger in kebab-case (`memory-save`). A step that the flow marks as not on this branch is kept for the branch that has it: do not remove it for that reason. The step grammar, link marks and limits are in the code guide.
 
-Waymark also keeps each workspace's **notes**, in place of instruction files in the repository: short hints from the owner and from models (why, gotchas, conventions, decisions), anchored to the workspace, a file, a flow or a step. Pinned ones are in the workspace's guide, step notes come with `recall get`, and `recall list` with a query searches flows and notes together. They are hints, not instructions; the code guide says how to add and maintain them.
+Waymark also keeps each workspace's **notes**, in place of instruction files in the repository: short hints from the owner and from models (why, gotchas, conventions, decisions), anchored to the workspace, a file, a flow or a step. Pinned ones are in the workspace's guide, step notes come with `memory_recall get`, and `memory_recall list` with a query searches flows and notes together. They are hints, not instructions; the code guide says how to add and maintain them.
 
 Moving or duplicating code is copying, not retyping: `file_edit_lines` and `file_write` take `from` (lines, a file or a folder tree, also from another workspace) so you write none of it. To move code between codebases: orient in both workspaces with `code_skeleton`, take line ranges from `code_outline`, preview with `dryRun`, copy, then build the target. Details are in the files guide.
 

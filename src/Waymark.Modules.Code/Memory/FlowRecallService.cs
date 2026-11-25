@@ -6,7 +6,7 @@ using Waymark.Core.Tools;
 namespace Waymark.Modules.Code.Memory;
 
 /// <summary>
-/// recall: finds flows and notes (by words, and by meaning when the owner switched it on) and describes flows step by step with what the code says now,
+/// memory_recall: finds flows and notes (by words, and by meaning when the owner switched it on) and describes flows step by step with what the code says now,
 /// with the notes anchored to them. It never returns code: the agent reads the steps it needs with code_method.
 /// </summary>
 internal sealed class FlowRecallService(
@@ -15,6 +15,7 @@ internal sealed class FlowRecallService(
     INoteStore notes,
     FlowInspector inspector,
     IMemorySearch search,
+    IMemoryUsage usage,
     ToolPipelineOptions pipeline)
 {
     // The same page size as the workspace guide's index, so page 2 continues exactly where the guide stops.
@@ -23,13 +24,19 @@ internal sealed class FlowRecallService(
     private const int SearchTake = 10;
     private const int ReservedChars = 600;
 
+    /// <summary>The most steps one part of a flow inspects; rendering then stops earlier when the answer is full.</summary>
+    internal const int StepsPerPart = 150;
+
+    // A later flow is started only when at least this much room is left; otherwise it is named for a separate call.
+    private const int MinRoomForAFlow = 4000;
+
     public async Task<string> ListAsync(string? workspace, string? query, int? page, int? pageSize, CancellationToken ct)
     {
         var found = await guard.GetWorkspaceAsync(workspace, ct).ConfigureAwait(false);
         var words = string.IsNullOrWhiteSpace(query) ? null : query.Trim();
         if (words is not null)
         {
-            return await SearchAsync(found.Id, found.Name, words, pageSize, ct).ConfigureAwait(false);
+            return await SearchAsync(found.Id, found.Name, words, page, pageSize, ct).ConfigureAwait(false);
         }
 
         var size = Math.Clamp(pageSize ?? DefaultPageSize, 1, MaxPageSize);
@@ -37,30 +44,46 @@ internal sealed class FlowRecallService(
         var result = await store.ListAsync(found.Id, null, (number - 1) * size, size, ct).ConfigureAwait(false);
         if (result.Total == 0)
         {
-            return $"No flows are saved for workspace '{found.Name}' yet. After you trace a feature from its trigger to its outcome, save it with memorise(action='save_feature_map').";
+            return $"No flows are saved for workspace '{found.Name}' yet. After you trace a feature from its trigger to its outcome, save it with memory_save(action='save_feature_map').";
         }
 
         var pages = Math.Max(1, (result.Total + size - 1) / size);
         return FlowRecallRenderer.List(found.Name, number, pages, result.Total, result.Items);
     }
 
-    public async Task<string> GetAsync(string? workspace, string? ids, CancellationToken ct)
+    public async Task<string> GetAsync(string? workspace, string? ids, int? from, CancellationToken ct)
     {
         var found = await guard.GetWorkspaceAsync(workspace, ct).ConfigureAwait(false);
         var wanted = FlowArgs.ParseIds(ids);
+        var start = FlowArgs.ParseFrom(from, wanted.Count);
         var charLimit = Math.Max(2000, pipeline.MaxOutputChars - ReservedChars);
         var maps = await store.GetAsync(found.Id, wanted, ct).ConfigureAwait(false);
         IReadOnlyList<Note> anchored = maps.Count == 0 ? [] : await notes.ListForFlowsAsync(found.Id, [.. maps.Select(map => map.Id)], ct).ConfigureAwait(false);
         var staleness = new Dictionary<long, NoteStaleness>();
+        var flowNotes = new FlowNotes(anchored, staleness);
         var files = new Dictionary<string, FileView>(StringComparer.OrdinalIgnoreCase);
         var text = new StringBuilder();
         var skipped = new List<long>();
-        var showedNotes = false;
+        var shownFlows = new List<long>();
         foreach (var map in maps)
         {
-            var report = await inspector.InspectAsync(found, map, files, ct).ConfigureAwait(false);
-            var own = anchored.Where(note => note.MapId == map.Id).ToList();
-            foreach (var note in own)
+            if (text.Length > 0 && charLimit - text.Length < MinRoomForAFlow)
+            {
+                skipped.Add(map.Id);
+                continue;
+            }
+
+            var first = start;
+            if (first >= map.Steps.Count)
+            {
+                text.AppendLine($"Flow '{map.Name}' (id {map.Id}) has {map.Steps.Count} steps; from is at most {map.Steps.Count}.");
+                continue;
+            }
+
+            var last = Math.Min(map.Steps.Count, first + StepsPerPart);
+            var window = Enumerable.Range(first, last - first).ToHashSet();
+            var report = await inspector.InspectSelectedAsync(found, map, window, files, ct).ConfigureAwait(false);
+            foreach (var note in anchored.Where(note => note.MapId == map.Id))
             {
                 if (Staleness(report, note) is { } judged)
                 {
@@ -68,21 +91,15 @@ internal sealed class FlowRecallService(
                 }
             }
 
-            var block = FlowRecallRenderer.Flow(report, new FlowNotes(own, staleness));
-            if (text.Length > 0 && text.Length + block.Length > charLimit)
-            {
-                skipped.Add(map.Id);
-                continue;
-            }
-
-            showedNotes |= own.Count > 0;
-            text.AppendLine(block);
+            var part = FlowRecallRenderer.Part(report, flowNotes, first, last, charLimit - text.Length);
+            text.AppendLine(part.Text);
+            shownFlows.Add(map.Id);
         }
 
         var unknown = wanted.Where(id => maps.All(map => map.Id != id)).ToList();
         if (unknown.Count > 0)
         {
-            text.AppendLine($"No flow with id {string.Join(", ", unknown)} in workspace '{found.Name}'. recall(action='list') shows the ids.");
+            text.AppendLine($"No flow with id {string.Join(", ", unknown)} in workspace '{found.Name}'. memory_recall(action='list') shows the ids.");
         }
 
         if (skipped.Count > 0)
@@ -90,7 +107,7 @@ internal sealed class FlowRecallService(
             text.AppendLine($"Not included (the answer would be too long): flow {string.Join(", ", skipped)}. Ask for {(skipped.Count == 1 ? "it" : "them")} in a separate call.");
         }
 
-        if (showedNotes)
+        if (flowNotes.Shown.Count > 0)
         {
             text.AppendLine(NoteRules.HintLine);
         }
@@ -100,6 +117,9 @@ internal sealed class FlowRecallService(
             text.AppendLine(FlowRecallRenderer.Footer(found.Name));
         }
 
+        // Opening a flow is a use of it and of the notes its answer showed; what was only named or left out is not.
+        usage.Touch(found.Id, MemoryItemKind.Flow, shownFlows);
+        usage.Touch(found.Id, MemoryItemKind.Note, flowNotes.Shown);
         return text.ToString().TrimEnd();
     }
 
@@ -120,6 +140,11 @@ internal sealed class FlowRecallService(
             {
                 if (string.Equals(report.Steps[i].Spec, spec, StringComparison.OrdinalIgnoreCase))
                 {
+                    if (!report.Views[i].Inspected)
+                    {
+                        return null;
+                    }
+
                     var now = StepFingerprint.Of(report.Views[i]);
                     var stale = now is not null && !string.Equals(now, note.CodeHash, StringComparison.Ordinal);
                     return new NoteStaleness(note.Id, stale, stale ? "code changed" : null);
@@ -138,18 +163,19 @@ internal sealed class FlowRecallService(
         return null;
     }
 
-    private async Task<string> SearchAsync(long workspaceId, string workspaceName, string query, int? pageSize, CancellationToken ct)
+    private async Task<string> SearchAsync(long workspaceId, string workspaceName, string query, int? page, int? pageSize, CancellationToken ct)
     {
         var take = Math.Clamp(pageSize ?? SearchTake, 1, MaxPageSize);
-        var result = await search.SearchAsync(workspaceId, query, take, ct).ConfigureAwait(false);
+        var number = Math.Max(1, page ?? 1);
+        var result = await search.SearchAsync(workspaceId, query, (number - 1) * take, take, ct).ConfigureAwait(false);
         var flowIds = result.Hits.Select(hit => hit.Kind == MemoryHitKind.Flow ? hit.Id : hit.FlowId).OfType<long>().Distinct().ToList();
 
-        // The short index form (search by meaning on) shows only the notes that stand alone; notes grouped under a flow come with recall get.
+        // The short index form (search by meaning on) shows only the notes that stand alone; notes grouped under a flow come with memory_recall get.
         var noteIds = result.MeaningOn
             ? result.Hits.Where(hit => hit.Kind == MemoryHitKind.Note).Select(hit => hit.Id).Distinct().ToList()
             : result.Hits.SelectMany<MemoryHit, long>(hit => hit.Kind == MemoryHitKind.Note ? new[] { hit.Id } : hit.Notes).Distinct().ToList();
         IReadOnlyList<FeatureMap> maps = flowIds.Count == 0 ? [] : await store.GetAsync(workspaceId, flowIds, ct).ConfigureAwait(false);
         IReadOnlyList<Note> found = noteIds.Count == 0 ? [] : await notes.GetAsync(workspaceId, noteIds, ct).ConfigureAwait(false);
-        return MemorySearchRenderer.Render(workspaceName, query, result, maps.ToDictionary(map => map.Id), found.ToDictionary(note => note.Id));
+        return MemorySearchRenderer.Render(workspaceName, query, result, maps.ToDictionary(map => map.Id), found.ToDictionary(note => note.Id), number);
     }
 }

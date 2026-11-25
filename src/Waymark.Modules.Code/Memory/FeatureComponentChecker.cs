@@ -4,7 +4,7 @@ using Waymark.Core.Workspaces;
 namespace Waymark.Modules.Code.Memory;
 
 /// <summary>
-/// Lets the admin pages ask whether the steps of saved flows are in the checked-out code and what the code says about their links, with the same inspector that recall and memorise use,
+/// Lets the admin pages ask whether the steps of saved flows are in the checked-out code and what the code says about their links, with the same inspector that memory_recall and memory_save use,
 /// so the page and Claude always agree.
 /// </summary>
 internal sealed class FeatureComponentChecker(FlowInspector inspector) : IFeatureComponentChecker

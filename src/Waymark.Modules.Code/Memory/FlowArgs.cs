@@ -3,7 +3,7 @@ using Waymark.Core.Memory;
 
 namespace Waymark.Modules.Code.Memory;
 
-/// <summary>Reads and checks the arguments of recall and memorise. Pure; every refusal says how to fix the call.</summary>
+/// <summary>Reads and checks the arguments of memory_recall and memory_save. Pure; every refusal says how to fix the call.</summary>
 internal static class FlowArgs
 {
     public const int MaxIdsPerGet = 5;
@@ -31,6 +31,23 @@ internal static class FlowArgs
             : text;
     }
 
+    /// <summary>The first step to show, 0-based, from the 1-based from of memory_recall get. It needs exactly one flow id.</summary>
+    public static int ParseFrom(int? from, int idCount)
+    {
+        if (from is null)
+        {
+            return 0;
+        }
+
+        if (idCount != 1)
+        {
+            throw new ArgumentException("from continues one flow: give exactly one id with it, for example memory_recall(action='get', ids='12', from=151).");
+        }
+
+        return from.Value < 1
+            ? throw new ArgumentException("from is the number of the first step to show, starting at 1.")
+            : from.Value - 1;
+    }
     public static List<long> ParseIds(string? ids)
     {
         var parts = (ids ?? string.Empty).Trim('[', ']').Split([',', ' ', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
@@ -39,7 +56,7 @@ internal static class FlowArgs
         {
             if (!long.TryParse(part, NumberStyles.None, CultureInfo.InvariantCulture, out var id) || id < 1)
             {
-                throw new ArgumentException($"ids are numbers from recall(action='list'), separated by commas: '{part}' is not one.");
+                throw new ArgumentException($"ids are numbers from memory_recall(action='list'), separated by commas: '{part}' is not one.");
             }
 
             if (!result.Contains(id))
@@ -50,7 +67,7 @@ internal static class FlowArgs
 
         return result.Count switch
         {
-            0 => throw new ArgumentException("ids is required: take the ids from recall(action='list')."),
+            0 => throw new ArgumentException("ids is required: take the ids from memory_recall(action='list')."),
             > MaxIdsPerGet => throw new ArgumentException($"ids accepts at most {MaxIdsPerGet} per call."),
             _ => result,
         };

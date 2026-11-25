@@ -5,8 +5,8 @@ using Waymark.Core.Memory;
 namespace Waymark.Modules.Code.Memory;
 
 /// <summary>
-/// The answer of recall list with a query. With search by meaning on it is a short index: one row per flow (name, match score, id) and per note that
-/// stands alone (the note's line and its score), so the answer stays small and the agent picks a flow and reads it with recall get. The match score
+/// The answer of memory_recall list with a query. With search by meaning on it is a short index: one row per flow (name, match score, id) and per note that
+/// stands alone (the note's line and its score), so the answer stays small and the agent picks a flow and reads it with memory_recall get. The match score
 /// is the similarity in meaning (0 to 1) and shows only on rows search by meaning found. With search by meaning off it is the words answer: ranked
 /// flows and notes, each flow with the steps that matched and the notes found under it, so the agent can often go straight to code_method.
 /// Notes are one line each and labelled with their author.
@@ -22,7 +22,8 @@ internal static class MemorySearchRenderer
         string query,
         MemorySearchResult result,
         IReadOnlyDictionary<long, FeatureMap> maps,
-        IReadOnlyDictionary<long, Note> notes)
+        IReadOnlyDictionary<long, Note> notes,
+        int page = 1)
     {
         ArgumentNullException.ThrowIfNull(result);
         ArgumentNullException.ThrowIfNull(maps);
@@ -30,13 +31,27 @@ internal static class MemorySearchRenderer
         var mode = result.UsedMeaning ? "words + meaning" : result.Notice is null ? "words only" : $"words only: {result.Notice}";
         var text = new StringBuilder();
         text.AppendLine(CultureInfo.InvariantCulture, $"# Memory search: workspace {workspace}, '{NoteRules.OneLine(query, 120)}' ({mode})").AppendLine();
-        return result.MeaningOn ? Index(text, result, maps, notes) : Detailed(text, result, maps, notes);
+        if (result.Hits.Count == 0 && result.Skip > 0)
+        {
+            return text.AppendLine(CultureInfo.InvariantCulture, $"This page is past the last one: the query has {result.Total} results.").ToString().TrimEnd();
+        }
+
+        var body = result.MeaningOn ? Index(text, result, maps, notes) : Detailed(text, result, maps, notes);
+        if (!result.HasMore)
+        {
+            return body;
+        }
+
+        var shown = result.Skip + result.Hits.Count;
+        return body + string.Create(
+            CultureInfo.InvariantCulture,
+            $"\nResults {result.Skip + 1}-{shown} of {result.Total}. Next: memory_recall(action='list', query='{NoteRules.OneLine(query, 120).Replace("'", "", StringComparison.Ordinal)}', page={page + 1}).");
     }
 
-    // Search by meaning on: one row per hit, no summaries, steps or grouped notes. recall get has the path and the notes on its steps.
+    // Search by meaning on: one row per hit, no summaries, steps or grouped notes. memory_recall get has the path and the notes on its steps.
     private static string Index(StringBuilder text, MemorySearchResult result, IReadOnlyDictionary<long, FeatureMap> maps, IReadOnlyDictionary<long, Note> notes)
     {
-        var number = 0;
+        var number = result.Skip;
         var showedNotes = false;
         foreach (var hit in result.Hits)
         {
@@ -70,14 +85,14 @@ internal static class MemorySearchRenderer
         }
 
         text.Append("The number after a name is the match score: how close it is in meaning to your words, from 0 to 1. A row without one matched your words only. ")
-            .Append("Pick a flow and read its path with recall(action='get', ids='<id>'); the notes on its steps come with it.");
+            .Append("Pick a flow and read its path with memory_recall(action='get', ids='<id>'); the notes on its steps come with it.");
         return text.ToString();
     }
 
     // Search by meaning off: each flow with its summary, the steps that matched and the notes found under it.
     private static string Detailed(StringBuilder text, MemorySearchResult result, IReadOnlyDictionary<long, FeatureMap> maps, IReadOnlyDictionary<long, Note> notes)
     {
-        var number = 0;
+        var number = result.Skip;
         var showedNotes = false;
         foreach (var hit in result.Hits)
         {
@@ -130,17 +145,17 @@ internal static class MemorySearchRenderer
             text.AppendLine(NoteRules.HintLine);
         }
 
-        text.Append("Read a flow with recall(action='get', ids='<id>'); open a step with code_method. recall(action='list') without a query lists every flow.");
+        text.Append("Read a flow with memory_recall(action='get', ids='<id>'); open a step with code_method. memory_recall(action='list') without a query lists every flow.");
         return text.ToString();
     }
 
     private static string NothingMatched(StringBuilder text)
     {
-        text.AppendLine("Nothing matched. Try other words (names of types, methods or features), or recall(action='list') without a query for every flow.");
+        text.AppendLine("Nothing matched. Try other words (names of types, methods or features), or memory_recall(action='list') without a query for every flow.");
         return text.ToString().TrimEnd();
     }
 
-    // 'note #57 convention [claude-client: x] about src/A.cs: body'
+    // 'note #57 convention [agent] about src/A.cs: body'
     private static string NoteRow(Note note)
     {
         var line = NoteLines.Line(note, null, withDate: false, bodyChars: NoteChars);

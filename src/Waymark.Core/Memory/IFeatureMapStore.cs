@@ -29,7 +29,7 @@ public sealed record FeatureMapPage(IReadOnlyList<FeatureMapSummary> Items, int 
 /// <summary>Another map of the same workspace that holds some of the same steps.</summary>
 public sealed record FeatureMapOverlap(long Id, string Name, int Shared);
 
-/// <summary>A map as the workspace guide lists it for agents: an index line, name and id only; recall get describes the map.</summary>
+/// <summary>A map as the workspace guide lists it for agents: an index line, name and id only; memory_recall get describes the map.</summary>
 public sealed record FeatureMapName(long Id, string Name);
 
 /// <param name="Total">All maps of the workspace.</param>
@@ -64,8 +64,8 @@ public sealed record FlowWriteResult(FlowWrite Outcome, long Id, string Name, in
 /// </summary>
 public interface IFeatureMapStore
 {
-    /// <summary>Newest first. The query is split into words and a map matches when every word is in its name, summary, or one step, path or note.</summary>
-    Task<FeatureMapPage> ListAsync(long workspaceId, string? query, int skip, int take, CancellationToken ct);
+    /// <summary>Newest first (or last used first). The query is split into words and a map matches when every word is in its name, summary, or one step, path or note.</summary>
+    Task<FeatureMapPage> ListAsync(long workspaceId, string? query, int skip, int take, CancellationToken ct, MemoryOrder order = MemoryOrder.Changed);
 
     /// <summary>The maps of this workspace with these ids, in the order asked; an id that is not here is left out.</summary>
     Task<IReadOnlyList<FeatureMap>> GetAsync(long workspaceId, IReadOnlyList<long> ids, CancellationToken ct);

@@ -25,6 +25,7 @@ internal readonly record struct LineSpan(int Start, int End);
 /// One step as the code on disk shows it: whether it is there, where, and its signature. Never its body: the agent reads the bodies it needs with code_method.
 /// <paramref name="Owner"/> and <paramref name="Member"/> are the declaring type and the member of a method step; <paramref name="File"/> is the parsed file, kept for the link check.
 /// <paramref name="Ranges"/> are the lines of every overload of a method step in file order (for a note's code fingerprint); null means just StartLine..EndLine.
+/// <paramref name="Inspected"/> is false for a step a partial inspection left out (a long flow read in parts): nothing is known about it then.
 /// </summary>
 internal sealed record StepView(
     FeatureComponent Component,
@@ -38,10 +39,15 @@ internal sealed record StepView(
     CodeTypeEntry? Owner,
     CodeMemberEntry? Member,
     FileView? File,
-    IReadOnlyList<LineSpan>? Ranges = null)
+    IReadOnlyList<LineSpan>? Ranges = null,
+    bool Inspected = true)
 {
     /// <summary>The lines this step covers, in file order.</summary>
     public IReadOnlyList<LineSpan> AllRanges => Ranges ?? [new LineSpan(StartLine, EndLine)];
+
+    /// <summary>A step a partial inspection did not look at.</summary>
+    public static StepView NotInspected(FeatureComponent component) =>
+        new(component, false, null, StepKind.File, null, 0, 0, 0, null, null, null, null, Inspected: false);
 }
 
 /// <summary>

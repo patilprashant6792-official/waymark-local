@@ -11,23 +11,34 @@ public sealed record FeatureMapView(IReadOnlyList<FeatureMap> Maps, int Total);
 
 /// <summary>
 /// What the owner can do with the feature maps (flows) Claude saved: read them, check them against the code that is checked out, delete a map and remove a
-/// step that is wrong. Claude creates and changes flows itself with memorise. Every change is written to the audit trail.
+/// step that is wrong. Claude creates and changes flows itself with memory_save. Every change is written to the audit trail.
 /// </summary>
-public sealed class FeatureMapAdminService(IFeatureMapStore store, IFeatureComponentChecker checker, IAuditStore audit, IEventBus events, TimeProvider time)
+public sealed class FeatureMapAdminService(
+    IFeatureMapStore store,
+    IFeatureComponentChecker checker,
+    IMemoryUsageStore usage,
+    IAuditStore audit,
+    IEventBus events,
+    TimeProvider time)
 {
     /// <summary>How many maps one page lists.</summary>
     public const int PageSize = 50;
 
-    public async Task<FeatureMapView> LoadAsync(long workspaceId, string? query, CancellationToken ct)
+    /// <summary>One page (0-based) of the maps that match, newest first or last used first.</summary>
+    public async Task<FeatureMapView> LoadAsync(long workspaceId, string? query, int page, MemoryOrder order, CancellationToken ct)
     {
-        var page = await store.ListAsync(workspaceId, query, 0, PageSize, ct).ConfigureAwait(false);
-        var maps = await store.GetAsync(workspaceId, page.Items.Select(item => item.Id).ToList(), ct).ConfigureAwait(false);
-        return new FeatureMapView(maps, page.Total);
+        var found = await store.ListAsync(workspaceId, query, Math.Max(0, page) * PageSize, PageSize, ct, order).ConfigureAwait(false);
+        var maps = await store.GetAsync(workspaceId, found.Items.Select(item => item.Id).ToList(), ct).ConfigureAwait(false);
+        return new FeatureMapView(maps, found.Total);
     }
+
+    /// <summary>When agents last opened these flows; flows never opened are missing from the result.</summary>
+    public Task<IReadOnlyDictionary<long, DateTimeOffset>> LastUsedAsync(long workspaceId, IReadOnlyCollection<long> ids, CancellationToken ct) =>
+        usage.GetAsync(workspaceId, MemoryItemKind.Flow, ids, ct);
 
     /// <summary>
     /// Whether each step of the maps is in the code on disk now and what the code says about its link, by the id of the map and then in the order of its steps.
-    /// It is the check recall and memorise use, so the page and Claude agree.
+    /// It is the check memory_recall and memory_save use, so the page and Claude agree.
     /// </summary>
     public async Task<IReadOnlyDictionary<long, IReadOnlyList<FeatureComponentStatus>>> CheckAsync(Workspace workspace, IReadOnlyList<FeatureMap> maps, CancellationToken ct)
     {

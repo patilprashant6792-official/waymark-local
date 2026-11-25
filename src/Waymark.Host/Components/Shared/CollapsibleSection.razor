@@ -14,7 +14,10 @@
         }
     </div>
     <div id="@BodyId" class="wm-collapse-body" hidden="@(!_expanded)">
-        @ChildContent
+        @if (_expanded || RenderWhenCollapsed)
+        {
+            @ChildContent
+        }
     </div>
 </section>
 
@@ -48,6 +51,14 @@
     [Parameter]
     public RenderFragment? ChildContent { get; set; }
 
+    // False: the content is built only while the section is open, so a long list of closed sections stays light. True (the default) keeps it in the page.
+    [Parameter]
+    public bool RenderWhenCollapsed { get; set; } = true;
+
+    // Called with the new state each time the person opens or closes the section.
+    [Parameter]
+    public EventCallback<bool> OnToggled { get; set; }
+
     private string SafeId => string.Concat(Id.Select(c => char.IsLetterOrDigit(c) || c is '-' or '_' ? c : '-'));
 
     private string HeadingId => SafeId + "-heading";
@@ -56,5 +67,9 @@
 
     protected override void OnInitialized() => _expanded = InitiallyExpanded;
 
-    private void Toggle() => _expanded = !_expanded;
+    private async Task Toggle()
+    {
+        _expanded = !_expanded;
+        await OnToggled.InvokeAsync(_expanded);
+    }
 }

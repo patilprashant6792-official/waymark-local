@@ -21,7 +21,7 @@ public sealed class GuideRulesTests
         Assert.StartsWith("Waymark gives you", GuideRules.ServerInstructions);
         Assert.Contains(GuideRules.OverviewTool, GuideRules.ServerInstructions);
         Assert.True(GuideRules.ServerInstructions.IndexOf(GuideRules.OverviewTool, StringComparison.Ordinal)
-            < GuideRules.ServerInstructions.IndexOf("recall", StringComparison.Ordinal));
+            < GuideRules.ServerInstructions.IndexOf("memory_recall", StringComparison.Ordinal));
     }
 
     [Fact]

@@ -13,19 +13,24 @@ public sealed record NoteDraft(string Body, NoteKind Kind, string? About);
 public sealed record NoteImportResult(int Saved, IReadOnlyList<string> Problems);
 
 /// <summary>
-/// What the owner does with notes in the admin UI: read them, add and edit their own, retire or confirm any, pin and unpin, and import drafts from a pasted
-/// CLAUDE.md. Every change goes through <see cref="INoteService"/> as the human author (the admin actor), so the same rules and secret check apply as for Claude,
-/// and every change is written to the audit trail. The service publishes NoteChanged; the pages reload on it.
+/// What the owner does with notes in the admin UI: read them a page at a time, add notes, edit any (an edit of an agent's note makes the new revision yours),
+/// retire, confirm and pin any, and import drafts from a pasted CLAUDE.md. Every change goes through <see cref="INoteService"/> as the human author (the admin actor),
+/// so the same rules and secret check apply as for agents, and every change is written to the audit trail. The service publishes NoteChanged; the pages reload on it.
+/// Nothing here records a use: last used is about agents only.
 /// </summary>
-public sealed class NoteAdminService(INoteService notes, INoteStore store, IMemorySearch search, IAuditStore audit, TimeProvider time)
+public sealed class NoteAdminService(INoteService notes, INoteStore store, IMemorySearch search, IMemoryUsageStore usage, IAuditStore audit, TimeProvider time)
 {
     public const int PageSize = 100;
 
     /// <summary>The owner as the author of a note.</summary>
     public static NoteAuthor Owner { get; } = new(NoteAuthorKind.Human, AuthDefaults.AdminActor);
 
-    public Task<NotePage> ListAsync(long workspaceId, NoteFilter filter, int page, CancellationToken ct) =>
-        store.ListWorkspaceAsync(workspaceId, filter, Math.Max(0, page) * PageSize, PageSize, ct);
+    public Task<NotePage> ListAsync(long workspaceId, NoteFilter filter, int page, CancellationToken ct, MemoryOrder order = MemoryOrder.Changed) =>
+        store.ListWorkspaceAsync(workspaceId, filter, Math.Max(0, page) * PageSize, PageSize, ct, order);
+
+    /// <summary>When agents last used these notes; notes never used are missing from the result.</summary>
+    public Task<IReadOnlyDictionary<long, DateTimeOffset>> LastUsedAsync(long workspaceId, IReadOnlyCollection<long> ids, CancellationToken ct) =>
+        usage.GetAsync(workspaceId, MemoryItemKind.Note, ids, ct);
 
 
     public Task<IReadOnlyList<Note>> GetAsync(long workspaceId, IReadOnlyList<long> ids, CancellationToken ct) => store.GetAsync(workspaceId, ids, ct);

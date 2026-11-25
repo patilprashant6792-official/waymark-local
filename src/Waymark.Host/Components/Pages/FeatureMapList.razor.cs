@@ -5,23 +5,42 @@ using Waymark.Core.Events;
 using Waymark.Core.Memory;
 using Waymark.Core.Workspaces;
 using Waymark.Host.Components.Shared;
+using Waymark.Host.Components.Ui;
 using Waymark.Host.FeatureMaps;
+using Waymark.Host.Memory;
 using Waymark.Host.Notes;
 using Waymark.Host.Ui;
 
 namespace Waymark.Host.Components.Pages;
 
 /// <summary>
-/// The Flows section of a workspace: the flows Claude saved as steps, whether each step is in the code that is checked out, whether each link still holds, and removing what is wrong.
-/// It reloads when Claude saves or deletes a map.
+/// The Flows section of a workspace: the flows agents saved as steps, a page at a time, newest or last used first; whether each step is in the code that is
+/// checked out, whether each link still holds, when an agent last opened each flow, and removing what is wrong. A flow's steps are built only while it is open,
+/// and a long flow shows its steps in chunks. It reloads when a flow changes and refreshes the last-used times when agents used flows.
 /// </summary>
 public partial class FeatureMapList : LiveComponentBase
 {
+    /// <summary>How many steps the check after a load covers, in page order; the flows after that are checked when opened or with 'Check against the code'.</summary>
+    internal const int CheckBudgetSteps = 3000;
+
+    /// <summary>How many steps of one flow are shown before 'Show more'.</summary>
+    internal const int StepChunk = 100;
+
     private static readonly IReadOnlyDictionary<long, IReadOnlyList<FeatureComponentStatus>> NoStatus = new Dictionary<long, IReadOnlyList<FeatureComponentStatus>>();
 
+    private static readonly IReadOnlyList<WmOption<MemoryOrder>> OrderOptions =
+    [
+        new(MemoryOrder.Changed, "Last changed"),
+        new(MemoryOrder.Used, "Last used"),
+    ];
+
+    private readonly Dictionary<long, int> _stepsShown = [];
     private IReadOnlyList<FeatureMap> _maps = [];
     private IReadOnlyDictionary<long, IReadOnlyList<FeatureComponentStatus>> _status = NoStatus;
+    private IReadOnlyDictionary<long, DateTimeOffset> _lastUsed = new Dictionary<long, DateTimeOffset>();
     private DateTimeOffset? _checkedUtc;
+    private MemoryOrder _order = MemoryOrder.Changed;
+    private int _page;
     private string _query = string.Empty;
     private string _searchedFor = string.Empty;
     private string? _error;
@@ -48,6 +67,9 @@ public partial class FeatureMapList : LiveComponentBase
     private NoteAdminService Notes { get; set; } = default!;
 
     [Inject]
+    private MemoryHealthCache Health { get; set; } = default!;
+
+    [Inject]
     private IDialogService Dialogs { get; set; } = default!;
 
     [Inject]
@@ -59,10 +81,13 @@ public partial class FeatureMapList : LiveComponentBase
     [Inject]
     private ILogger<FeatureMapList> Logger { get; set; } = default!;
 
+    private int Pages => Math.Max(1, (_total + FeatureMapAdminService.PageSize - 1) / FeatureMapAdminService.PageSize);
+
     protected override void OnInitialized()
     {
         RefreshOn<FeatureMapsChanged>(OnChangedAsync);
         RefreshOn<NoteChanged>(changed => changed.WorkspaceId == Workspace.Id ? LoadNotesAsync() : Task.CompletedTask);
+        RefreshOn<MemoryUsageRecorded>(recorded => recorded.WorkspaceIds.Contains(Workspace.Id) ? LoadLastUsedAsync() : Task.CompletedTask);
     }
 
     // The parent renders again whenever the workspace index moves; only a different workspace reloads the maps.
@@ -80,6 +105,7 @@ public partial class FeatureMapList : LiveComponentBase
         _status = NoStatus;
         _checkedUtc = null;
         _loaded = false;
+        _page = 0;
         await LoadAsync();
     }
 
@@ -89,11 +115,18 @@ public partial class FeatureMapList : LiveComponentBase
     {
         try
         {
-            var view = await Service.LoadAsync(Workspace.Id, _searchedFor, Cancel);
+            var view = await Service.LoadAsync(Workspace.Id, _searchedFor, _page, _order, Cancel);
+            if (view.Maps.Count == 0 && _page > 0 && view.Total > 0)
+            {
+                _page = Math.Max(0, (view.Total - 1) / FeatureMapAdminService.PageSize);
+                view = await Service.LoadAsync(Workspace.Id, _searchedFor, _page, _order, Cancel);
+            }
+
             _maps = view.Maps;
             _total = view.Total;
             _error = null;
             await LoadNotesAsync();
+            await LoadLastUsedAsync();
 
             // Show the maps at once: the check reads and parses every file the steps name, which takes seconds when there are many maps.
             _status = NoStatus;
@@ -102,8 +135,22 @@ public partial class FeatureMapList : LiveComponentBase
             _loaded = true;
             await InvokeAsync(StateHasChanged);
 
+            // Only as many steps as the budget allows, in page order; the rest are checked when opened.
             var maps = _maps;
-            var status = await Service.CheckAsync(Workspace, maps, Cancel);
+            var budgeted = new List<FeatureMap>();
+            var steps = 0;
+            foreach (var map in maps)
+            {
+                if (budgeted.Count > 0 && steps + map.Steps.Count > CheckBudgetSteps)
+                {
+                    break;
+                }
+
+                budgeted.Add(map);
+                steps += map.Steps.Count;
+            }
+
+            var status = await Service.CheckAsync(Workspace, budgeted, Cancel);
 
             // A newer load may have replaced the maps while this one was checking: its answer is for the old steps.
             if (ReferenceEquals(maps, _maps))
@@ -111,6 +158,7 @@ public partial class FeatureMapList : LiveComponentBase
                 _status = status;
                 _checkedUtc = Time.GetUtcNow();
                 _noteStaleness = await Notes.CheckAsync(Workspace, _notes, Cancel);
+                RecordHealth();
             }
         }
         catch (OperationCanceledException)
@@ -131,9 +179,92 @@ public partial class FeatureMapList : LiveComponentBase
         _loaded = true;
     }
 
+    private async Task LoadLastUsedAsync()
+    {
+        try
+        {
+            _lastUsed = _maps.Count == 0 ? new Dictionary<long, DateTimeOffset>() : await Service.LastUsedAsync(Workspace.Id, [.. _maps.Select(map => map.Id)], Cancel);
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "The last-used times of the flows of workspace {WorkspaceId} could not be loaded", Workspace.Id);
+        }
+    }
+
+    // When every flow of the workspace is on this page and was checked, the Overview may show the counts.
+    private void RecordHealth()
+    {
+        if (_searchedFor.Length > 0 || _total > _maps.Count || _maps.Any(map => !_status.ContainsKey(map.Id)))
+        {
+            return;
+        }
+
+        var broken = _maps.Sum(map => BrokenCount(map) ?? 0);
+        var missing = _maps.Sum(map => MissingCount(map) ?? 0);
+        Health.SetLinks(Workspace.Id, broken, missing);
+    }
+
+    // A flow opened before the check reached it is checked on its own.
+    private async Task OnToggledAsync(FeatureMap map, bool expanded)
+    {
+        if (!expanded || _checking || _status.ContainsKey(map.Id))
+        {
+            return;
+        }
+
+        try
+        {
+            var one = await Service.CheckAsync(Workspace, [map], Cancel);
+            var merged = new Dictionary<long, IReadOnlyList<FeatureComponentStatus>>(_status);
+            foreach (var (id, statuses) in one)
+            {
+                merged[id] = statuses;
+            }
+
+            _status = merged;
+            RecordHealth();
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "The flow {FlowId} could not be checked", map.Id);
+        }
+    }
+
+    private int StepsShownOf(FeatureMap map) => Math.Min(map.Steps.Count, _stepsShown.TryGetValue(map.Id, out var shown) ? shown : StepChunk);
+
+    private void ShowMoreSteps(FeatureMap map) => _stepsShown[map.Id] = StepsShownOf(map) + StepChunk;
+
+    private DateTimeOffset? LastUsedOf(FeatureMap map) => _lastUsed.TryGetValue(map.Id, out var used) ? used : null;
+
+    private string LastUsedTitle(FeatureMap map) => LastUsedOf(map) is { } used
+        ? $"An agent last opened this flow on {DisplayFormat.DateAndClock(used)}"
+        : "No agent has opened this flow yet (memory_recall get)";
+
+    private Task ChangeOrderAsync(MemoryOrder order)
+    {
+        _order = order;
+        _page = 0;
+        return RunBusyAsync(LoadAsync, "The flows could not be loaded.");
+    }
+
+    private Task GoToPageAsync(int page)
+    {
+        _page = Math.Clamp(page, 0, Pages - 1);
+        return RunBusyAsync(LoadAsync, "The flows could not be loaded.");
+    }
+
     private Task SearchAsync()
     {
         _searchedFor = _query.Trim();
+        _page = 0;
         return RunBusyAsync(LoadAsync, "The flows could not be searched.");
     }
 
@@ -141,6 +272,7 @@ public partial class FeatureMapList : LiveComponentBase
     {
         _query = string.Empty;
         _searchedFor = string.Empty;
+        _page = 0;
         return RunBusyAsync(LoadAsync, "The flows could not be loaded.");
     }
 
@@ -159,6 +291,7 @@ public partial class FeatureMapList : LiveComponentBase
             _noteStaleness = await Notes.CheckAsync(Workspace, _notes, Cancel);
             _checkedUtc = Time.GetUtcNow();
             _error = null;
+            RecordHealth();
         },
         "The steps could not be checked against the code.");
 
@@ -243,15 +376,16 @@ public partial class FeatureMapList : LiveComponentBase
     private FeatureComponentStatus? StatusOf(FeatureMap map, int index) =>
         _status.TryGetValue(map.Id, out var statuses) && index < statuses.Count ? statuses[index] : null;
 
-    private int MissingCount(FeatureMap map) =>
-        _status.TryGetValue(map.Id, out var statuses) ? statuses.Count(status => !status.Available) : 0;
+    // Null while the flow has not been checked.
+    private int? MissingCount(FeatureMap map) =>
+        _status.TryGetValue(map.Id, out var statuses) ? statuses.Count(status => !status.Available) : null;
 
-    private int BrokenCount(FeatureMap map) =>
-        _status.TryGetValue(map.Id, out var statuses) ? statuses.Count(status => status.Link == FlowLinkState.DoesNotCall) : 0;
+    private int? BrokenCount(FeatureMap map) =>
+        _status.TryGetValue(map.Id, out var statuses) ? statuses.Count(status => status.Link == FlowLinkState.DoesNotCall) : null;
 
     private static string? WhyNotRemovable(FeatureMap map, int index) => FeatureMapAdminService.WhyNotRemovable(map, index);
 
-    // The same text memorise takes (indented under the step that calls it), so a flow can be pasted into a note or saved again.
+    // The same text memory_save takes (indented under the step that calls it), so a flow can be pasted into a note or saved again.
     private static string StepsText(FeatureMap map) => FlowStepText.Format(FlowStepText.FromStored(map.Steps));
 
     // The steps are paths: they wrap anywhere (see .wm-flow-step), so a long path never pushes the actions out of sight. Depth maps to a fixed set of indent classes.
@@ -427,12 +561,17 @@ public partial class FeatureMapList : LiveComponentBase
         "The note could not be changed.");
     private string Caption()
     {
-        var count = $"{DisplayFormat.Count(_total)} {(_total == 1 ? "map" : "maps")}";
+        var count = $"{DisplayFormat.Count(_total)} {(_total == 1 ? "flow" : "flows")}";
         var matching = _searchedFor.Length > 0 ? $" match '{_searchedFor}'" : string.Empty;
-        var shown = _total > _maps.Count ? $", the newest {_maps.Count} shown (search to find the rest)" : string.Empty;
+        var first = (_page * FeatureMapAdminService.PageSize) + 1;
+        var shown = _total > _maps.Count ? $", {first}-{first + _maps.Count - 1} shown (page {_page + 1} of {Pages})" : string.Empty;
+        var notChecked = _maps.Count(map => !_status.ContainsKey(map.Id));
+        var later = notChecked > 0 ? $"; {notChecked} more are checked when you open them" : string.Empty;
         var checkedText = _checking
             ? " Checking against the code..."
-            : _checkedUtc is { } at ? $" Checked against the code {DisplayFormat.Ago(at, Time.GetUtcNow())}." : string.Empty;
+            : _checkedUtc is { } at
+                ? $" Checked against the code {DisplayFormat.Ago(at, Time.GetUtcNow())}{later}."
+                : string.Empty;
         return $"{count}{matching}{shown}.{checkedText}";
     }
 }

@@ -34,10 +34,15 @@ public sealed record MemoryHit(
 
 /// <param name="UsedMeaning">True when the meaning legs ran (switch on, key there, provider answered).</param>
 /// <param name="Notice">Why only words were used when search by meaning is on but failed; null otherwise.</param>
-public sealed record MemorySearchResult(IReadOnlyList<MemoryHit> Hits, bool UsedMeaning, string? Notice)
+/// <param name="Total">How many hits the query has in all, across pages (0 when the search does not say).</param>
+/// <param name="Skip">How many hits came before this page.</param>
+public sealed record MemorySearchResult(IReadOnlyList<MemoryHit> Hits, bool UsedMeaning, string? Notice, int Total = 0, int Skip = 0)
 {
     /// <summary>Search by meaning is switched on for the workspace, whether or not it answered this query. The answer is then the short index form.</summary>
     public bool MeaningOn => UsedMeaning || Notice is not null;
+
+    /// <summary>True when more hits follow this page.</summary>
+    public bool HasMore => Total > Skip + Hits.Count;
 }
 
 /// <summary>
@@ -47,4 +52,7 @@ public sealed record MemorySearchResult(IReadOnlyList<MemoryHit> Hits, bool Used
 public interface IMemorySearch
 {
     Task<MemorySearchResult> SearchAsync(long workspaceId, string query, int take, CancellationToken ct);
+
+    /// <summary>One page of the hits: <paramref name="skip"/> hits are left out, then at most <paramref name="take"/> come.</summary>
+    Task<MemorySearchResult> SearchAsync(long workspaceId, string query, int skip, int take, CancellationToken ct) => SearchAsync(workspaceId, query, take, ct);
 }

@@ -70,6 +70,8 @@ public static class DataServiceCollectionExtensions
         services.AddSingleton<IFeatureMapStore, FeatureMapStore>();
         services.AddSingleton<INoteStore, NoteStore>();
         services.AddSingleton<IMemoryEmbeddingStore, MemoryEmbeddingStore>();
+        services.AddSingleton<IMemoryUsageStore, MemoryUsageStore>();
+        services.AddSingleton<IMemoryStatsStore, MemoryStatsStore>();
         services.AddSingleton<IWorkspaceBundleStore, WorkspaceBundleStore>();
         return services;
     }

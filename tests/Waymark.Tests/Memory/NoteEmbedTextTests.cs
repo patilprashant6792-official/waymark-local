@@ -29,5 +29,5 @@ public sealed class NoteEmbedTextTests
 
     private static Note Step(string flow) =>
         new(1, 1, 7, flow, "src/Mcp/ToolGuideDelivery.cs:ToolGuideDelivery.AttachAsync", null, null, NoteKind.Gotcha, "Only one notice per call", "h",
-            new NoteAuthor(NoteAuthorKind.ClaudeClient, "claude-ai"), null, 1, null, null, null, null, null, false, At, At);
+            new NoteAuthor(NoteAuthorKind.Agent, "claude-ai"), null, 1, null, null, null, null, null, false, At, At);
 }

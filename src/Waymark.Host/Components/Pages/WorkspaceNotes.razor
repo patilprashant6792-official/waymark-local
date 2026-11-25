@@ -1,10 +1,14 @@
 @page "/workspaces/{WorkspaceId:long}/notes"
 
 <WorkspaceShell WorkspaceId="WorkspaceId" Context="workspace">
-    <NoteList Workspace="workspace" />
+    <NoteList Workspace="workspace" InitialView="@View" />
 </WorkspaceShell>
 
 @code {
     [Parameter]
     public long WorkspaceId { get; set; }
+
+    /// <summary>The view to open with: pinned, agents, stale, detached or retired (the Overview links to them).</summary>
+    [SupplyParameterFromQuery(Name = "view")]
+    public string? View { get; set; }
 }

@@ -87,7 +87,7 @@ public static class WorkspaceGuideRules
 
     /// <summary>
     /// The hash with the pinned notes and whether search by meaning is on. Search by meaning changes what the guide asks of an agent (the flows are no
-    /// longer listed; recall finds them), so switching it makes a client look outdated. With it off the hash equals
+    /// longer listed; memory_recall finds them), so switching it makes a client look outdated. With it off the hash equals
     /// <see cref="Hash(string, WorkspaceGuideText, IReadOnlyList{string})"/>, so a workspace with search by meaning off keeps the hash it had.
     /// </summary>
     public static string Hash(string workspaceName, WorkspaceGuideText text, IReadOnlyList<string> pinned, bool meaningOn)

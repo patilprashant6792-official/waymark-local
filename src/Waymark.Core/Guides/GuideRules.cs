@@ -42,7 +42,7 @@ public static class GuideRules
         "Before your first Waymark call in a conversation, call waymark_guide: it explains the groups, the owner's own instructions and what is switched on now. " +
         "Each workspace has its own guide (the owner's instructions for it and its saved flows): before you work in a workspace, call waymark_guide with workspace set to its name. " +
         "Each group also has its own guide: add guide: true to your first call to that group. Ask once; a result tells you when a guide changed. " +
-        "Feature maps are flows, your memory of this codebase: one trigger to one outcome as ordered method steps. Before you work on a feature call recall (list, then get) and read only the steps you need with the code tools; after a change that alters the path, update that flow with memorise, or create one for a new trigger; an edit inside a step needs no save. If two flows describe the same trigger and outcome, delete one.";
+        "Feature maps are flows, your memory of this codebase: one trigger to one outcome as ordered method steps. Before you work on a feature call memory_recall (list, then get) and read only the steps you need with the code tools; after a change that alters the path, update that flow with memory_save, or create one for a new trigger; an edit inside a step needs no save. If two flows describe the same trigger and outcome, delete one.";
 
     /// <summary>Line endings made uniform and outer blank space removed, so equal text always has equal bytes and one hash.</summary>
     public static string Normalize(string text)

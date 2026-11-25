@@ -180,7 +180,7 @@ public sealed class ToolGuideDelivery(
         return notice == GuideNotice.None ? null : GuideRules.Notice(module, notice == GuideNotice.NeverLoaded);
     }
 
-    // Only a workspace with instructions is worth a notice: without them its guide holds flows, which recall gives as well.
+    // Only a workspace with instructions is worth a notice: without them its guide holds flows, which memory_recall gives as well.
     private async Task<string?> WorkspaceNoticeAsync(string client, string workspaceName, CancellationToken ct)
     {
         var workspace = await FindWithInstructionsAsync(workspaceName, ct);

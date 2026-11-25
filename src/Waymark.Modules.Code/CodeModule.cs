@@ -77,6 +77,12 @@ public sealed class CodeModule : IMcpModule
         services.TryAddSingleton<IFlowSemanticIndex, FlowSemanticIndex>();
         services.AddHostedService<MemoryEmbeddingSync>();
 
+        // Last used: models' opens of flows and notes, remembered in memory and written in batches, never on the request path.
+        services.TryAddSingleton<MemoryUsageRecorder>();
+        services.TryAddSingleton<IMemoryUsage>(provider => provider.GetRequiredService<MemoryUsageRecorder>());
+        services.AddHostedService(provider => provider.GetRequiredService<MemoryUsageRecorder>());
+        services.TryAddSingleton<FlowWordCache>();
+
         // The files module registers a silent advisor with TryAdd; this one replaces it, whichever module registers first.
         services.Replace(ServiceDescriptor.Singleton<IFlowEditAdvisor, FlowEditAdvisor>());
 

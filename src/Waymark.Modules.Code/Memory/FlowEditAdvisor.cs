@@ -76,13 +76,19 @@ internal sealed class FlowEditAdvisor(
         return flowText is null ? noteLine : noteLine is null ? flowText : flowText + "\n" + noteLine;
     }
 
-    // Notes anchored in a changed file may no longer hold: one line that says how many and how to read them. Silent when there are none.
+    // Notes anchored in a changed file may no longer hold: one line that says how many and the call that lists them. Silent when there are none.
     private async Task<string?> NotesLineAsync(long workspaceId, List<string> paths, CancellationToken ct)
     {
         var ids = new HashSet<long>();
+        var withNotes = new List<string>();
         foreach (var path in paths)
         {
-            ids.UnionWith(await notes.FindActiveByPathAsync(workspaceId, path, MaxNotesCounted, ct).ConfigureAwait(false));
+            var found = await notes.FindActiveByPathAsync(workspaceId, path, MaxNotesCounted, ct).ConfigureAwait(false);
+            if (found.Count > 0)
+            {
+                withNotes.Add(path);
+                ids.UnionWith(found);
+            }
         }
 
         if (ids.Count == 0)
@@ -91,9 +97,11 @@ internal sealed class FlowEditAdvisor(
         }
 
         var which = paths.Count == 1 ? "this file" : "these files";
+        var others = withNotes.Count > 1 ? $" (and {withNotes.Count - 1} other file(s): one call each)" : string.Empty;
+        var call = $"memory_recall(action='notes', about='{withNotes[0]}'){others}";
         return ids.Count == 1
-            ? $"📝 1 note is about {which}: recall(action='notes', ids='workspace') shows it with the rest; check it still holds (confirm_note, or edit or retire your own)."
-            : $"📝 {ids.Count} notes are about {which}: recall(action='notes', ids='workspace') shows them; check they still hold (confirm_note, or edit or retire your own).";
+            ? $"📝 1 note is about {which}: {call} shows it; check it still holds (confirm_note, or edit or retire it if an agent wrote it)."
+            : $"📝 {ids.Count} notes are about {which}: {call} shows them; check they still hold (confirm_note, or edit or retire those agents wrote).";
     }
 
     // The path the way the flows store it: '/' as the separator, no leading './' or '/'.
@@ -135,7 +143,19 @@ internal sealed class FlowEditAdvisor(
         var text = new StringBuilder();
         foreach (var map in maps)
         {
-            var report = await inspector.InspectAsync(found, map, files, ct).ConfigureAwait(false);
+            // Only the steps an edit can have broken: those in an edited file and the steps they call (whose link from them is judged); InspectSelectedAsync adds their parents.
+            var steps = FlowStepText.FromStored(map.Steps);
+            var touched = Enumerable.Range(0, steps.Count).Where(i => edited.Contains(steps[i].Component.Path)).ToHashSet();
+            var selected = new HashSet<int>(touched);
+            for (var i = 1; i < steps.Count; i++)
+            {
+                if (FlowStepText.ParentIndex(steps, i) is { } parent && touched.Contains(parent))
+                {
+                    selected.Add(i);
+                }
+            }
+
+            var report = await inspector.InspectSelectedAsync(found, map, selected, files, ct).ConfigureAwait(false);
             var problems = Problems(report, edited);
             if (problems.Count == 0)
             {
@@ -147,7 +167,7 @@ internal sealed class FlowEditAdvisor(
                 text.AppendLine();
             }
 
-            text.Append($"🧭 flow '{map.Name}' (id {map.Id}, v{map.Version}): {string.Join("; ", problems.Take(MaxProblemsPerFlow))}. Update the flow if the path changed (memorise with expectedVersion={map.Version}).");
+            text.Append($"🧭 flow '{map.Name}' (id {map.Id}, v{map.Version}): {string.Join("; ", problems.Take(MaxProblemsPerFlow))}. Update the flow if the path changed (memory_save with expectedVersion={map.Version}).");
         }
 
         return text.Length == 0 ? null : text.ToString();
@@ -160,7 +180,7 @@ internal sealed class FlowEditAdvisor(
         for (var i = 0; i < report.Steps.Count; i++)
         {
             var step = report.Steps[i];
-            if (!report.Views[i].Found && edited.Contains(step.Component.Path))
+            if (report.Views[i].Inspected && !report.Views[i].Found && edited.Contains(step.Component.Path))
             {
                 var moved = report.Moved[i] is { } to ? $", it may have moved to {to}" : string.Empty;
                 problems.Add($"step {i + 1} {step.Spec} is no longer in the file{moved}");
