@@ -493,12 +493,12 @@ public partial class FeatureMapList : LiveComponentBase
         {
             if (_editingNote is { } editing)
             {
-                await Notes.EditAsync(Workspace, editing.Id, value.Body, value.Kind, Cancel);
+                await Notes.EditAsync(Workspace, editing.Id, value.Title, value.Body, value.Kind, Cancel);
                 Snackbar.Add("Saved as a new revision.", Severity.Success);
             }
             else
             {
-                var saved = await Notes.AddAsync(Workspace, map.Name, spec, null, value.Kind, value.Body, Cancel);
+                var saved = await Notes.AddAsync(Workspace, map.Name, spec, null, value.Kind, value.Title, value.Body, Cancel);
                 Snackbar.Add(saved.Similar.Count > 0 ? $"Saved. {saved.Similar.Count} similar note(s) are on the same step." : "Saved.", Severity.Success);
             }
 

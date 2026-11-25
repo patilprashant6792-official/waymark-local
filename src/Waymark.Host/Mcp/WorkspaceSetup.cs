@@ -160,7 +160,8 @@ public sealed class WorkspaceSetup(
         }
     }
 
-    // One line per pinned note: id, kind, where it is anchored, then the note cut to fit. A note can never start a line of its own.
+    // One line per pinned note: id, kind, where it is anchored, its title (none for a note from before titles), then the note cut to fit.
+    // Pinned notes are meant to be read every time, so the body stays. A note can never start a line of its own.
     internal static string PinnedLine(Note note)
     {
         ArgumentNullException.ThrowIfNull(note);
@@ -169,7 +170,10 @@ public sealed class WorkspaceSetup(
             : note.FlowName is not null ? $"flow {note.FlowName}"
             : note.About is not null ? $"about {note.About}"
             : "workspace";
-        return string.Create(CultureInfo.InvariantCulture, $"#{note.Id} {NoteKinds.ToText(note.Kind)} ({anchor}): {NoteRules.OneLine(note.Body, MaxPinnedLineChars)}");
+        var title = note.Title.Length > 0 ? NoteRules.OneLine(note.Title, NoteRules.MaxTitleChars) + " — " : string.Empty;
+        return string.Create(
+            CultureInfo.InvariantCulture,
+            $"#{note.Id} {NoteKinds.ToText(note.Kind)} ({anchor}): {title}{NoteRules.OneLine(note.Body, MaxPinnedLineChars)}");
     }
 
     // One index line on one flow: its name and id. memory_recall get describes it.

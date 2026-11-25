@@ -52,13 +52,13 @@ public sealed class WorkspaceGuideRenderer(IWorkspaceGuides texts, IWorkspaceSet
         return (WorkspaceGuideRules.Hash(workspace.Name, text, pins, meaning), text.HasInstructions || pins.Count > 0);
     }
 
-    // 'id:content hash' per pinned note. A failure leaves the pins out of the hash rather than failing the call.
+    // 'id:content hash:title' per pinned note (the guide shows the title too). A failure leaves the pins out of the hash rather than failing the call.
     private async Task<IReadOnlyList<string>> PinsAsync(Workspace workspace, CancellationToken ct)
     {
         try
         {
             var notes = await pinned.GetAsync(workspace.Id, ct);
-            return [.. notes.Select(note => string.Create(CultureInfo.InvariantCulture, $"{note.Id}:{note.ContentHash}"))];
+            return [.. notes.Select(note => string.Create(CultureInfo.InvariantCulture, $"{note.Id}:{note.ContentHash}:{note.Title}"))];
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

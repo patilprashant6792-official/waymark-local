@@ -72,6 +72,7 @@
                             <label for="@id">Keep</label>
                             <WmSelect TValue="NoteKind" Label="Kind" Options="KindOptions" @bind-Value="draft.Kind" Width="FieldWidth.Small" />
                         </div>
+                        <WmTextField Label="Title" @bind-Value="draft.Title" Width="FieldWidth.Full" MaxLength="@NoteRules.MaxTitleChars" />
                         <WmTextField Label="Note" @bind-Value="draft.Body" Lines="2" Width="FieldWidth.Full" MaxLength="@NoteRules.MaxBodyChars" />
                     </li>
                 }

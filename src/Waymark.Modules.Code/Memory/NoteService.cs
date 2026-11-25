@@ -22,10 +22,11 @@ internal sealed class NoteService(
     private const int SimilarShown = 3;
     private const int SimilarSearched = 20;
 
-    public async Task<NoteSaved> AddAsync(Workspace workspace, NoteAuthor author, string? flow, string? step, string? about, string? kind, string? body, CancellationToken ct)
+    public async Task<NoteSaved> AddAsync(Workspace workspace, NoteAuthor author, string? flow, string? step, string? about, string? kind, string? title, string? body, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(workspace);
         ArgumentNullException.ThrowIfNull(author);
+        var cleanTitle = NoteRules.CleanTitle(title);
         var text = NoteRules.Clean(body);
         var noteKind = KindOf(kind);
         var hasFlow = !string.IsNullOrWhiteSpace(flow);
@@ -40,7 +41,7 @@ internal sealed class NoteService(
             throw new ArgumentException("about is for workspace notes (no name). A note on a flow or a step is anchored by name and step instead.");
         }
 
-        await RefuseSecretsAsync(text + "\n" + (cleanAbout ?? string.Empty), ct).ConfigureAwait(false);
+        await RefuseSecretsAsync(cleanTitle + "\n" + text + "\n" + (cleanAbout ?? string.Empty), ct).ConfigureAwait(false);
 
         FeatureMap? map = null;
         string? stepSpec = null;
@@ -55,14 +56,14 @@ internal sealed class NoteService(
         var files = new Dictionary<string, FileView>(StringComparer.OrdinalIgnoreCase);
         var codeHash = await anchors.HashAsync(workspace, stepSpec ?? cleanAbout, files, ct).ConfigureAwait(false);
         var saved = await notes.AddAsync(
-            new NewNote(workspace.Id, map?.Id, stepSpec, cleanAbout, noteKind, text, author, codeHash, map?.Version),
+            new NewNote(workspace.Id, map?.Id, stepSpec, cleanAbout, noteKind, text, author, codeHash, map?.Version, cleanTitle),
             time.GetUtcNow(),
             ct).ConfigureAwait(false);
         await events.PublishAsync(new NoteChanged(workspace.Id, saved.Id, NoteChange.Saved)).ConfigureAwait(false);
         return new NoteSaved(saved, await SimilarAsync(workspace.Id, saved, ct).ConfigureAwait(false));
     }
 
-    public async Task<Note> EditAsync(Workspace workspace, NoteAuthor author, long id, string? body, string? kind, CancellationToken ct)
+    public async Task<Note> EditAsync(Workspace workspace, NoteAuthor author, long id, string? title, string? body, string? kind, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(workspace);
         ArgumentNullException.ThrowIfNull(author);
@@ -73,11 +74,15 @@ internal sealed class NoteService(
             throw new InvalidOperationException(NotYours(current, "edit"));
         }
 
+        // A note from before titles has none: its first edit must give one, so every revision is titled.
+        var cleanTitle = title is not null ? NoteRules.CleanTitle(title)
+            : current.Title.Length > 0 ? current.Title
+            : throw new ArgumentException($"note #{id} has no title yet: pass title (a few words, at most {NoteRules.MaxTitleChars} characters) with this edit.");
         var text = body is null ? current.Body : NoteRules.Clean(body);
         var noteKind = kind is null ? current.Kind : KindOf(kind);
-        await RefuseSecretsAsync(text, ct).ConfigureAwait(false);
+        await RefuseSecretsAsync(cleanTitle + "\n" + text, ct).ConfigureAwait(false);
         var (codeHash, flowVersion) = await BaselineAsync(workspace, current, ct).ConfigureAwait(false);
-        var result = await notes.ReviseAsync(workspace.Id, id, author, text, noteKind, codeHash, flowVersion, time.GetUtcNow(), ct).ConfigureAwait(false);
+        var result = await notes.ReviseAsync(workspace.Id, id, author, cleanTitle, text, noteKind, codeHash, flowVersion, time.GetUtcNow(), ct).ConfigureAwait(false);
         var saved = Outcome(result, current, "edit");
         await events.PublishAsync(new NoteChanged(workspace.Id, saved.Id, NoteChange.Saved)).ConfigureAwait(false);
         return saved;
@@ -258,7 +263,7 @@ internal sealed class NoteService(
     {
         try
         {
-            var found = await search.SearchAsync(workspaceId, saved.Body, SimilarSearched, ct).ConfigureAwait(false);
+            var found = await search.SearchAsync(workspaceId, saved.Title + " " + saved.Body, SimilarSearched, ct).ConfigureAwait(false);
             var ids = found.Hits
                 .SelectMany<MemoryHit, long>(hit => hit.Kind == MemoryHitKind.Note ? new[] { hit.Id } : hit.Notes)
                 .Where(id => id != saved.Id)

@@ -146,9 +146,10 @@ public sealed class WorkspaceBundleStore(IWriteQueue writes) : IWorkspaceBundleS
             }
 
             var kind = NoteKinds.FromStored(note.Kind);
+            var title = string.IsNullOrWhiteSpace(note.Title) ? NoteRules.DeriveTitle(note.Body) : note.Title;
             await connection.ExecuteAsync(new CommandDefinition(
-                "INSERT INTO notes (workspace_id, map_id, step_spec, about, detached_from, kind, body, content_hash, author_kind, author_id, pinned, created_utc, updated_utc) " +
-                "VALUES (@workspaceId, @mapId, @step, @about, @detachedFrom, @kind, @body, @hash, @authorKind, @authorId, 0, @created, @updated)",
+                "INSERT INTO notes (workspace_id, map_id, step_spec, about, detached_from, kind, title, body, content_hash, author_kind, author_id, pinned, created_utc, updated_utc) " +
+                "VALUES (@workspaceId, @mapId, @step, @about, @detachedFrom, @kind, @title, @body, @hash, @authorKind, @authorId, 0, @created, @updated)",
                 new
                 {
                     workspaceId,
@@ -157,6 +158,7 @@ public sealed class WorkspaceBundleStore(IWriteQueue writes) : IWorkspaceBundleS
                     about = mapId is null && detachedFrom is null ? note.About : null,
                     detachedFrom,
                     kind = NoteKinds.ToText(kind),
+                    title,
                     body = note.Body,
                     hash = NoteRules.Hash(note.Body),
                     authorKind = note.AuthorKind,
@@ -169,7 +171,7 @@ public sealed class WorkspaceBundleStore(IWriteQueue writes) : IWorkspaceBundleS
             var id = await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT last_insert_rowid()", transaction: tx, cancellationToken: ct));
             await connection.ExecuteAsync(new CommandDefinition(
                 "INSERT INTO note_fts (rowid, body, anchor) VALUES (@id, @body, @anchor)",
-                new { id, body = note.Body, anchor = NoteStore.AnchorText(note.Flow ?? detachedFrom, note.Step, mapId is null && detachedFrom is null ? note.About : null, kind) },
+                new { id, body = (title + " " + note.Body).TrimStart(), anchor = NoteStore.AnchorText(note.Flow ?? detachedFrom, note.Step, mapId is null && detachedFrom is null ? note.About : null, kind) },
                 tx,
                 cancellationToken: ct));
             added++;

@@ -32,7 +32,7 @@ public sealed class BundleNotesTests
     [Fact]
     public void ANoteThatIsHereAlreadyIsNotAddedTwice()
     {
-        var here = new Note(1, 1, null, null, null, "src/A.cs", null, NoteKind.Note, "same text", NoteRules.Hash("same text"),
+        var here = new Note(1, 1, null, null, null, "src/A.cs", null, NoteKind.Note, "Same", "same text", NoteRules.Hash("same text"),
             new NoteAuthor(NoteAuthorKind.Human, "admin-ui"), null, null, null, null, null, null, null, false, At, At);
         var incoming = new BundleWorkspace("app", null, true, [], [], null, [Note("same text") with { About = "src/A.cs" }, Note("new text")]);
 

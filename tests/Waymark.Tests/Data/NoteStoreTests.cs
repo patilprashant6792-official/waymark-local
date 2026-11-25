@@ -37,11 +37,12 @@ public sealed class NoteStoreTests
         var (store, workspaceId, mapId) = await SetUpAsync(db);
         var first = await store.AddAsync(new NewNote(workspaceId, mapId, null, null, NoteKind.Note, "alpha words", Claude, null, 1), Now, _ct);
 
-        var revised = await store.ReviseAsync(workspaceId, first.Id, Claude, "bravo words", NoteKind.Why, null, 1, Now.AddMinutes(1), _ct);
+        var revised = await store.ReviseAsync(workspaceId, first.Id, Claude, "Bravo", "bravo words", NoteKind.Why, null, 1, Now.AddMinutes(1), _ct);
 
         Assert.Equal(NoteWrite.Saved, revised.Outcome);
         Assert.Equal(first.Id, revised.Note!.ReplacesId);
         Assert.Equal(NoteKind.Why, revised.Note.Kind);
+        Assert.Equal("Bravo", revised.Note.Title);
         Assert.Equal(mapId, revised.Note.MapId);
         var old = (await store.GetAsync(workspaceId, [first.Id], _ct))[0];
         Assert.False(old.IsActive);
@@ -58,17 +59,17 @@ public sealed class NoteStoreTests
         var owners = await store.AddAsync(new NewNote(workspaceId, null, null, null, NoteKind.Convention, "owner rule", Owner, null, null), Now, _ct);
         var claudes = await store.AddAsync(new NewNote(workspaceId, null, null, null, NoteKind.Note, "claude note", Claude, null, null), Now, _ct);
 
-        Assert.Equal(NoteWrite.NotYours, (await store.ReviseAsync(workspaceId, owners.Id, Claude, "changed", NoteKind.Note, null, null, Now, _ct)).Outcome);
+        Assert.Equal(NoteWrite.NotYours, (await store.ReviseAsync(workspaceId, owners.Id, Claude, "T", "changed", NoteKind.Note, null, null, Now, _ct)).Outcome);
         Assert.Equal(NoteWrite.NotYours, (await store.RetireAsync(workspaceId, owners.Id, Claude, Now, _ct)).Outcome);
         Assert.Equal(NoteWrite.NotYours, (await store.ConfirmAsync(workspaceId, owners.Id, Claude, "v1:x", null, Now, _ct)).Outcome);
 
         // Another client is the same author, Agent: a re-paired client can correct an older note. The revision records the client that wrote it.
-        var revised = await store.ReviseAsync(workspaceId, claudes.Id, OtherClaude, "corrected", NoteKind.Note, null, null, Now.AddMinutes(1), _ct);
+        var revised = await store.ReviseAsync(workspaceId, claudes.Id, OtherClaude, "T", "corrected", NoteKind.Note, null, null, Now.AddMinutes(1), _ct);
         Assert.Equal(NoteWrite.Saved, revised.Outcome);
         Assert.Equal(OtherClaude, revised.Note!.Author);
 
         // The owner may edit an agent's note; the new revision is the owner's, and an agent can no longer change it.
-        var ownersEdit = await store.ReviseAsync(workspaceId, revised.Note.Id, Owner, "owner's words", NoteKind.Note, null, null, Now.AddMinutes(2), _ct);
+        var ownersEdit = await store.ReviseAsync(workspaceId, revised.Note.Id, Owner, "T", "owner's words", NoteKind.Note, null, null, Now.AddMinutes(2), _ct);
         Assert.Equal(NoteWrite.Saved, ownersEdit.Outcome);
         Assert.Equal(Owner, ownersEdit.Note!.Author);
         Assert.Equal(NoteWrite.NotYours, (await store.RetireAsync(workspaceId, ownersEdit.Note.Id, Claude, Now.AddMinutes(3), _ct)).Outcome);
@@ -89,7 +90,7 @@ public sealed class NoteStoreTests
         await store.RetireAsync(workspaceId, note.Id, Claude, Now, _ct);
 
         Assert.Equal(NoteWrite.NotActive, (await store.RetireAsync(workspaceId, note.Id, Claude, Now, _ct)).Outcome);
-        Assert.Equal(NoteWrite.NotActive, (await store.ReviseAsync(workspaceId, note.Id, Claude, "x", NoteKind.Note, null, null, Now, _ct)).Outcome);
+        Assert.Equal(NoteWrite.NotActive, (await store.ReviseAsync(workspaceId, note.Id, Claude, "T", "x", NoteKind.Note, null, null, Now, _ct)).Outcome);
         Assert.Equal(NoteWrite.NotFound, (await store.RetireAsync(workspaceId, 999, Owner, Now, _ct)).Outcome);
         Assert.Equal(NoteWrite.NotFound, (await store.RetireAsync(workspaceId + 1, note.Id, Owner, Now, _ct)).Outcome);
     }
@@ -113,8 +114,8 @@ public sealed class NoteStoreTests
         await using var db = await TestDatabase.CreateAsync(_ct);
         var (store, workspaceId, _) = await SetUpAsync(db);
         var v1 = await store.AddAsync(new NewNote(workspaceId, null, null, null, NoteKind.Note, "one", Claude, null, null), Now, _ct);
-        var v2 = (await store.ReviseAsync(workspaceId, v1.Id, Claude, "two", NoteKind.Note, null, null, Now.AddMinutes(1), _ct)).Note!;
-        var v3 = (await store.ReviseAsync(workspaceId, v2.Id, Claude, "three", NoteKind.Note, null, null, Now.AddMinutes(2), _ct)).Note!;
+        var v2 = (await store.ReviseAsync(workspaceId, v1.Id, Claude, "T", "two", NoteKind.Note, null, null, Now.AddMinutes(1), _ct)).Note!;
+        var v3 = (await store.ReviseAsync(workspaceId, v2.Id, Claude, "T", "three", NoteKind.Note, null, null, Now.AddMinutes(2), _ct)).Note!;
 
         var fromMiddle = await store.HistoryAsync(workspaceId, v2.Id, _ct);
 
@@ -130,7 +131,7 @@ public sealed class NoteStoreTests
         var note = await store.AddAsync(new NewNote(workspaceId, null, null, null, NoteKind.Convention, "pinned rule", Owner, null, null), Now, _ct);
         await store.SetPinnedAsync(workspaceId, note.Id, true, Now, _ct);
 
-        var revised = (await store.ReviseAsync(workspaceId, note.Id, Owner, "pinned rule v2", NoteKind.Convention, null, null, Now, _ct)).Note!;
+        var revised = (await store.ReviseAsync(workspaceId, note.Id, Owner, "T", "pinned rule v2", NoteKind.Convention, null, null, Now, _ct)).Note!;
 
         Assert.True(revised.Pinned);
         Assert.Equal(revised.Id, Assert.Single(await store.ListPinnedAsync(workspaceId, _ct)).Id);
@@ -164,7 +165,7 @@ public sealed class NoteStoreTests
         var (store, workspaceId, mapId) = await SetUpAsync(db);
         await store.AddAsync(new NewNote(workspaceId, mapId, null, null, NoteKind.Note, "flow note", Claude, null, 1), Now, _ct);
         var v1 = await store.AddAsync(new NewNote(workspaceId, null, null, null, NoteKind.Note, "ws note", Claude, null, null), Now, _ct);
-        await store.ReviseAsync(workspaceId, v1.Id, Claude, "ws note v2", NoteKind.Note, null, null, Now, _ct);
+        await store.ReviseAsync(workspaceId, v1.Id, Claude, "T", "ws note v2", NoteKind.Note, null, null, Now, _ct);
 
         await new WorkspaceStore(db.Connections, db.Writes).RemoveAsync(workspaceId, _ct);
 
@@ -183,6 +184,29 @@ public sealed class NoteStoreTests
         Assert.Equal(step.Id, Assert.Single(await store.SearchWordsAsync(workspaceId, "\"delivery\"*", 10, _ct)).NoteId);
         Assert.Equal(step.Id, Assert.Single(await store.SearchWordsAsync(workspaceId, "\"attach\"*", 10, _ct)).NoteId);
         Assert.Empty(await store.SearchWordsAsync(workspaceId + 1, "\"notice\"*", 10, _ct));
+    }
+
+    [Fact]
+    public async Task TheTitleIsStoredAndFoundByItsWords()
+    {
+        await using var db = await TestDatabase.CreateAsync(_ct);
+        var (store, workspaceId, _) = await SetUpAsync(db);
+
+        var note = await store.AddAsync(new NewNote(workspaceId, null, null, null, NoteKind.Gotcha, "the body says little", Claude, null, null, "Throttled webhook retries"), Now, _ct);
+
+        Assert.Equal("Throttled webhook retries", note.Title);
+        Assert.Equal(note.Id, Assert.Single(await store.SearchWordsAsync(workspaceId, "\"webhook\"*", 10, _ct)).NoteId);
+    }
+
+    [Fact]
+    public async Task ANoteWithoutATitleGetsOneFromItsBody()
+    {
+        await using var db = await TestDatabase.CreateAsync(_ct);
+        var (store, workspaceId, _) = await SetUpAsync(db);
+
+        var note = await store.AddAsync(new NewNote(workspaceId, null, null, null, NoteKind.Note, "Only one notice per call. The second is dropped.", Claude, null, null), Now, _ct);
+
+        Assert.Equal("Only one notice per call", note.Title);
     }
 
     [Fact]

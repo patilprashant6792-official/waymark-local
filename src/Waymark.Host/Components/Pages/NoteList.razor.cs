@@ -326,12 +326,12 @@ public partial class NoteList : LiveComponentBase
         {
             if (_editing is null)
             {
-                var saved = await Service.AddAsync(Workspace, null, null, value.About, value.Kind, value.Body, Cancel);
+                var saved = await Service.AddAsync(Workspace, null, null, value.About, value.Kind, value.Title, value.Body, Cancel);
                 Snackbar.Add(saved.Similar.Count > 0 ? $"Saved. {saved.Similar.Count} similar note(s) exist on the same anchor." : "Saved.", Severity.Success);
             }
             else
             {
-                await Service.EditAsync(Workspace, _editing.Id, value.Body, value.Kind, Cancel);
+                await Service.EditAsync(Workspace, _editing.Id, value.Title, value.Body, value.Kind, Cancel);
                 Snackbar.Add("Saved as a new revision.", Severity.Success);
             }
 
@@ -395,7 +395,7 @@ public partial class NoteList : LiveComponentBase
 
     private void SplitImport()
     {
-        _drafts = [.. InstructionSplitter.Split(_importText).Select(split => new DraftRow { Body = split.Body, Kind = split.Kind, Keep = true })];
+        _drafts = [.. InstructionSplitter.Split(_importText).Select(split => new DraftRow { Title = NoteRules.DeriveTitle(split.Body), Body = split.Body, Kind = split.Kind, Keep = true })];
         if (_drafts.Count == 0)
         {
             Snackbar.Add("No text to make notes from.", Severity.Info);
@@ -412,7 +412,7 @@ public partial class NoteList : LiveComponentBase
     private Task SaveImportAsync() => RunBusyAsync(
         async () =>
         {
-            var kept = _drafts.Where(draft => draft.Keep).Select(draft => new NoteDraft(draft.Body, draft.Kind, null)).ToList();
+            var kept = _drafts.Where(draft => draft.Keep).Select(draft => new NoteDraft(draft.Title, draft.Body, draft.Kind, null)).ToList();
             var result = await Service.ImportAsync(Workspace, kept, Cancel);
             Snackbar.Add($"Saved {result.Saved} note(s).", Severity.Success);
             if (result.Problems.Count > 0)
@@ -507,6 +507,8 @@ public partial class NoteList : LiveComponentBase
     /// <summary>One draft of an import, editable before it is saved.</summary>
     private sealed class DraftRow
     {
+        public string Title { get; set; } = string.Empty;
+
         public string Body { get; set; } = string.Empty;
 
         public NoteKind Kind { get; set; }

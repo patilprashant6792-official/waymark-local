@@ -138,6 +138,7 @@ public enum NoteScope
 /// A note of the owner or of a model, kept in waymark.db instead of a file in the repository. A revision is a new row that <see cref="ReplacesId"/> the old one,
 /// which is kept with <see cref="SupersededUtc"/>; a deleted note is retired (<see cref="RetiredUtc"/>), never removed.
 /// <paramref name="FlowName"/> is the name of the flow it is attached to now, null for a workspace note or a detached one.
+/// <paramref name="Title"/> is a few words that say what the note is about; lists that point at notes show it instead of the body.
 /// </summary>
 public sealed record Note(
     long Id,
@@ -148,6 +149,7 @@ public sealed record Note(
     string? About,
     string? DetachedFrom,
     NoteKind Kind,
+    string Title,
     string Body,
     string ContentHash,
     NoteAuthor Author,

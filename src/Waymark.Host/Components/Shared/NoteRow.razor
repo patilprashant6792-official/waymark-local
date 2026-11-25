@@ -2,7 +2,7 @@
 @using Waymark.Host.Notes
 @using Waymark.Host.Ui
 
-@* One note: who wrote it and when, when an agent last used it, its kind, whether it may be stale, its text, and the actions the owner may take on it. *@
+@* One note: who wrote it and when, when an agent last used it, its kind, whether it may be stale, its title and text, and the actions the owner may take on it. *@
 <div class="wm-note @(Note.IsActive ? string.Empty : "wm-muted")" role="group" aria-label="@($"Note {Note.Id}")">
     <div class="wm-row">
         <WmTag Text="@NoteKinds.ToText(Note.Kind)" />
@@ -37,6 +37,14 @@
             <span class="wm-muted wm-caption wm-mono">@Anchor</span>
         }
     </div>
+    @if (Note.Title.Length > 0)
+    {
+        <p class="wm-note-title"><strong>@Note.Title</strong></p>
+    }
+    else if (Note.IsActive)
+    {
+        <WmTag Tone="Tone.Warn" Text="untitled" Title="Written before notes had titles. Edit it to give it one: lists and search show only the title." />
+    }
     <p class="wm-note-body">@Note.Body</p>
     @if (Note.IsActive && !ReadOnly)
     {

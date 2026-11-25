@@ -35,8 +35,9 @@ public sealed record BundleMap(string Name, string Summary, DateTimeOffset? Upda
 public sealed record BundleInstructions(string Summary, string Text);
 
 /// <summary>
-/// One active note as it travels: its text, kind, anchor by name (flow name and step text, or what it is about), and its provenance (author and dates), so an import keeps who wrote it.
+/// One active note as it travels: its title and text, kind, anchor by name (flow name and step text, or what it is about), and its provenance (author and dates), so an import keeps who wrote it.
 /// No vectors, no code fingerprint, no pin: those belong to the computer that made them. A note of a flow that was deleted travels with <paramref name="DetachedFrom"/>.
+/// <paramref name="Title"/> is optional in the file: a bundle from before titles existed has none and the import derives one from the body.
 /// </summary>
 public sealed record BundleNote(
     string Body,
@@ -48,7 +49,8 @@ public sealed record BundleNote(
     string AuthorKind,
     string AuthorId,
     DateTimeOffset? CreatedUtc,
-    DateTimeOffset? UpdatedUtc);
+    DateTimeOffset? UpdatedUtc,
+    string? Title = null);
 
 /// <summary>
 /// A workspace as it travels. <paramref name="PathHint"/> is the folder it had on the computer that exported it: only a suggestion, because the folder is chosen again on the computer that imports.

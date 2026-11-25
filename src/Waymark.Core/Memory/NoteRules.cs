@@ -11,6 +11,7 @@ namespace Waymark.Core.Memory;
 public static class NoteRules
 {
     public const int MaxBodyChars = 1200;
+    public const int MaxTitleChars = 80;
     public const int MaxPinned = 12;
     public const int MaxPinnedChars = 2000;
     public const int MaxNotesPerStepShown = 3;
@@ -49,11 +50,55 @@ public static class NoteRules
     /// The body as stored: trimmed, every run of white space (line breaks included) made one space, so a note is always one line.
     /// </summary>
     /// <exception cref="ArgumentException">Empty, longer than <see cref="MaxBodyChars"/>, or holding control characters.</exception>
-    public static string Clean(string? body)
+    public static string Clean(string? body) => Flatten(body, "note") switch
+    {
+        { Length: 0 } => throw new ArgumentException("note is required: one idea in plain words (why, a gotcha, a convention, a decision or a how-to)."),
+        { Length: > MaxBodyChars } text => throw new ArgumentException($"note is {text.Length} characters; at most {MaxBodyChars}. Keep one idea per note."),
+        var text => text,
+    };
+
+    /// <summary>The title as stored: one line like the body, required, at most <see cref="MaxTitleChars"/> characters.</summary>
+    /// <exception cref="ArgumentException">Empty, too long, or holding control characters.</exception>
+    public static string CleanTitle(string? title) => Flatten(title, "title") switch
+    {
+        { Length: 0 } => throw new ArgumentException($"title is required: a few words (at most {MaxTitleChars} characters) that say what the note is about, e.g. 'Only one notice per call'."),
+        { Length: > MaxTitleChars } text => throw new ArgumentException($"title is {text.Length} characters; at most {MaxTitleChars}. Put the detail in note."),
+        var text => text,
+    };
+
+    /// <summary>
+    /// A title for text that comes without one (older bundles, the CLAUDE.md import drafts, an internal caller that passes none): the first sentence
+    /// when it ends within <see cref="MaxTitleChars"/>, else the body when it fits, else its start cut at a word with an ellipsis.
+    /// Migration 025 gave the notes stored before titles a title by the same rule (in SQL, without the word boundary).
+    /// Never throws on text: control characters are dropped, so it is safe on drafts that were not cleaned yet.
+    /// </summary>
+    public static string DeriveTitle(string body)
+    {
+        ArgumentNullException.ThrowIfNull(body);
+        var text = Flatten(body, field: null);
+        var sentence = text.IndexOf(". ", StringComparison.Ordinal);
+        if (sentence is >= 1 and <= MaxTitleChars)
+        {
+            return text[..sentence];
+        }
+
+        if (text.Length <= MaxTitleChars)
+        {
+            var trimmed = text.TrimEnd('.');
+            return trimmed.Length > 0 ? trimmed : text;
+        }
+
+        var cut = text[..(MaxTitleChars - 1)];
+        var space = cut.LastIndexOf(' ');
+        return (space >= MaxTitleChars / 2 ? cut[..space] : cut).TrimEnd() + "…";
+    }
+
+    // Trimmed, every run of white space made one space. Control characters are refused, naming the field, or dropped when field is null.
+    private static string Flatten(string? value, string? field)
     {
         var text = new StringBuilder();
         var space = false;
-        foreach (var c in (body ?? string.Empty).Trim())
+        foreach (var c in (value ?? string.Empty).Trim())
         {
             if (char.IsWhiteSpace(c))
             {
@@ -63,7 +108,12 @@ public static class NoteRules
 
             if (char.IsControl(c))
             {
-                throw new ArgumentException("note holds control characters; write plain text.");
+                if (field is null)
+                {
+                    continue;
+                }
+
+                throw new ArgumentException($"{field} holds control characters; write plain text.");
             }
 
             if (space)
@@ -75,12 +125,7 @@ public static class NoteRules
             text.Append(c);
         }
 
-        return text.Length switch
-        {
-            0 => throw new ArgumentException("note is required: one idea in plain words (why, a gotcha, a convention, a decision or a how-to)."),
-            > MaxBodyChars => throw new ArgumentException($"note is {text.Length} characters; at most {MaxBodyChars}. Keep one idea per note."),
-            _ => text.ToString(),
-        };
+        return text.ToString();
     }
 
     /// <summary>SHA-256 of the text as UTF-8, lower-case hex.</summary>

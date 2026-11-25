@@ -6,16 +6,15 @@ namespace Waymark.Modules.Code.Memory;
 
 /// <summary>
 /// The answer of memory_recall list with a query. With search by meaning on it is a short index: one row per flow (name, match score, id) and per note that
-/// stands alone (the note's line and its score), so the answer stays small and the agent picks a flow and reads it with memory_recall get. The match score
+/// stands alone (the note's title and its score), so the answer stays small and the agent picks a flow and reads it with memory_recall get. The match score
 /// is the similarity in meaning (0 to 1) and shows only on rows search by meaning found. With search by meaning off it is the words answer: ranked
 /// flows and notes, each flow with the steps that matched and the notes found under it, so the agent can often go straight to code_method.
-/// Notes are one line each and labelled with their author.
+/// Notes show as pointers (id, kind, author, title); the answer ends with the call that opens the ones shown in full.
 /// </summary>
 internal static class MemorySearchRenderer
 {
     private const int MaxStepsPerFlow = 3;
     private const int MaxNotesPerFlow = 3;
-    private const int NoteChars = 200;
 
     public static string Render(
         string workspace,
@@ -52,7 +51,7 @@ internal static class MemorySearchRenderer
     private static string Index(StringBuilder text, MemorySearchResult result, IReadOnlyDictionary<long, FeatureMap> maps, IReadOnlyDictionary<long, Note> notes)
     {
         var number = result.Skip;
-        var showedNotes = false;
+        var shownNotes = new List<long>();
         foreach (var hit in result.Hits)
         {
             if (hit.Kind == MemoryHitKind.Flow)
@@ -69,7 +68,7 @@ internal static class MemorySearchRenderer
             {
                 number++;
                 text.AppendLine(CultureInfo.InvariantCulture, $"{number}. {NoteRow(note)}{ScoreCell(hit.Similarity)}");
-                showedNotes = true;
+                shownNotes.Add(note.Id);
             }
         }
 
@@ -79,11 +78,7 @@ internal static class MemorySearchRenderer
         }
 
         text.AppendLine();
-        if (showedNotes)
-        {
-            text.AppendLine(NoteRules.HintLine);
-        }
-
+        AppendNotesFooter(text, shownNotes);
         text.Append("The number after a name is the match score: how close it is in meaning to your words, from 0 to 1. A row without one matched your words only. ")
             .Append("Pick a flow and read its path with memory_recall(action='get', ids='<id>'); the notes on its steps come with it.");
         return text.ToString();
@@ -93,7 +88,7 @@ internal static class MemorySearchRenderer
     private static string Detailed(StringBuilder text, MemorySearchResult result, IReadOnlyDictionary<long, FeatureMap> maps, IReadOnlyDictionary<long, Note> notes)
     {
         var number = result.Skip;
-        var showedNotes = false;
+        var shownNotes = new List<long>();
         foreach (var hit in result.Hits)
         {
             if (hit.Kind == MemoryHitKind.Flow)
@@ -121,8 +116,8 @@ internal static class MemorySearchRenderer
                 {
                     if (notes.TryGetValue(id, out var note))
                     {
-                        text.Append("   ").AppendLine(NoteLines.Line(note, null, withDate: false, bodyChars: NoteChars));
-                        showedNotes = true;
+                        text.Append("   ").AppendLine(NoteLines.Pointer(note));
+                        shownNotes.Add(note.Id);
                     }
                 }
             }
@@ -130,7 +125,7 @@ internal static class MemorySearchRenderer
             {
                 number++;
                 text.AppendLine(CultureInfo.InvariantCulture, $"{number}. {NoteRow(note)}  [{Match(hit.MatchedBy)}]");
-                showedNotes = true;
+                shownNotes.Add(note.Id);
             }
         }
 
@@ -140,11 +135,7 @@ internal static class MemorySearchRenderer
         }
 
         text.AppendLine();
-        if (showedNotes)
-        {
-            text.AppendLine(NoteRules.HintLine);
-        }
-
+        AppendNotesFooter(text, shownNotes);
         text.Append("Read a flow with memory_recall(action='get', ids='<id>'); open a step with code_method. memory_recall(action='list') without a query lists every flow.");
         return text.ToString();
     }
@@ -155,10 +146,22 @@ internal static class MemorySearchRenderer
         return text.ToString().TrimEnd();
     }
 
-    // 'note #57 convention [agent] about src/A.cs: body'
+    // Notes were shown by title only: one line with the call that opens them in full, and the hint line.
+    private static void AppendNotesFooter(StringBuilder text, List<long> shownNotes)
+    {
+        if (shownNotes.Count == 0)
+        {
+            return;
+        }
+
+        text.AppendLine(CultureInfo.InvariantCulture, $"Notes show their title only; open the ones that matter: {NoteLines.OpenCall(shownNotes.Distinct())}.");
+        text.AppendLine(NoteRules.HintLine);
+    }
+
+    // 'note #57 convention [agent] about src/A.cs: Every call passes here'
     private static string NoteRow(Note note)
     {
-        var line = NoteLines.Line(note, null, withDate: false, bodyChars: NoteChars);
+        var line = NoteLines.Pointer(note);
         var colon = line.IndexOf(']', StringComparison.Ordinal);
         var anchor = NoteLines.Anchor(note);
         return $"{line[..(colon + 1)]} {anchor}{line[(colon + 1)..]}";
