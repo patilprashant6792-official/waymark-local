@@ -29,7 +29,7 @@ public sealed record FolderChanged(long WorkspaceId, string RelativePath, FileCh
 /// <summary>The access rules of a workspace were added, changed or removed in the admin UI.</summary>
 public sealed record AccessRulesChanged(long WorkspaceId);
 
-/// <summary>A feature map of a workspace was saved, changed or deleted, by Claude through memorise or by the owner in the admin UI.</summary>
+/// <summary>A feature map of a workspace was saved, changed or deleted, by Claude through memory_save or by the owner in the admin UI.</summary>
 public sealed record FeatureMapsChanged(long WorkspaceId);
 
 /// <summary>The owner's summary or instructions of a workspace were saved or cleared, on its Instructions page or by an import.</summary>
@@ -61,8 +61,11 @@ public enum NoteChange
     Imported,
 }
 
-/// <summary>A note of a workspace changed, by Claude through memorise, by the owner in the admin UI or by an import.</summary>
+/// <summary>A note of a workspace changed, by Claude through memory_save, by the owner in the admin UI or by an import.</summary>
 public sealed record NoteChanged(long WorkspaceId, long NoteId, NoteChange Change);
+
+/// <summary>Models' uses of flows and notes were written (their last-used times changed) for these workspaces. At most one per flush, every few seconds.</summary>
+public sealed record MemoryUsageRecorded(IReadOnlyCollection<long> WorkspaceIds);
 
 /// <summary>The search-by-meaning settings changed: the switch, the provider or model, a key, or a workspace's exclusion.</summary>
 public sealed record MemorySettingsChanged;

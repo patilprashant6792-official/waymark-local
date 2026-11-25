@@ -1,3 +1,4 @@
+using Waymark.Core.Auth;
 using Waymark.Core.Guides;
 using Waymark.Core.Memory;
 using Waymark.Core.Security;
@@ -10,7 +11,7 @@ public sealed record SanitizedBundle(WorkspaceBundle Bundle, IReadOnlyList<strin
 
 /// <summary>
 /// Treats a bundle as untrusted input: the file may be edited by hand, damaged, or made by something else. Every workspace name, rule and feature map goes through
-/// the same rules the admin UI and memorise apply, and whatever fails is left out with a note. Pure: no file system access, nothing is repaired or guessed.
+/// the same rules the admin UI and memory_save apply, and whatever fails is left out with a note. Pure: no file system access, nothing is repaired or guessed.
 /// </summary>
 public static class WorkspaceBundleSanitizer
 {
@@ -181,7 +182,7 @@ public static class WorkspaceBundleSanitizer
         return new BundleInstructions(summary, text);
     }
 
-    // A note goes through the rules memorise and the Notes page apply: one line within the cap, a known kind and author kind, an anchor that parses, no secret.
+    // A note goes through the rules memory_save and the Notes page apply: one line within the cap, a known kind and author kind, an anchor that parses, no secret.
     // One that fails is left out on its own; the others still come.
     private static List<BundleNote>? CleanNotes(string workspace, IReadOnlyList<BundleNote>? incoming, NoteList notes)
     {
@@ -240,7 +241,10 @@ public static class WorkspaceBundleSanitizer
             return null;
         }
 
-        var author = NoteAuthor.Of(authorKind, note.AuthorId);
+        // The owner of another computer is the owner here, so imported owner notes stay editable; any model note becomes an agent note, its client kept as provenance.
+        var author = authorKind == NoteAuthorKind.Human
+            ? NoteAuthor.Of(NoteAuthorKind.Human, AuthDefaults.AdminActor)
+            : NoteAuthor.Of(NoteAuthorKind.Agent, note.AuthorId);
         string? flow = null;
         if (!string.IsNullOrWhiteSpace(note.Flow))
         {
@@ -346,16 +350,16 @@ public static class WorkspaceBundleSanitizer
             }
         }
 
-        if (components.Count == 0 || components.Count > FeatureMapRules.MaxComponentsPerMap)
+        if (components.Count == 0 || components.Count > FeatureMapRules.MaxStepsPerFlow)
         {
-            notes.Add($"{workspace}: the feature map '{name}' was left out (a map holds 1 to {FeatureMapRules.MaxComponentsPerMap} components, this one has {components.Count}).");
+            notes.Add($"{workspace}: the feature map '{name}' was left out (a map holds 1 to {FeatureMapRules.MaxStepsPerFlow} components, this one has {components.Count}).");
             return null;
         }
 
         return new BundleMap(name, summary, map.UpdatedUtc, components, false);
     }
 
-    /// <summary>A flow: the steps are checked with the same grammar memorise uses (one trigger, one level deeper at most per step, links known), so an import cannot bring in a flow that Claude could not save.</summary>
+    /// <summary>A flow: the steps are checked with the same grammar memory_save uses (one trigger, one level deeper at most per step, links known), so an import cannot bring in a flow that Claude could not save.</summary>
     private static BundleMap? CleanFlow(string workspace, string name, string summary, BundleMap map, NoteList notes)
     {
         var lines = new List<string>();

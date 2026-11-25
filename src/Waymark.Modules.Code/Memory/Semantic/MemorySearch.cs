@@ -11,7 +11,7 @@ namespace Waymark.Modules.Code.Memory.Semantic;
 /// </summary>
 internal sealed class MemorySearch(
     INoteStore notes,
-    IFeatureMapStore maps,
+    FlowWordCache flowCache,
     IMemorySettings settings,
     QueryEmbedder queries,
     MemoryVectorCache cache,
@@ -25,9 +25,12 @@ internal sealed class MemorySearch(
     private const double PinnedBoost = 1.2;
     private const double ExactBoost = 1.5;
 
-    public async Task<MemorySearchResult> SearchAsync(long workspaceId, string query, int take, CancellationToken ct)
+    public Task<MemorySearchResult> SearchAsync(long workspaceId, string query, int take, CancellationToken ct) => SearchAsync(workspaceId, query, 0, take, ct);
+
+    public async Task<MemorySearchResult> SearchAsync(long workspaceId, string query, int skip, int take, CancellationToken ct)
     {
         var wanted = Math.Clamp(take, 1, MaxTake);
+        var offset = Math.Max(0, skip);
         var text = (query ?? string.Empty).Trim();
         if (text.Length == 0)
         {
@@ -36,7 +39,7 @@ internal sealed class MemorySearch(
 
         var words = NoteFtsQuery.Words(text);
         var noteWords = await NoteWordsAsync(workspaceId, words, ct).ConfigureAwait(false);
-        var flows = await MemoryItems.ListFlowsAsync(maps, workspaceId, ct).ConfigureAwait(false);
+        var flows = await flowCache.GetAsync(workspaceId, ct).ConfigureAwait(false);
         var flowWords = FlowWordScorer.Rank(flows, words, LegTake);
         var meaning = await MeaningAsync(workspaceId, text, ct).ConfigureAwait(false);
 
@@ -70,7 +73,8 @@ internal sealed class MemorySearch(
             }
         }
 
-        return new MemorySearchResult(Group(fused, found, stepsByFlow).Take(wanted).ToList(), meaning.Used, meaning.Notice);
+        var grouped = Group(fused, found, stepsByFlow);
+        return new MemorySearchResult(grouped.Skip(offset).Take(wanted).ToList(), meaning.Used, meaning.Notice, grouped.Count, offset);
     }
 
     private static List<MemoryHit> Group(Dictionary<(MemoryHitKind Kind, long Id), Fused> fused, Dictionary<long, Note> found, Dictionary<long, IReadOnlyList<string>> stepsByFlow)

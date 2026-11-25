@@ -29,6 +29,7 @@ public static class MemoryServiceCollectionExtensions
         services.TryAddSingleton<IPinnedNotes, PinnedNotes>();
         services.TryAddSingleton<NoteAdminService>();
         services.TryAddSingleton<MemoryAdminService>();
+        services.TryAddSingleton<MemoryHealthCache>();
         return services;
     }
 

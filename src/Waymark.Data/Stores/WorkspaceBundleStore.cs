@@ -87,7 +87,7 @@ public sealed class WorkspaceBundleStore(IWriteQueue writes) : IWorkspaceBundleS
                 cancellationToken: ct));
             var mapId = await connection.ExecuteScalarAsync<long>(new CommandDefinition("SELECT last_insert_rowid()", transaction: tx, cancellationToken: ct));
             var ordinal = 0;
-            foreach (var step in map.Steps.Take(FeatureMapRules.MaxComponentsPerMap))
+            foreach (var step in map.Steps.Take(FeatureMapRules.MaxStepsPerFlow))
             {
                 var inserted = await connection.ExecuteAsync(new CommandDefinition(
                     "INSERT OR IGNORE INTO feature_components (map_id, ordinal, spec, note, depth, link_kind, path) VALUES (@mapId, @ordinal, @spec, @note, @depth, @link, @path)",

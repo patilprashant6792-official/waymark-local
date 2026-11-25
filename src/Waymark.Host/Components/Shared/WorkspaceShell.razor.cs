@@ -1,6 +1,7 @@
 using Microsoft.AspNetCore.Components;
 using Waymark.Core.Code;
 using Waymark.Core.Events;
+using Waymark.Core.Memory;
 using Waymark.Core.Workspaces;
 using Waymark.Host.Ui;
 
@@ -8,13 +9,15 @@ namespace Waymark.Host.Components.Shared;
 
 /// <summary>
 /// The frame of every workspace page: the way back, the name, status and quick actions of the workspace, and the menu of
-/// its sections. The content of the section goes inside.
+/// its sections with the flow and note counts. The content of the section goes inside and receives the counts as a cascading value.
+/// The counts reload when a flow or note of this workspace changes, or agents used its memory.
 /// </summary>
 public partial class WorkspaceShell : LiveComponentBase
 {
     private Workspace? _workspace;
     private GitHubRepo? _repo;
     private CodeIndexProgress? _progress;
+    private MemoryCounts? _counts;
     private string? _pathRoot;
     private string? _error;
     private long _shownId;
@@ -34,12 +37,18 @@ public partial class WorkspaceShell : LiveComponentBase
     private NavigationManager Navigation { get; set; } = default!;
 
     [Inject]
+    private IMemoryStatsStore MemoryStats { get; set; } = default!;
+
+    [Inject]
     private ILogger<WorkspaceShell> Logger { get; set; } = default!;
 
     protected override void OnInitialized()
     {
         RefreshOn<WorkspaceChanged>(LoadAsync);
         RefreshOn<CodeIndexProgress>(OnProgressAsync);
+        RefreshOn<FeatureMapsChanged>(changed => changed.WorkspaceId == WorkspaceId ? LoadCountsAsync() : Task.CompletedTask);
+        RefreshOn<NoteChanged>(changed => changed.WorkspaceId == WorkspaceId ? LoadCountsAsync() : Task.CompletedTask);
+        RefreshOn<MemoryUsageRecorded>(recorded => recorded.WorkspaceIds.Contains(WorkspaceId) ? LoadCountsAsync() : Task.CompletedTask);
     }
 
     protected override async Task OnParametersSetAsync()
@@ -50,10 +59,29 @@ public partial class WorkspaceShell : LiveComponentBase
             _workspace = null;
             _repo = null;
             _progress = null;
+            _counts = null;
             _loaded = false;
         }
 
         await LoadAsync();
+        await LoadCountsAsync();
+    }
+
+    private async Task LoadCountsAsync()
+    {
+        try
+        {
+            _counts = await MemoryStats.GetAsync(WorkspaceId, Cancel);
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (Exception ex)
+        {
+            // The tabs then show their titles without counts; the section itself still works.
+            Logger.LogWarning(ex, "The memory counts of workspace {WorkspaceId} could not be loaded", WorkspaceId);
+        }
     }
 
     private Task OnProgressAsync(CodeIndexProgress progress)

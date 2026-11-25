@@ -6,9 +6,13 @@ namespace Waymark.Modules.Code.Memory.Semantic;
 /// <summary>
 /// The text a semantic index reads for a flow. Pure, so what is embedded is the same whichever index is plugged in and a test can pin it down.
 /// Names come first because they say the most per word: the flow's name with its dashes as spaces, then its summary, then what each step is called.
+/// The text is capped at <see cref="MaxChars"/> (about 1,500 tokens) so a long flow still fits every provider's input limit; a flow under the cap gets
+/// exactly the text it always had, so its stored vector stays valid.
 /// </summary>
 internal static class FlowSemanticText
 {
+    internal const int MaxChars = 6000;
+
     public static FlowDocument Compose(long workspaceId, FeatureMap map)
     {
         ArgumentNullException.ThrowIfNull(map);
@@ -26,13 +30,13 @@ internal static class FlowSemanticText
 
         foreach (var step in map.Steps)
         {
-            text.Append(Label(step.Spec));
-            if (step.Note.Length > 0)
+            var line = step.Note.Length > 0 ? $"{Label(step.Spec)}: {step.Note}" : Label(step.Spec);
+            if (text.Length + line.Length + Environment.NewLine.Length > MaxChars)
             {
-                text.Append(": ").Append(step.Note);
+                break;
             }
 
-            text.AppendLine();
+            text.AppendLine(line);
         }
 
         return new FlowDocument(workspaceId, map.Id, map.Version, map.Name, text.ToString().TrimEnd());

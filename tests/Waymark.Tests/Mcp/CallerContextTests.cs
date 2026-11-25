@@ -42,7 +42,7 @@ public sealed class CallerContextTests
 
         var author = callers.AsModelAuthor();
 
-        Assert.Equal(NoteAuthorKind.ClaudeClient, author.Kind);
+        Assert.Equal(NoteAuthorKind.Agent, author.Kind);
         Assert.Equal("client-7", author.Id);
     }
 

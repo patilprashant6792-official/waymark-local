@@ -21,7 +21,7 @@ public sealed class MemoryToolsTests
 
         var (action, author) = Assert.Single(memory.Calls);
         Assert.Equal("add", action);
-        Assert.Equal(new NoteAuthor(NoteAuthorKind.ClaudeClient, "client-7"), author);
+        Assert.Equal(new NoteAuthor(NoteAuthorKind.Agent, "client-7"), author);
     }
 
     [Theory]
@@ -63,7 +63,7 @@ public sealed class MemoryToolsTests
     {
         public string Client => client;
 
-        public NoteAuthor AsModelAuthor() => new(NoteAuthorKind.ClaudeClient, client);
+        public NoteAuthor AsModelAuthor() => new(NoteAuthorKind.Agent, client);
     }
 
     private sealed class RecordingMemory : IFeatureMemoryService
@@ -72,13 +72,13 @@ public sealed class MemoryToolsTests
 
         public Task<string> ListAsync(string? workspace, string? query, int? page, int? pageSize, CancellationToken ct) => Record("list", null);
 
-        public Task<string> GetAsync(string? workspace, string? ids, CancellationToken ct) => Record("get", null);
+        public Task<string> GetAsync(string? workspace, string? ids, int? from, CancellationToken ct) => Record("get", null);
 
         public Task<string> SaveAsync(string? workspace, string? name, string? summary, string? steps, int? expectedVersion, string? newName, string? distinct, CancellationToken ct) => Record("save", null);
 
         public Task<string> DeleteAsync(string? workspace, string? name, CancellationToken ct) => Record("delete", null);
 
-        public Task<string> NotesAsync(string? workspace, string? ids, long? history, CancellationToken ct) => Record("notes", null);
+        public Task<string> NotesAsync(string? workspace, string? ids, string? about, long? history, int? page, int? pageSize, CancellationToken ct) => Record("notes", null);
 
         public Task<string> AddNoteAsync(string? workspace, NoteAuthor author, string? flow, string? step, string? about, string? kind, string? note, CancellationToken ct) => Record("add", author);
 

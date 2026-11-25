@@ -123,13 +123,14 @@ public sealed class FlowStepTextTests
     }
 
     [Fact]
-    public void StepCountLimitIsThirty()
+    public void LongFlowsAreAcceptedUpToTheSafetyBound()
     {
         static string Fan(int children) =>
             "root.cs\n" + string.Join("\n", Enumerable.Range(0, children).Select(i => $"  c{i}.cs"));
 
-        Assert.Equal(30, Parse(Fan(29)).Count);
-        Assert.Contains("holds at most 30 steps and this one has 31", Assert.Single(Errors(Fan(30))));
+        Assert.Equal(300, Parse(Fan(299)).Count);
+        Assert.Equal(500, Parse(Fan(499)).Count);
+        Assert.Contains("holds at most 500 steps and this one has 501", Assert.Single(Errors(Fan(500))));
     }
 
     [Fact]

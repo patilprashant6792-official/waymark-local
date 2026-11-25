@@ -1,12 +1,17 @@
 @using Waymark.Core.Memory
 @using Waymark.Host.Notes
+@using Waymark.Host.Ui
 
-@* One note: who wrote it and when, its kind, whether it may be stale, its text, and the actions the owner may take on it. *@
+@* One note: who wrote it and when, when an agent last used it, its kind, whether it may be stale, its text, and the actions the owner may take on it. *@
 <div class="wm-note @(Note.IsActive ? string.Empty : "wm-muted")" role="group" aria-label="@($"Note {Note.Id}")">
     <div class="wm-row">
         <WmTag Text="@NoteKinds.ToText(Note.Kind)" />
-        <WmTag Tone="@(Note.Author.IsHuman ? Tone.Neutral : Tone.Info)" Text="@AuthorText" Title="Who wrote it" />
+        <WmTag Tone="@(Note.Author.IsHuman ? Tone.Neutral : Tone.Info)" Text="@AuthorText" Title="@AuthorTitle" />
         <span class="wm-muted wm-caption">#@Note.Id · @Note.UpdatedUtc.ToString("yyyy-MM-dd")</span>
+        @if (ShowLastUsed)
+        {
+            <span class="wm-muted wm-caption" title="@LastUsedTitle">· @(LastUsed is null ? "never used" : $"used {DisplayFormat.Ago(LastUsed, DateTimeOffset.UtcNow)}")</span>
+        }
         @if (Note.Pinned)
         {
             <WmTag Tone="Tone.Ok" Text="pinned" Title="In the workspace guide every agent reads" />
@@ -64,6 +69,12 @@
     [Parameter]
     public bool ReadOnly { get; set; }
 
+    /// <summary>When an agent last opened this note (memory_recall); null for never. Shown when <see cref="ShowLastUsed"/> is true.</summary>
+    [Parameter]
+    public DateTimeOffset? LastUsed { get; set; }
+
+    [Parameter]
+    public bool ShowLastUsed { get; set; } = true;
     /// <summary>Show where the note is anchored (on the Notes page; not under a step, where that is plain).</summary>
     [Parameter]
     public bool ShowAnchor { get; set; }
@@ -83,10 +94,16 @@
     [Parameter]
     public EventCallback<Note> OnHistory { get; set; }
 
-    // The owner edits only their own notes; anyone else's is retired or kept.
+    // The owner may edit any active note; editing an agent's note makes the new revision the owner's.
     private bool CanEdit => NoteRules.CanRevise(NoteAdminService.Owner, Note);
 
-    private string AuthorText => Note.Author.IsHuman && Note.Author.Id == AuthDefaults.AdminActor ? "you" : Note.Author.Label;
+    private string AuthorText => Note.Author.IsHuman ? "you" : "Agent";
+
+    private string AuthorTitle => Note.Author.IsHuman ? "You wrote this" : $"Written by an agent, through client {Note.Author.Id}";
+
+    private string LastUsedTitle => LastUsed is { } used
+        ? $"An agent last opened this note on {DisplayFormat.DateAndClock(used)}"
+        : "No agent has opened this note yet (memory_recall get, or memory_recall notes for its flow or file)";
 
     private string Anchor =>
         Note.StepSpec is not null ? $"{Note.FlowName ?? Note.DetachedFrom} › {NoteEmbedText.Label(Note.StepSpec)}"

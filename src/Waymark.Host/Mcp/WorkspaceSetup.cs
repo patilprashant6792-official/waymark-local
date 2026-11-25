@@ -12,7 +12,7 @@ namespace Waymark.Host.Mcp;
 /// Tells an agent what is live in one workspace: the index of the flows saved for it, the owner's pinned notes, how many other notes there are, and the
 /// command gates the owner set for it alone. Names and switches only, like the overview's live setup: no paths, no secrets.
 /// Nothing is loaded whole: with search by meaning off the guide carries the name and id of the newest <see cref="FlowIndex.PageSize"/> flows; with it on it
-/// lists none, so it stays the same size however many flows are saved, and recall finds them by meaning.
+/// lists none, so it stays the same size however many flows are saved, and memory_recall finds them by meaning.
 /// </summary>
 public sealed class WorkspaceSetup(
     IFeatureMapStore featureMaps,
@@ -22,7 +22,7 @@ public sealed class WorkspaceSetup(
     IMemorySettings memory,
     TimeProvider time) : IWorkspaceSetup
 {
-    /// <summary>The flows the guide lists with search by meaning off: the first page of recall list, so page 2 continues where the guide stops.</summary>
+    /// <summary>The flows the guide lists with search by meaning off: the first page of memory_recall list, so page 2 continues where the guide stops.</summary>
     internal const int MaxMapNamesPerWorkspace = FlowIndex.PageSize;
 
     private const int MaxPinnedLineChars = 240;
@@ -104,20 +104,20 @@ public sealed class WorkspaceSetup(
         var index = await featureMaps.ListNamesAsync(workspaceId, 1, ct);
         if (index.Total == 0)
         {
-            text.AppendLine("- Flows: none saved yet (search by meaning is on). When you trace a feature from its trigger to its outcome, save it with memorise(action='save_feature_map').");
+            text.AppendLine("- Flows: none saved yet (search by meaning is on). When you trace a feature from its trigger to its outcome, save it with memory_save(action='save_feature_map').");
             return;
         }
 
         text.AppendLine(string.Create(
             CultureInfo.InvariantCulture,
-            $"- Flows: {index.Total} saved, not listed here because search by meaning is on. Describe what you are working on to recall(action='list', query='...'): it answers with the closest flows as name, match score and id. Pick one and read its path with recall(action='get', ids='<id>')."));
+            $"- Flows: {index.Total} saved, not listed here because search by meaning is on. Describe what you are working on to memory_recall(action='list', query='...'): it answers with the closest flows as name, match score and id. Pick one and read its path with memory_recall(action='get', ids='<id>')."));
     }
 
-    // Search by meaning off: an index of the newest flows, name and id only. The rest are paged with recall list, in the same order and page size.
+    // Search by meaning off: an index of the newest flows, name and id only. The rest are paged with memory_recall list, in the same order and page size.
     private async Task DescribeFlowIndexAsync(StringBuilder text, long workspaceId, CancellationToken ct)
     {
         var index = await featureMaps.ListNamesAsync(workspaceId, MaxMapNamesPerWorkspace, ct);
-        text.AppendLine("- Flows saved, newest first (name and id; recall(action='get', ids='<id>') gives a flow's path without code; recall(action='list', query='...') searches flows and notes):");
+        text.AppendLine("- Flows saved, newest first (name and id; memory_recall(action='get', ids='<id>') gives a flow's path without code; memory_recall(action='list', query='...') searches flows and notes):");
         if (index.Total == 0)
         {
             text.AppendLine("  - none yet");
@@ -134,7 +134,7 @@ public sealed class WorkspaceSetup(
         {
             text.AppendLine(string.Create(
                 CultureInfo.InvariantCulture,
-                $"  - and {more} more: recall(action='list', page=2) continues this list, {FlowIndex.PageSize} per page; page through only when you need to."));
+                $"  - and {more} more: memory_recall(action='list', page=2) continues this list, {FlowIndex.PageSize} per page; page through only when you need to."));
         }
     }
 
@@ -156,7 +156,7 @@ public sealed class WorkspaceSetup(
         {
             text.AppendLine(string.Create(
                 CultureInfo.InvariantCulture,
-                $"- Notes: {more} {(pins.Count > 0 ? "more" : (more == 1 ? "note" : "notes"))}; recall(action='list', query=...) searches them, and recall get shows those on a flow's steps."));
+                $"- Notes: {more} {(pins.Count > 0 ? "more" : (more == 1 ? "note" : "notes"))}; memory_recall(action='list', query=...) searches them, and memory_recall get shows those on a flow's steps."));
         }
     }
 
@@ -172,7 +172,7 @@ public sealed class WorkspaceSetup(
         return string.Create(CultureInfo.InvariantCulture, $"#{note.Id} {NoteKinds.ToText(note.Kind)} ({anchor}): {NoteRules.OneLine(note.Body, MaxPinnedLineChars)}");
     }
 
-    // One index line on one flow: its name and id. recall get describes it.
+    // One index line on one flow: its name and id. memory_recall get describes it.
     internal static string FlowLine(FeatureMapName map)
     {
         ArgumentNullException.ThrowIfNull(map);

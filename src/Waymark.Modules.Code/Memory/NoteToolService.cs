@@ -4,18 +4,18 @@ using Waymark.Core.Security;
 
 namespace Waymark.Modules.Code.Memory;
 
-/// <summary>memorise's note actions: add, edit, retire and confirm through <see cref="INoteService"/>, with a reply that says what was saved and what to do next.</summary>
-internal sealed class NoteToolService(IPathGuard guard, INoteService notes)
+/// <summary>memory_save's note actions: add, edit, retire and confirm through <see cref="INoteService"/>, with a reply that says what was saved and what to do next.</summary>
+internal sealed class NoteToolService(IPathGuard guard, INoteService notes, IMemoryUsage usage)
 {
     public async Task<string> AddAsync(string? workspace, NoteAuthor author, string? flow, string? step, string? about, string? kind, string? note, CancellationToken ct)
     {
         var found = await guard.GetWorkspaceAsync(workspace, ct).ConfigureAwait(false);
         var saved = await notes.AddAsync(found, author, flow, step, about, kind, note, ct).ConfigureAwait(false);
         var reply = new StringBuilder();
-        reply.Append($"Saved note #{saved.Note.Id} ({NoteKinds.ToText(saved.Note.Kind)}) on {NoteLines.Anchor(saved.Note)} in workspace '{found.Name}', written by {NoteLines.AuthorLabel(author)}.");
+        reply.Append($"Saved note #{saved.Note.Id} ({NoteKinds.ToText(saved.Note.Kind)}) on {NoteLines.Anchor(saved.Note)} in workspace '{found.Name}', written by {(author.IsHuman ? "the owner" : "an agent")}.");
         if (saved.Note.CodeHash is not null)
         {
-            reply.Append(" It shows as may be stale when that code changes; after checking, memorise(action='confirm_note') re-baselines it.");
+            reply.Append(" It shows as may be stale when that code changes; after checking, memory_save(action='confirm_note') re-baselines it.");
         }
 
         if (saved.Similar.Count > 0)
@@ -42,7 +42,8 @@ internal sealed class NoteToolService(IPathGuard guard, INoteService notes)
         }
 
         var saved = await notes.EditAsync(found, author, id, note, kind, ct).ConfigureAwait(false);
-        return $"Saved note #{saved.Id}, the new revision of #{id} (kept as history: recall(action='notes', history={saved.Id})).";
+        TouchIfAgent(found.Id, author, saved.Id);
+        return $"Saved note #{saved.Id}, the new revision of #{id} (kept as history: memory_recall(action='notes', history={saved.Id})).";
     }
 
     public async Task<string> RetireAsync(string? workspace, NoteAuthor author, long? noteId, CancellationToken ct)
@@ -58,9 +59,19 @@ internal sealed class NoteToolService(IPathGuard guard, INoteService notes)
         var found = await guard.GetWorkspaceAsync(workspace, ct).ConfigureAwait(false);
         var id = Require(noteId, "confirm_note");
         await notes.ConfirmAsync(found, author, id, ct).ConfigureAwait(false);
+        TouchIfAgent(found.Id, author, id);
         return $"Confirmed note #{id} against the code as it is now; it is no longer marked may be stale.";
     }
 
     private static long Require(long? noteId, string action) =>
-        noteId is > 0 ? noteId.Value : throw new ArgumentException($"{action} needs noteId: the number after 'note #' in recall.");
+        noteId is > 0 ? noteId.Value : throw new ArgumentException($"{action} needs noteId: the number after 'note #' in memory_recall.");
+
+    // An agent that edits or confirms a note read it and acted on it: that is a use.
+    private void TouchIfAgent(long workspaceId, NoteAuthor author, long noteId)
+    {
+        if (author.IsAgent)
+        {
+            usage.Touch(workspaceId, MemoryItemKind.Note, [noteId]);
+        }
+    }
 }

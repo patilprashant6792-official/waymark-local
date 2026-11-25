@@ -2,9 +2,10 @@
 @using MudBlazor
 @using Waymark.Core.Memory
 @using Waymark.Core.Transfer
+@using Waymark.Host.FeatureMaps
 @using Waymark.Host.Ui
 
-<SectionHeader Title="Flows" Lead="When Claude traces a feature of this workspace it saves the path as a flow: the methods from the trigger to the outcome, in call order, under the feature's name, so the next session reads the path in one call and opens only the methods it needs. A flow holds names only, never code, and it follows you across branches: a step that is not in the code that is checked out is marked and kept, not deleted. Claude creates and changes the flows; here you read them, check them against the code, and remove what is wrong.">
+<SectionHeader Title="Flows" Lead="When an agent traces a feature of this workspace it saves the path as a flow: the methods from the trigger to the outcome, in call order, under the feature's name, so the next session reads the path in one call and opens only the methods it needs. A flow holds names only, never code, and it follows you across branches: a step that is not in the code that is checked out is marked and kept, not deleted. Agents create and change the flows; here you read them, see when an agent last used each one, check them against the code, and remove what is wrong.">
     <Actions>
         <BundleToolbar WorkspaceId="Workspace.Id" Content="BundleContent.FeatureMaps" ExportLabel="Export flows" Hint="Keep your flows when you move to another computer." />
     </Actions>
@@ -25,6 +26,7 @@ else
         <h2 id="fm-find" class="wm-card-title">Find</h2>
         <div class="wm-row">
             <WmTextField Label="Search" @bind-Value="_query" Immediate="true" Width="FieldWidth.Large" HelperText="Words in a name, summary, path, method or note" MaxLength="200" OnKeyUp="OnSearchKey" />
+            <WmSelect TValue="MemoryOrder" Label="Order" Options="OrderOptions" Value="_order" ValueChanged="ChangeOrderAsync" Width="FieldWidth.Small" />
             <WmButton OnClick="SearchAsync" Disabled="@(_busy || string.IsNullOrWhiteSpace(_query))">Search</WmButton>
             @if (_searchedFor.Length > 0)
             {
@@ -37,22 +39,23 @@ else
 
     @if (_maps.Count == 0)
     {
-        <EmptyState Icon="@Icons.Material.Outlined.AccountTree" Title="@(_searchedFor.Length > 0 ? "No flow matches" : "No flows yet")" Text="@(_searchedFor.Length > 0 ? "Try other words, or show all." : "After Claude traces a feature it saves one with memorise, and it appears here at once.")" />
+        <EmptyState Icon="@Icons.Material.Outlined.AccountTree" Title="@(_searchedFor.Length > 0 ? "No flow matches" : "No flows yet")" Text="@(_searchedFor.Length > 0 ? "Try other words, or show all." : "After Claude traces a feature it saves one with memory_save, and it appears here at once.")" />
     }
     else
     {
         foreach (var map in _maps)
         {
-            var missing = MissingCount(map);
-            var broken = BrokenCount(map);
+            var missing = MissingCount(map) ?? 0;
+            var broken = BrokenCount(map) ?? 0;
+            var shownSteps = StepsShownOf(map);
             <div @key="map.Id" class="wm-stack-item">
-                <CollapsibleSection Id="@($"fm-{map.Id}")" Title="@map.Name" InitiallyExpanded="@(_maps.Count == 1)">
+                <CollapsibleSection Id="@($"fm-{map.Id}")" Title="@map.Name" InitiallyExpanded="@(_maps.Count == 1)" RenderWhenCollapsed="false" OnToggled="expanded => OnToggledAsync(map, expanded)">
                     <Summary>
                         <WmTag Text="@($"{map.Steps.Count} {(map.Steps.Count == 1 ? "step" : "steps")}")" />
                         <WmTag Text="@($"v{map.Version}")" Title="Goes up every time the flow is saved" />
                         @if (!map.Ordered)
                         {
-                            <WmTag Tone="Tone.Warn" Text="unordered" Title="Saved before flows existed: a plain list of components. Claude puts the steps in call order the next time it uses the flow." />
+                            <WmTag Tone="Tone.Warn" Text="unordered" Title="Saved before flows existed: a plain list of components. An agent puts the steps in call order the next time it uses the flow." />
                         }
                         @if (missing > 0)
                         {
@@ -75,7 +78,12 @@ else
                         {
                             <WmTag Tone="Tone.Warn" Text="@($"{orphanCount} detached")" Title="Notes on steps that are no longer in this flow" />
                         }
+                        @if (!_checking && !_status.ContainsKey(map.Id))
+                        {
+                            <WmTag Text="not checked" Title="Open the flow, or use 'Check against the code', to check its steps" />
+                        }
                         <span class="wm-muted">Updated @DisplayFormat.Ago(map.UpdatedUtc, Time.GetUtcNow())</span>
+                        <span class="wm-muted" title="@LastUsedTitle(map)">· Last used @DisplayFormat.Ago(LastUsedOf(map), Time.GetUtcNow())</span>
                     </Summary>
                     <ChildContent>
                         @if (map.Summary.Length > 0)
@@ -98,7 +106,7 @@ else
                             }
                             @if (IsEditorFor(map, null))
                             {
-                                <NoteEditor Title="@EditorTitle(map, null)" Editing="_editingNote" Busy="_busy" Error="_noteError" OnSave="v => SaveNoteAsync(map, null, v)" OnCancel="CloseNoteEditor" />
+                                <NoteEditor Title="@EditorTitle(map, null)" Editing="_editingNote" Busy="_busy" Error="@_noteError" OnSave="v => SaveNoteAsync(map, null, v)" OnCancel="CloseNoteEditor" />
                             }
                             else
                             {
@@ -112,7 +120,7 @@ else
                                     <tr><th scope="col">Step</th><th scope="col">Label</th><th scope="col">In the code now</th><th scope="col">Link from the step above</th><th scope="col">Actions</th></tr>
                                 </thead>
                                 <tbody>
-                                    @for (var i = 0; i < map.Steps.Count; i++)
+                                    @for (var i = 0; i < shownSteps; i++)
                                     {
                                         var index = i;
                                         var step = map.Steps[i];
@@ -169,13 +177,13 @@ else
                                                 <td colspan="5" class="@IndentClass(step)">
                                                     @foreach (var note in stepNotes)
                                                     {
-                                                        <NoteRow @key="note.Id" Note="note" Staleness="NoteStalenessOf(note)" Busy="_busy"
+                                                        <NoteRow @key="note.Id" Note="note" Staleness="NoteStalenessOf(note)" Busy="_busy" ShowLastUsed="false"
                                                                  OnEdit="StartEditNote" OnRetire="RetireNoteAsync" OnConfirm="ConfirmNoteAsync" OnPin="TogglePinAsync" OnHistory="ShowHistoryAsync" />
                                                     }
                                                     @if (IsEditorFor(map, step.Spec))
                                                     {
                                                         var spec = step.Spec;
-                                                        <NoteEditor Title="@EditorTitle(map, spec)" Editing="_editingNote" Busy="_busy" Error="_noteError" OnSave="v => SaveNoteAsync(map, spec, v)" OnCancel="CloseNoteEditor" />
+                                                        <NoteEditor Title="@EditorTitle(map, spec)" Editing="_editingNote" Busy="_busy" Error="@_noteError" OnSave="v => SaveNoteAsync(map, spec, v)" OnCancel="CloseNoteEditor" />
                                                     }
                                                 </td>
                                             </tr>
@@ -184,13 +192,19 @@ else
                                 </tbody>
                             </table>
                         </div>
+                        @if (shownSteps < map.Steps.Count)
+                        {
+                            <div class="wm-row">
+                                <WmButton Kind="ButtonKind.Ghost" Small="true" OnClick="() => ShowMoreSteps(map)">Show the next @Math.Min(StepChunk, map.Steps.Count - shownSteps) steps (@shownSteps of @map.Steps.Count shown)</WmButton>
+                            </div>
+                        }
                         @if (OrphanNotes(map).Count > 0)
                         {
                             <h3 class="wm-card-title">Notes on steps no longer in this flow</h3>
                             <div class="wm-stack">
                                 @foreach (var note in OrphanNotes(map))
                                 {
-                                    <NoteRow @key="note.Id" Note="note" Staleness="NoteStalenessOf(note)" Busy="_busy" ShowAnchor="true"
+                                    <NoteRow @key="note.Id" Note="note" Staleness="NoteStalenessOf(note)" Busy="_busy" ShowAnchor="true" ShowLastUsed="false"
                                              OnEdit="StartEditNote" OnRetire="RetireNoteAsync" OnConfirm="ConfirmNoteAsync" OnPin="TogglePinAsync" OnHistory="ShowHistoryAsync" />
                                 }
                             </div>
@@ -202,6 +216,14 @@ else
                     </ChildContent>
                 </CollapsibleSection>
             </div>
+        }
+        if (_total > FeatureMapAdminService.PageSize)
+        {
+            <nav class="wm-row" aria-label="Pages of flows">
+                <WmButton Kind="ButtonKind.Ghost" Disabled="@(_busy || _page == 0)" OnClick="() => GoToPageAsync(_page - 1)">Previous</WmButton>
+                <span class="wm-muted wm-caption">Page @(_page + 1) of @Pages</span>
+                <WmButton Kind="ButtonKind.Ghost" Disabled="@(_busy || _page + 1 >= Pages)" OnClick="() => GoToPageAsync(_page + 1)">Next</WmButton>
+            </nav>
         }
     }
 }

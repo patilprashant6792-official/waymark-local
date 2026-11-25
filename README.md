@@ -47,7 +47,7 @@ Waymark is a local [MCP](https://modelcontextprotocol.io) server that runs on yo
 | Without it | With Waymark |
 |---|---|
 | Claude guesses a package's API from training data, often the wrong version. | `pkg_find` reads the real package at the version your project pins. A member that isn't confirmed there **does not exist**. |
-| Every new chat re-explores the same feature: search, open, read, repeat. | Claude saves each feature as a **flow** (trigger → ordered method steps → outcome). Next time, one `recall` call gives the path. |
+| Every new chat re-explores the same feature: search, open, read, repeat. | Claude saves each feature as a **flow** (trigger → ordered method steps → outcome). Next time, one `memory_recall` call gives the path. |
 | Find-and-replace across files is all trust. | `file_replace` previews a plan first, then applies all or nothing, refused if anything changed since. |
 | A backend, a frontend and a worker means three chats. | One conversation, every workspace. Search them all at once, copy code between them on the server. |
 | Project knowledge sits in a `CLAUDE.md` per repository that drifts out of date. | **Notes** anchored to flows, steps and files, marked *may be stale* when that code changes, found by words or by meaning. |
@@ -128,8 +128,8 @@ A **flow** is one trigger (an endpoint, a tool, a queue message, a button) to on
 
 - **Short and anchored.** One idea each (why, gotcha, convention, decision, how-to), on a flow, a step, a file, a member or the whole workspace. A note on code shows *may be stale* when that code changes.
 - **Yours stay yours.** You and Claude both write notes; Claude can change or retire only its own. Pin the important ones and they go into the workspace guide every agent reads.
-- **Found when they matter.** `recall` searches flows and notes together and shows a note next to the step it's about. Start from an existing `CLAUDE.md` with **Import from CLAUDE.md** on a workspace's **Notes** tab.
-- **Search by meaning, if you want it.** Off by default. Turn it on in **Setup** with an OpenAI, Gemini or Voyage API key, and `recall` also finds notes and flows by what they mean. Only their text is sent (names, summaries, step names, notes), never file contents, and any workspace can be left out.
+- **Found when they matter.** `memory_recall` searches flows and notes together and shows a note next to the step it's about. Start from an existing `CLAUDE.md` with **Import from CLAUDE.md** on a workspace's **Notes** tab.
+- **Search by meaning, if you want it.** Off by default. Turn it on in **Setup** with an OpenAI, Gemini or Voyage API key, and `memory_recall` also finds notes and flows by what they mean. Only their text is sent (names, summaries, step names, notes), never file contents, and any workspace can be left out.
 
 ### 📝 Your instructions, for every agent
 
@@ -315,7 +315,7 @@ That client is the only one connected, so there's no pairing and no tunnel. The 
 |---|---|---|
 | Guide | `waymark_guide`, `waymark_ping`, `util_datetime` | the live overview Claude reads first; reachability; time zones |
 | Code | `code_skeleton`, `code_search`, `code_outline`, `code_method`, `code_read`, `code_grep`, `code_callers`, `code_types`, `code_folder_files`, `code_changes_since` | overview with package pins → search → structure → one body; text search in any file; impact; recent changes |
-| Memory | `recall`, `memorise` | flows and notes: search, read, save |
+| Memory | `memory_recall`, `memory_save` | flows and notes: search, read, save |
 | Packages | `pkg_search`, `pkg_find`, `pkg_outline`, `pkg_expand` | NuGet, PyPI and npm APIs at your pinned version |
 | Files | `file_write`, `file_edit_lines`, `file_replace`, `file_move`, `file_delete`, `folder_create`, `folder_move`, `folder_delete` | edits, copies between workspaces, previewed replace |
 | Commands | `cmd_project`, `cmd_git`, `cmd_proc`, `cmd_shell`, `cmd_wait`, `cmd_output`, `cmd_list`, `cmd_stop` | typed .NET / Python / Node / git actions, processes, shell; follow long runs |
@@ -419,7 +419,7 @@ Claude Code already reads files and runs commands locally. Waymark adds: use fro
 A flow is one trigger (an endpoint, a tool, a queue message, a button) to one outcome, stored as the ordered methods a request passes through. Claude saves and updates them itself. Waymark checks each link against the parsed code, keeps steps that aren't on the current branch, and warns in a file tool's result when an edit breaks a flow. Users can view and delete flows on each workspace's Flows page.
 
 **What are notes?**
-Short hints kept per workspace instead of a `CLAUDE.md`: why something is so, gotchas, conventions, decisions. The owner and Claude both write them; Claude can change or retire only its own. A note can be anchored to a flow, a step, a file or a member, and shows *may be stale* when that code changes. Pinned notes go into the workspace guide every agent reads; the rest are found with `recall`, by words or, if the owner turns it on, by meaning.
+Short hints kept per workspace instead of a `CLAUDE.md`: why something is so, gotchas, conventions, decisions. The owner and Claude both write them; Claude can change or retire only its own. A note can be anchored to a flow, a step, a file or a member, and shows *may be stale* when that code changes. Pinned notes go into the workspace guide every agent reads; the rest are found with `memory_recall`, by words or, if the owner turns it on, by meaning.
 
 **Can Claude change files or run things without the user knowing?**
 Every call appears on the Live page as it happens and is kept in the audit trail. Operations set to Auto run without asking, by the user's choice; everything else waits. **Pause all** in the header stops every tool at once.
@@ -443,7 +443,7 @@ Common problems: a port already in use (47100 and 47101 are the defaults; [docs/
 
 - Call `waymark_guide` once before anything else. It explains the tool groups and the owner's own instructions, and lists what's switched on, the workspaces and the saved flows. Before working in a workspace, call `waymark_guide(workspace='<name>')` for that workspace's instructions, pinned notes and flows.
 - Add `guide: true` to your first call in each group (code, packages, files, commands) and follow that guide.
-- Before exploring a feature, `recall` with words from the task: it searches flows and notes together. After a change that alters a feature's path, update the flow (`memorise`), and say in your reply which flow you saved. Save what you learned that the code doesn't say as a note.
+- Before exploring a feature, `memory_recall` with words from the task: it searches flows and notes together. After a change that alters a feature's path, update the flow (`memory_save`), and say in your reply which flow you saved. Save what you learned that the code doesn't say as a note.
 - A refusal is a decision (a tool off, a gate Off, a denial, Pause all). Don't look for another route to the same effect; tell the user what's blocked.
 - Never write a `[redacted:...]` marker into a file or command. If you see a real secret, don't repeat it, and advise the user to rotate it.
 - For questions about the computer itself (hardware, OS, installed apps), use `cmd_shell` with no workspace and a short read-only script. The user approves it.

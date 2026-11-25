@@ -4,7 +4,7 @@ using Waymark.Core.Workspaces;
 namespace Waymark.Modules.Code.Memory;
 
 /// <summary>
-/// Turns a note's anchor into the fingerprint of the code it points at now, through the same reader recall uses (path guard, parsers).
+/// Turns a note's anchor into the fingerprint of the code it points at now, through the same reader memory_recall uses (path guard, parsers).
 /// An anchor that is not on this branch, or that cannot be read, has no fingerprint: null, never an error.
 /// </summary>
 internal sealed class NoteAnchors(FlowStepReader reader)

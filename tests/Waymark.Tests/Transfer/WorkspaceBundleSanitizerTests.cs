@@ -262,17 +262,17 @@ public sealed class WorkspaceBundleSanitizerTests
     }
 
     [Fact]
-    public void AListMapNeedsBetweenOneAndThirtyComponents()
+    public void AListMapNeedsBetweenOneAndFiveHundredComponents()
     {
-        var thirty = Listed("thirty", [.. Enumerable.Range(0, 30).Select(i => $"f{i}.cs")]);
-        var thirtyOne = Listed("over", [.. Enumerable.Range(0, 31).Select(i => $"f{i}.cs")]);
+        var atBound = Listed("atbound", [.. Enumerable.Range(0, 500).Select(i => $"f{i}.cs")]);
+        var overBound = Listed("over", [.. Enumerable.Range(0, 501).Select(i => $"f{i}.cs")]);
         var none = Listed("none");
 
-        var result = Run(Ws("app", maps: [thirty, thirtyOne, none]));
+        var result = Run(Ws("app", maps: [atBound, overBound, none]));
 
-        Assert.Equal("thirty", Assert.Single(Sanitized(result).FeatureMaps).Name);
+        Assert.Equal("atbound", Assert.Single(Sanitized(result).FeatureMaps).Name);
         Assert.Equal(2, result.Notes.Count);
-        Assert.Contains("this one has 31", result.Notes[0]);
+        Assert.Contains("this one has 501", result.Notes[0]);
         Assert.Contains("this one has 0", result.Notes[1]);
     }
 

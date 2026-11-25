@@ -14,7 +14,7 @@ public sealed class NoteServiceTests
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 12, 9, 0, 0, TimeSpan.Zero);
     private static readonly NoteAuthor Owner = new(NoteAuthorKind.Human, "admin-ui");
-    private static readonly NoteAuthor Claude = new(NoteAuthorKind.ClaudeClient, "claude-ai");
+    private static readonly NoteAuthor Claude = new(NoteAuthorKind.Agent, "claude-ai");
 
     private const string Code = "namespace App;\n\npublic class A\n{\n    public void Run()\n    {\n        var x = 1;\n    }\n}\n";
 
@@ -82,7 +82,7 @@ public sealed class NoteServiceTests
         await Assert.ThrowsAsync<InvalidOperationException>(() => kit.Service.RetireAsync(kit.Workspace, Claude, owners.Id, _ct));
         await Assert.ThrowsAsync<InvalidOperationException>(() => kit.Service.PinAsync(kit.Workspace, Claude, owners.Id, true, _ct));
 
-        Assert.Contains("human: admin-ui", edit.Message, StringComparison.Ordinal);
+        Assert.Contains("written by the owner", edit.Message, StringComparison.Ordinal);
         Assert.True((await kit.Notes.GetAsync(kit.Workspace.Id, [owners.Id], _ct))[0].IsActive);
     }
 

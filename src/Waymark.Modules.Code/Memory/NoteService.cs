@@ -6,8 +6,8 @@ using Waymark.Core.Workspaces;
 namespace Waymark.Modules.Code.Memory;
 
 /// <summary>
-/// The one write path for notes (memorise for Claude, the admin UI for the owner). It checks the text (one line, the cap, no secrets), the anchor
-/// (the flow exists; a step is one of its steps, as recall shows it; about is a file or member), the writer rules, takes the code fingerprint of the anchor,
+/// The one write path for notes (memory_save for Claude, the admin UI for the owner). It checks the text (one line, the cap, no secrets), the anchor
+/// (the flow exists; a step is one of its steps, as memory_recall shows it; about is a file or member), the writer rules, takes the code fingerprint of the anchor,
 /// stores, and publishes <see cref="NoteChanged"/>. Expected refusals are ArgumentException, KeyNotFoundException or InvalidOperationException with a fix in the message.
 /// </summary>
 internal sealed class NoteService(
@@ -32,7 +32,7 @@ internal sealed class NoteService(
         var cleanAbout = string.IsNullOrWhiteSpace(about) ? null : NoteAnchors.CleanAbout(about);
         if (!hasFlow && !string.IsNullOrWhiteSpace(step))
         {
-            throw new ArgumentException("step needs name: the flow the step belongs to. Read the flow with recall(action='get') and copy the step's text.");
+            throw new ArgumentException("step needs name: the flow the step belongs to. Read the flow with memory_recall(action='get') and copy the step's text.");
         }
 
         if (hasFlow && cleanAbout is not null)
@@ -48,7 +48,7 @@ internal sealed class NoteService(
         {
             var name = FlowArgs.CleanName(flow);
             map = await maps.GetByNameAsync(workspace.Id, name, ct).ConfigureAwait(false)
-                ?? throw new KeyNotFoundException($"No flow named '{name}' in workspace '{workspace.Name}'. recall(action='list') shows the names; leave name out for a workspace note.");
+                ?? throw new KeyNotFoundException($"No flow named '{name}' in workspace '{workspace.Name}'. memory_recall(action='list') shows the names; leave name out for a workspace note.");
             stepSpec = string.IsNullOrWhiteSpace(step) ? null : StepOf(map, step);
         }
 
@@ -173,7 +173,7 @@ internal sealed class NoteService(
         return result;
     }
 
-    /// <summary>The stored text of the step the agent named: the exact text recall shows, or the same component written another way.</summary>
+    /// <summary>The stored text of the step the agent named: the exact text memory_recall shows, or the same component written another way.</summary>
     internal static string StepOf(FeatureMap map, string step)
     {
         var wanted = step.Trim().Trim('`');
@@ -190,7 +190,7 @@ internal sealed class NoteService(
         {
             var some = string.Join(", ", map.Steps.Take(4).Select(s => $"'{s.Spec}'"));
             throw new ArgumentException(
-                $"'{wanted}' is not a step of flow '{map.Name}'. Copy the step's text from recall(action='get', ids='{map.Id}'), for example {some}. For a note on the whole flow, leave step out.");
+                $"'{wanted}' is not a step of flow '{map.Name}'. Copy the step's text from memory_recall(action='get', ids='{map.Id}'), for example {some}. For a note on the whole flow, leave step out.");
         }
 
         return match.Spec;
@@ -215,7 +215,7 @@ internal sealed class NoteService(
         var found = await notes.GetAsync(workspace.Id, [id], ct).ConfigureAwait(false);
         return found.Count > 0
             ? found[0]
-            : throw new KeyNotFoundException($"No note #{id} in workspace '{workspace.Name}'. recall(action='notes', ids='workspace') lists the workspace's notes.");
+            : throw new KeyNotFoundException($"No note #{id} in workspace '{workspace.Name}'. memory_recall(action='list', query='...') finds notes by their words.");
     }
 
     private static void RequireActive(Note note)
@@ -223,12 +223,12 @@ internal sealed class NoteService(
         if (!note.IsActive)
         {
             throw new InvalidOperationException(
-                $"Note #{note.Id} is {(note.RetiredUtc is not null ? "retired" : "replaced by a newer revision")}. recall(action='notes', history='{note.Id}') shows its revisions; change the newest one.");
+                $"Note #{note.Id} is {(note.RetiredUtc is not null ? "retired" : "replaced by a newer revision")}. memory_recall(action='notes', history='{note.Id}') shows its revisions; change the newest one.");
         }
     }
 
     private static string NotYours(Note note, string verb) =>
-        $"Note #{note.Id} was written by {note.Author.Label}. A model may {verb} only its own notes, and only the owner may change a human's note. Add a new note with what you found instead, or ask the owner.";
+        $"Note #{note.Id} was written by the owner. Agents may {verb} only notes written by agents. Add a new note with what you found instead, or ask the owner.";
 
     private static Note Outcome(NoteWriteResult result, Note current, string verb) => result.Outcome switch
     {

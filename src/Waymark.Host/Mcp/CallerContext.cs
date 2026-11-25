@@ -16,7 +16,7 @@ public sealed class CallerContext : ICallerContext
 
     public string Client => Current.Value ?? Unknown;
 
-    public NoteAuthor AsModelAuthor() => NoteAuthor.Of(NoteAuthorKind.ClaudeClient, Client);
+    public NoteAuthor AsModelAuthor() => NoteAuthor.Of(NoteAuthorKind.Agent, Client);
 
     /// <summary>Sets the caller for this async flow and what it awaits; dispose the result to clear it again.</summary>
     public IDisposable Enter(string client)

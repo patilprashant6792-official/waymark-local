@@ -1,4 +1,5 @@
 @inherits LiveComponentBase
+@using Waymark.Core.Memory
 @using Waymark.Host.Ui
 
 @{
@@ -38,6 +39,96 @@
         <dt>Added</dt>
         <dd>@DisplayFormat.DateAndClock(Workspace.AddedUtc)</dd>
     </dl>
+</section>
+
+<section class="wm-card" aria-labelledby="ov-memory">
+    <h2 id="ov-memory" class="wm-card-title">Memory</h2>
+    @if (Counts is not { } counts)
+    {
+        <p class="wm-muted" aria-live="polite">Loading...</p>
+    }
+    else
+    {
+        var health = MemoryHealth;
+        <dl class="wm-dl">
+            <dt>Flows</dt>
+            <dd>
+                <a href="@FlowsHref">@DisplayFormat.Count(counts.Flows)</a>
+                @if (counts.Flows == 0)
+                {
+                    <span class="wm-muted"> - an agent saves one after tracing a feature</span>
+                }
+                else
+                {
+                    <span class="wm-muted"> · @DisplayFormat.Count(counts.Steps) steps</span>
+                }
+            </dd>
+            @if (counts.UnorderedFlows > 0)
+            {
+                <dt>Unordered flows</dt>
+                <dd><a href="@FlowsHref">@DisplayFormat.Count(counts.UnorderedFlows)</a> <span class="wm-muted">saved before flows existed</span></dd>
+            }
+            <dt>Notes</dt>
+            <dd>
+                <a href="@NotesHref()">@DisplayFormat.Count(counts.Notes)</a>
+                @if (counts.Notes == 0)
+                {
+                    <span class="wm-muted"> - you or an agent can add one</span>
+                }
+            </dd>
+            <dt>Pinned</dt>
+            <dd><a href="@NotesHref("pinned")">@counts.Pinned of @NoteRules.MaxPinned</a> <span class="wm-muted">in the workspace guide</span></dd>
+            <dt>From agents</dt>
+            <dd><a href="@NotesHref("agents")">@DisplayFormat.Count(counts.FromAgents)</a></dd>
+            @if (counts.Detached > 0)
+            {
+                <dt>Detached notes</dt>
+                <dd><a href="@NotesHref("detached")">@DisplayFormat.Count(counts.Detached)</a> <span class="wm-muted">their flow was deleted</span></dd>
+            }
+            <dt>Never used</dt>
+            <dd>@DisplayFormat.Count(counts.FlowsNeverUsed) flows · @DisplayFormat.Count(counts.NotesNeverUsed) notes <span class="wm-muted">not opened by an agent yet</span></dd>
+            <dt>Last used</dt>
+            <dd>
+                @if (counts.FlowLastUsedName is { } lastFlow)
+                {
+                    <a href="@($"{FlowsHref}#fm-{counts.FlowLastUsedId}")" title="@ExactTime(counts.FlowLastUsedUtc)">@lastFlow</a>
+                    <span class="wm-muted" title="@ExactTime(counts.FlowLastUsedUtc)"> @LastUsedText(counts.FlowLastUsedUtc)</span>
+                }
+                else
+                {
+                    <span class="wm-muted">No flow opened by an agent yet</span>
+                }
+                @if (counts.NoteLastUsedUtc is not null)
+                {
+                    <span class="wm-muted" title="@ExactTime(counts.NoteLastUsedUtc)"> · a note @LastUsedText(counts.NoteLastUsedUtc)</span>
+                }
+            </dd>
+            <dt>May be stale</dt>
+            <dd>
+                @if (health.StaleNotes is { } stale)
+                {
+                    <a href="@NotesHref("stale")">@DisplayFormat.Count(stale)</a>
+                    <span class="wm-muted"> notes, checked @LastUsedText(health.StaleCheckedUtc)</span>
+                }
+                else
+                {
+                    <span class="wm-muted">Not checked yet · </span><a href="@NotesHref("stale")">Check</a>
+                }
+            </dd>
+            <dt>Links that do not call</dt>
+            <dd>
+                @if (health.BrokenLinks is { } broken)
+                {
+                    <a href="@FlowsHref">@DisplayFormat.Count(broken)</a>
+                    <span class="wm-muted"> · @DisplayFormat.Count(health.MissingSteps ?? 0) steps not on this branch, checked @LastUsedText(health.LinksCheckedUtc)</span>
+                }
+                else
+                {
+                    <span class="wm-muted">Not checked yet · </span><a href="@FlowsHref">Check</a>
+                }
+            </dd>
+        </dl>
+    }
 </section>
 
 <section class="wm-card" aria-labelledby="ov-projects">

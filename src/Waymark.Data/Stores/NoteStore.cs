@@ -23,6 +23,16 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
     private const string From = "FROM notes n LEFT JOIN feature_maps m ON m.id = n.map_id";
     private const string Active = "n.retired_utc IS NULL AND n.superseded_utc IS NULL";
 
+    // Notes anchored in one file: a workspace note about it (or a member of it), or a step note whose step is in it (a member or a range of lines).
+    private const string InPath =
+        "(n.about = @path OR n.about LIKE @member ESCAPE '!' OR n.step_spec = @path OR n.step_spec LIKE @member ESCAPE '!' OR n.step_spec LIKE @range ESCAPE '!')";
+
+    // Notes anchored on exactly one member ('path:Type.Member'): about it, or a step note on it.
+    private const string OnMember = "(n.about = @path OR n.step_spec = @path)";
+
+    private static string OrderBy(MemoryOrder order) =>
+        order == MemoryOrder.Used ? "n.last_used_utc DESC NULLS LAST, n.id DESC" : "n.updated_utc DESC, n.id DESC";
+
     public Task<Note> AddAsync(NewNote note, DateTimeOffset now, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(note);
@@ -80,11 +90,11 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
                 return refused;
             }
 
-            // Only the author's own active note: the rule is in the WHERE clause too, so a mistake above cannot let it through.
+            // An agent never changes the owner's note: the rule is in the WHERE clause too, so a mistake above cannot let it through.
             var changed = await connection.ExecuteAsync(new CommandDefinition(
                 "UPDATE notes SET superseded_utc = @stamp, updated_utc = @stamp, pinned = 0 " +
-                "WHERE id = @id AND workspace_id = @workspaceId AND retired_utc IS NULL AND superseded_utc IS NULL AND author_kind = @authorKind AND author_id = @authorId",
-                new { id, workspaceId, stamp, authorKind = NoteAuthorKinds.ToText(author.Kind), authorId = author.Id },
+                "WHERE id = @id AND workspace_id = @workspaceId AND retired_utc IS NULL AND superseded_utc IS NULL AND (@human = 1 OR author_kind <> 'human')",
+                new { id, workspaceId, stamp, human = author.IsHuman ? 1 : 0 },
                 tx,
                 cancellationToken: k));
             if (changed == 0)
@@ -93,17 +103,20 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
             }
 
             await DeleteFtsAsync(connection, tx, id, k);
+            // The revision is the editor's (an owner's edit of an agent's note makes it the owner's); it keeps when the note was last used.
             await connection.ExecuteAsync(new CommandDefinition(
                 "INSERT INTO notes (workspace_id, map_id, step_spec, about, detached_from, kind, body, content_hash, author_kind, author_id, code_hash, flow_version, " +
-                "confirmed_utc, replaces_id, pinned, created_utc, updated_utc) " +
-                "SELECT workspace_id, map_id, step_spec, about, detached_from, @kind, @body, @hash, author_kind, author_id, @codeHash, @flowVersion, " +
-                "@stamp, id, @pinned, @stamp, @stamp FROM notes WHERE id = @id",
+                "confirmed_utc, replaces_id, pinned, created_utc, updated_utc, last_used_utc) " +
+                "SELECT workspace_id, map_id, step_spec, about, detached_from, @kind, @body, @hash, @authorKind, @authorId, @codeHash, @flowVersion, " +
+                "@stamp, id, @pinned, @stamp, @stamp, last_used_utc FROM notes WHERE id = @id",
                 new
                 {
                     id,
                     kind = NoteKinds.ToText(kind),
                     body,
                     hash = NoteRules.Hash(body),
+                    authorKind = NoteAuthorKinds.ToText(author.Kind),
+                    authorId = author.Id,
                     codeHash,
                     flowVersion,
                     stamp,
@@ -133,8 +146,8 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
             var changed = await connection.ExecuteAsync(new CommandDefinition(
                 "UPDATE notes SET retired_utc = @stamp, retired_by = @by, updated_utc = @stamp, pinned = 0 " +
                 "WHERE id = @id AND workspace_id = @workspaceId AND retired_utc IS NULL AND superseded_utc IS NULL " +
-                "AND (@human = 1 OR (author_kind = @authorKind AND author_id = @authorId))",
-                new { id, workspaceId, stamp, by = author.Label, human = author.IsHuman ? 1 : 0, authorKind = NoteAuthorKinds.ToText(author.Kind), authorId = author.Id },
+                "AND (@human = 1 OR author_kind <> 'human')",
+                new { id, workspaceId, stamp, by = RetiredBy(author), human = author.IsHuman ? 1 : 0 },
                 tx,
                 cancellationToken: k));
             if (changed == 0)
@@ -162,8 +175,8 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
             var changed = await connection.ExecuteAsync(new CommandDefinition(
                 "UPDATE notes SET code_hash = @codeHash, flow_version = @flowVersion, confirmed_utc = @stamp, updated_utc = @stamp " +
                 "WHERE id = @id AND workspace_id = @workspaceId AND retired_utc IS NULL AND superseded_utc IS NULL " +
-                "AND (@human = 1 OR (author_kind = @authorKind AND author_id = @authorId))",
-                new { id, workspaceId, stamp, codeHash, flowVersion, human = author.IsHuman ? 1 : 0, authorKind = NoteAuthorKinds.ToText(author.Kind), authorId = author.Id },
+                "AND (@human = 1 OR author_kind <> 'human')",
+                new { id, workspaceId, stamp, codeHash, flowVersion, human = author.IsHuman ? 1 : 0 },
                 tx,
                 cancellationToken: k));
             return changed == 0
@@ -225,7 +238,7 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
         return [.. rows.Select(row => row.ToNote())];
     }
 
-    public async Task<NotePage> ListWorkspaceAsync(long workspaceId, NoteFilter filter, int skip, int take, CancellationToken ct)
+    public async Task<NotePage> ListWorkspaceAsync(long workspaceId, NoteFilter filter, int skip, int take, CancellationToken ct, MemoryOrder order = MemoryOrder.Changed)
     {
         var where = filter switch
         {
@@ -240,7 +253,7 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
         var total = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
             $"SELECT COUNT(*) FROM notes n WHERE n.workspace_id = @workspaceId AND {where}", parameters, cancellationToken: ct));
         var rows = await connection.QueryAsync<NoteRow>(new CommandDefinition(
-            $"SELECT {Columns} {From} WHERE n.workspace_id = @workspaceId AND {where} ORDER BY n.updated_utc DESC, n.id DESC LIMIT @take OFFSET @skip",
+            $"SELECT {Columns} {From} WHERE n.workspace_id = @workspaceId AND {where} ORDER BY {OrderBy(order)} LIMIT @take OFFSET @skip",
             parameters,
             cancellationToken: ct));
         return new NotePage([.. rows.Select(row => row.ToNote())], (int)total);
@@ -323,13 +336,50 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
         var escaped = EscapeLike(path);
         await using var connection = await connections.OpenAsync(ct);
         var rows = await connection.QueryAsync<long>(new CommandDefinition(
-            $"SELECT n.id FROM notes n WHERE n.workspace_id = @workspaceId AND {Active} AND (" +
-            "n.about = @path OR n.about LIKE @member ESCAPE '!' OR n.step_spec = @path OR n.step_spec LIKE @member ESCAPE '!' OR n.step_spec LIKE @range ESCAPE '!') " +
+            $"SELECT n.id FROM notes n WHERE n.workspace_id = @workspaceId AND {Active} AND {InPath} " +
             "ORDER BY n.id DESC LIMIT @limit",
             new { workspaceId, path, member = escaped + ":%", range = escaped + "#%", limit = Math.Clamp(limit, 1, MaxPageSize) },
             cancellationToken: ct));
         return [.. rows];
     }
+
+    public async Task<NotePage> PageForFlowsAsync(long workspaceId, IReadOnlyList<long> mapIds, int skip, int take, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(mapIds);
+        if (mapIds.Count == 0)
+        {
+            return new NotePage([], 0);
+        }
+
+        var parameters = new { workspaceId, mapIds = mapIds.Distinct().Take(MaxIdsPerQuery).ToArray(), skip = Math.Max(0, skip), take = Math.Clamp(take, 1, MaxPageSize) };
+        await using var connection = await connections.OpenAsync(ct);
+        var total = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
+            $"SELECT COUNT(*) FROM notes n WHERE n.workspace_id = @workspaceId AND n.map_id IN @mapIds AND {Active}", parameters, cancellationToken: ct));
+        var rows = await connection.QueryAsync<NoteRow>(new CommandDefinition(
+            $"SELECT {Columns} {From} WHERE n.workspace_id = @workspaceId AND n.map_id IN @mapIds AND {Active} ORDER BY {OrderBy(MemoryOrder.Changed)} LIMIT @take OFFSET @skip",
+            parameters,
+            cancellationToken: ct));
+        return new NotePage([.. rows.Select(row => row.ToNote())], (int)total);
+    }
+
+    public async Task<NotePage> PageByPathAsync(long workspaceId, string path, int skip, int take, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(path);
+        var escaped = EscapeLike(path);
+        var where = path.Contains(':', StringComparison.Ordinal) ? OnMember : InPath;
+        var parameters = new { workspaceId, path, member = escaped + ":%", range = escaped + "#%", skip = Math.Max(0, skip), take = Math.Clamp(take, 1, MaxPageSize) };
+        await using var connection = await connections.OpenAsync(ct);
+        var total = await connection.ExecuteScalarAsync<long>(new CommandDefinition(
+            $"SELECT COUNT(*) FROM notes n WHERE n.workspace_id = @workspaceId AND {Active} AND {where}", parameters, cancellationToken: ct));
+        var rows = await connection.QueryAsync<NoteRow>(new CommandDefinition(
+            $"SELECT {Columns} {From} WHERE n.workspace_id = @workspaceId AND {Active} AND {where} ORDER BY {OrderBy(MemoryOrder.Changed)} LIMIT @take OFFSET @skip",
+            parameters,
+            cancellationToken: ct));
+        return new NotePage([.. rows.Select(row => row.ToNote())], (int)total);
+    }
+
+    // Who retired a note, as the row keeps it: the owner, or an agent with the client it came through.
+    private static string RetiredBy(NoteAuthor author) => author.IsHuman ? "owner" : $"agent ({author.Id})";
 
     private static NoteWriteResult? Refusal(Note? current, bool allowed) =>
         current is null ? new NoteWriteResult(NoteWrite.NotFound, null)

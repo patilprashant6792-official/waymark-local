@@ -5,7 +5,8 @@ namespace Waymark.Core.Memory;
 
 /// <summary>
 /// The limits and the writer rules of notes. Pure, so the tools, the admin UI and the store agree.
-/// A model never changes a human's note or another author's; the owner may retire, confirm and pin any note but edits only their own.
+/// Every AI client is one author, Agent. An agent never changes the owner's note; any agent may edit, retire or confirm any agent's note.
+/// The owner may edit, retire, confirm and pin any note; an owner's edit of an agent's note makes that revision the owner's. Only the owner pins.
 /// </summary>
 public static class NoteRules
 {
@@ -15,7 +16,7 @@ public static class NoteRules
     public const int MaxNotesPerStepShown = 3;
     public const int MaxNoteCharsPerFlow = 1500;
 
-    /// <summary>How many characters of a note one line shows in recall and in search results.</summary>
+    /// <summary>How many characters of a note one line shows in memory_recall and in search results.</summary>
     public const int MaxLineChars = 300;
 
     /// <summary>The line every reply that shows notes carries once.</summary>
@@ -25,17 +26,17 @@ public static class NoteRules
     {
         ArgumentNullException.ThrowIfNull(author);
         ArgumentNullException.ThrowIfNull(note);
-        return author.SameAs(note.Author);
+        return author.IsHuman || note.Author.IsAgent;
     }
 
     public static bool CanRetire(NoteAuthor author, Note note)
     {
         ArgumentNullException.ThrowIfNull(author);
         ArgumentNullException.ThrowIfNull(note);
-        return author.IsHuman || author.SameAs(note.Author);
+        return author.IsHuman || note.Author.IsAgent;
     }
 
-    /// <summary>Confirming re-baselines staleness, so it follows the retire rule: a model cannot silence a warning on someone else's note.</summary>
+    /// <summary>Confirming re-baselines staleness, so it follows the retire rule: an agent cannot silence a warning on the owner's note.</summary>
     public static bool CanConfirm(NoteAuthor author, Note note) => CanRetire(author, note);
 
     public static bool CanPin(NoteAuthor author)

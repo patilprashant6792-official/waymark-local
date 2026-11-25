@@ -8,8 +8,8 @@ public sealed class NoteRulesTests
 
     private static readonly NoteAuthor Owner = new(NoteAuthorKind.Human, "admin-ui");
     private static readonly NoteAuthor OtherHuman = new(NoteAuthorKind.Human, "someone-else");
-    private static readonly NoteAuthor Claude = new(NoteAuthorKind.ClaudeClient, "claude-ai");
-    private static readonly NoteAuthor OtherClaude = new(NoteAuthorKind.ClaudeClient, "claude-code");
+    private static readonly NoteAuthor Claude = new(NoteAuthorKind.Agent, "claude-ai");
+    private static readonly NoteAuthor OtherClaude = new(NoteAuthorKind.Agent, "claude-code");
     private static readonly NoteAuthor Internal = new(NoteAuthorKind.InternalModel, "claude-ai");
 
     [Theory]
@@ -38,32 +38,33 @@ public sealed class NoteRulesTests
         Assert.Throws<ArgumentException>(() => NoteRules.Clean("bell\u0007here"));
 
     [Fact]
-    public void TheAuthorRevisesOnlyTheirOwnNote()
+    public void AnyAgentRevisesAnAgentNoteAndTheOwnerRevisesAny()
     {
         Assert.True(NoteRules.CanRevise(Claude, NoteBy(Claude)));
+        Assert.True(NoteRules.CanRevise(Claude, NoteBy(OtherClaude)));
+        Assert.True(NoteRules.CanRevise(Internal, NoteBy(Claude)));
         Assert.True(NoteRules.CanRevise(Owner, NoteBy(Owner)));
+        Assert.True(NoteRules.CanRevise(Owner, NoteBy(Claude)));
         Assert.False(NoteRules.CanRevise(Claude, NoteBy(Owner)));
-        Assert.False(NoteRules.CanRevise(Claude, NoteBy(OtherClaude)));
-        Assert.False(NoteRules.CanRevise(Owner, NoteBy(Claude)));
-        Assert.False(NoteRules.CanRevise(OtherHuman, NoteBy(Owner)));
-        Assert.False(NoteRules.CanRevise(Internal, NoteBy(Claude)));
+        Assert.False(NoteRules.CanRevise(OtherClaude, NoteBy(OtherHuman)));
     }
 
     [Fact]
-    public void TheOwnerRetiresAnyNoteAModelOnlyItsOwn()
+    public void TheOwnerRetiresAnyNoteAnAgentOnlyAgentNotes()
     {
         Assert.True(NoteRules.CanRetire(Owner, NoteBy(Claude)));
         Assert.True(NoteRules.CanRetire(Owner, NoteBy(OtherHuman)));
         Assert.True(NoteRules.CanRetire(Claude, NoteBy(Claude)));
+        Assert.True(NoteRules.CanRetire(Claude, NoteBy(OtherClaude)));
+        Assert.True(NoteRules.CanRetire(Internal, NoteBy(Claude)));
         Assert.False(NoteRules.CanRetire(Claude, NoteBy(Owner)));
-        Assert.False(NoteRules.CanRetire(Claude, NoteBy(OtherClaude)));
-        Assert.False(NoteRules.CanRetire(Internal, NoteBy(Claude)));
     }
 
     [Fact]
     public void ConfirmFollowsTheRetireRule()
     {
         Assert.True(NoteRules.CanConfirm(Owner, NoteBy(Claude)));
+        Assert.True(NoteRules.CanConfirm(OtherClaude, NoteBy(Claude)));
         Assert.False(NoteRules.CanConfirm(Claude, NoteBy(Owner)));
     }
 

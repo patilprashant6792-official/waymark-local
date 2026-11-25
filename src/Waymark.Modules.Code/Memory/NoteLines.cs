@@ -1,14 +1,18 @@
 using System.Globalization;
 using System.Text;
-using Waymark.Core.Auth;
 using Waymark.Core.Memory;
 
 namespace Waymark.Modules.Code.Memory;
 
-/// <summary>The notes of the flows in one recall answer, with what is known about their staleness.</summary>
+/// <summary>
+/// The notes of the flows in one memory_recall answer, with what is known about their staleness. <see cref="Shown"/> collects the ids of the notes whose line was
+/// actually written into the answer, so only those count as used.
+/// </summary>
 internal sealed record FlowNotes(IReadOnlyList<Note> Notes, IReadOnlyDictionary<long, NoteStaleness> Staleness)
 {
-    public static FlowNotes Empty { get; } = new([], new Dictionary<long, NoteStaleness>());
+    public static FlowNotes Empty => new([], new Dictionary<long, NoteStaleness>());
+
+    public List<long> Shown { get; } = [];
 
     public NoteStaleness? StalenessOf(long id) => Staleness.TryGetValue(id, out var found) ? found : null;
 }
@@ -19,22 +23,14 @@ internal sealed record FlowNotes(IReadOnlyList<Note> Notes, IReadOnlyDictionary<
 /// </summary>
 internal static class NoteLines
 {
-    private const int MaxAuthorChars = 40;
-
-    /// <summary>'human: owner' for the admin UI, otherwise the kind and the id: 'claude-client: claude-ai'.</summary>
+    /// <summary>'owner' or 'agent'. Every AI client is the same author; the client a revision came through is kept in the database, not shown to models.</summary>
     public static string AuthorLabel(NoteAuthor author)
     {
         ArgumentNullException.ThrowIfNull(author);
-        if (author.IsHuman && string.Equals(author.Id, AuthDefaults.AdminActor, StringComparison.Ordinal))
-        {
-            return "human: owner";
-        }
-
-        var id = NoteRules.OneLine(author.Id, MaxAuthorChars).Replace('[', '(').Replace(']', ')');
-        return $"{NoteAuthorKinds.ToText(author.Kind)}: {id}";
+        return author.Label;
     }
 
-    /// <summary>'note #41 gotcha [human: owner · 2026-11-12] may be stale (code changed): Only one notice per call, …'</summary>
+    /// <summary>'note #41 gotcha [owner · 2026-11-12] may be stale (code changed): Only one notice per call, …'</summary>
     public static string Line(Note note, NoteStaleness? staleness, bool withDate = true, int bodyChars = NoteRules.MaxLineChars)
     {
         ArgumentNullException.ThrowIfNull(note);

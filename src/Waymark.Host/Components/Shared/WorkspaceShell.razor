@@ -49,13 +49,15 @@
             <nav class="wm-subnav" aria-label="Workspace sections">
                 @foreach (var tab in WorkspaceSections.All)
                 {
-                    <NavLink class="wm-subnav-item" ActiveClass="active" href="@tab.Href(workspace.Id)" Match="NavLinkMatch.All">
-                        <MudIcon Icon="@tab.Icon" Size="Size.Small" /><span>@tab.Title</span>
+                    <NavLink class="wm-subnav-item" ActiveClass="active" href="@tab.Href(workspace.Id)" Match="NavLinkMatch.All" aria-label="@WorkspaceSectionLabels.AriaOf(tab, _counts)">
+                        <MudIcon Icon="@tab.Icon" Size="Size.Small" /><span>@WorkspaceSectionLabels.Of(tab, _counts)</span>
                     </NavLink>
                 }
             </nav>
 
-            <div class="wm-ws-body">@ChildContent?.Invoke(workspace)</div>
+            <CascadingValue Value="_counts">
+                <div class="wm-ws-body">@ChildContent?.Invoke(workspace)</div>
+            </CascadingValue>
         }
         else if (_error is null)
         {

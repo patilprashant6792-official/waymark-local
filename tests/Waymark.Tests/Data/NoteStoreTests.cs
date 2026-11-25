@@ -8,8 +8,8 @@ public sealed class NoteStoreTests
 {
     private static readonly DateTimeOffset Now = new(2026, 11, 12, 9, 0, 0, TimeSpan.Zero);
     private static readonly NoteAuthor Owner = new(NoteAuthorKind.Human, "admin-ui");
-    private static readonly NoteAuthor Claude = new(NoteAuthorKind.ClaudeClient, "claude-ai");
-    private static readonly NoteAuthor OtherClaude = new(NoteAuthorKind.ClaudeClient, "claude-code");
+    private static readonly NoteAuthor Claude = new(NoteAuthorKind.Agent, "claude-ai");
+    private static readonly NoteAuthor OtherClaude = new(NoteAuthorKind.Agent, "claude-code");
 
     private readonly CancellationToken _ct = TestContext.Current.CancellationToken;
 
@@ -51,7 +51,7 @@ public sealed class NoteStoreTests
     }
 
     [Fact]
-    public async Task AModelCannotReviseOrRetireSomeoneElsesNote()
+    public async Task AnAgentNeverChangesTheOwnersNoteButAnyAgentChangesAnAgentNote()
     {
         await using var db = await TestDatabase.CreateAsync(_ct);
         var (store, workspaceId, _) = await SetUpAsync(db);
@@ -60,13 +60,22 @@ public sealed class NoteStoreTests
 
         Assert.Equal(NoteWrite.NotYours, (await store.ReviseAsync(workspaceId, owners.Id, Claude, "changed", NoteKind.Note, null, null, Now, _ct)).Outcome);
         Assert.Equal(NoteWrite.NotYours, (await store.RetireAsync(workspaceId, owners.Id, Claude, Now, _ct)).Outcome);
-        Assert.Equal(NoteWrite.NotYours, (await store.RetireAsync(workspaceId, claudes.Id, OtherClaude, Now, _ct)).Outcome);
         Assert.Equal(NoteWrite.NotYours, (await store.ConfirmAsync(workspaceId, owners.Id, Claude, "v1:x", null, Now, _ct)).Outcome);
-        Assert.Equal(NoteWrite.NotYours, (await store.ReviseAsync(workspaceId, claudes.Id, Owner, "changed", NoteKind.Note, null, null, Now, _ct)).Outcome);
 
-        var retired = await store.RetireAsync(workspaceId, claudes.Id, Owner, Now.AddMinutes(2), _ct);
+        // Another client is the same author, Agent: a re-paired client can correct an older note. The revision records the client that wrote it.
+        var revised = await store.ReviseAsync(workspaceId, claudes.Id, OtherClaude, "corrected", NoteKind.Note, null, null, Now.AddMinutes(1), _ct);
+        Assert.Equal(NoteWrite.Saved, revised.Outcome);
+        Assert.Equal(OtherClaude, revised.Note!.Author);
+
+        // The owner may edit an agent's note; the new revision is the owner's, and an agent can no longer change it.
+        var ownersEdit = await store.ReviseAsync(workspaceId, revised.Note.Id, Owner, "owner's words", NoteKind.Note, null, null, Now.AddMinutes(2), _ct);
+        Assert.Equal(NoteWrite.Saved, ownersEdit.Outcome);
+        Assert.Equal(Owner, ownersEdit.Note!.Author);
+        Assert.Equal(NoteWrite.NotYours, (await store.RetireAsync(workspaceId, ownersEdit.Note.Id, Claude, Now.AddMinutes(3), _ct)).Outcome);
+
+        var retired = await store.RetireAsync(workspaceId, ownersEdit.Note.Id, Owner, Now.AddMinutes(4), _ct);
         Assert.Equal(NoteWrite.Saved, retired.Outcome);
-        Assert.Equal("human: admin-ui", retired.Note!.RetiredBy);
+        Assert.Equal("owner", retired.Note!.RetiredBy);
         Assert.False(retired.Note.IsActive);
         Assert.Equal(1, await db.CountAsync("note_fts", _ct));
     }

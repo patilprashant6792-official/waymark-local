@@ -77,7 +77,7 @@ public sealed class WorkspaceGuideRenderer(IWorkspaceGuides texts, IWorkspaceSet
         catch (Exception ex) when (ex is not OperationCanceledException)
         {
             logger.LogError(ex, "The live setup of workspace {Workspace} could not be described", workspace.Name);
-            return $"The live setup could not be read just now. Call {GuideRules.OverviewTool} with workspace='{workspace.Name}' again later for it, or use recall with action 'list'.";
+            return $"The live setup could not be read just now. Call {GuideRules.OverviewTool} with workspace='{workspace.Name}' again later for it, or use memory_recall with action 'list'.";
         }
     }
 }

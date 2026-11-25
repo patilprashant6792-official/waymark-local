@@ -21,7 +21,8 @@ internal sealed class FlowLinkChecker(ICodeSearchStore store, CodeSearchOptions 
     private const int MaxGuessedNames = 400;
 
     /// <summary>One entry per step, in step order: the link from the step it is called by, or null for the first step and for steps with no parent.</summary>
-    public async Task<IReadOnlyList<LinkCheck?>> CheckAsync(long workspaceId, IReadOnlyList<FlowStep> steps, IReadOnlyList<StepView> views, CancellationToken ct)
+    /// <param name="only">When set, only the links into these steps are judged (a partial inspection); the others stay null.</param>
+    public async Task<IReadOnlyList<LinkCheck?>> CheckAsync(long workspaceId, IReadOnlyList<FlowStep> steps, IReadOnlyList<StepView> views, CancellationToken ct, IReadOnlySet<int>? only = null)
     {
         ArgumentNullException.ThrowIfNull(steps);
         ArgumentNullException.ThrowIfNull(views);
@@ -29,7 +30,12 @@ internal sealed class FlowLinkChecker(ICodeSearchStore store, CodeSearchOptions 
         var hierarchy = new LazyHierarchy(store, options, workspaceId);
         for (var i = 1; i < steps.Count; i++)
         {
-            if (FlowStepText.ParentIndex(steps, i) is not { } parent)
+            if (only is not null && !only.Contains(i))
+            {
+                continue;
+            }
+
+            if (FlowStepText.ParentIndex(steps, i) is not { } parent || !views[parent].Inspected)
             {
                 continue;
             }

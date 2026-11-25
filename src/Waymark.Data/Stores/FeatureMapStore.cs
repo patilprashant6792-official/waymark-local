@@ -12,7 +12,7 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
     private const int MaxPageSize = 200;
     private const int MaxPathHits = 200;
 
-    public async Task<FeatureMapPage> ListAsync(long workspaceId, string? query, int skip, int take, CancellationToken ct)
+    public async Task<FeatureMapPage> ListAsync(long workspaceId, string? query, int skip, int take, CancellationToken ct, MemoryOrder order = MemoryOrder.Changed)
     {
         var (where, parameters) = Filter(workspaceId, query);
         parameters.Add("skip", Math.Max(0, skip));
@@ -22,7 +22,7 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
             $"SELECT COUNT(*) FROM feature_maps m WHERE {where}", parameters, cancellationToken: ct));
         var rows = await connection.QueryAsync<SummaryRow>(new CommandDefinition(
             "SELECT m.id, m.name, m.summary, m.version, m.ordered, m.updated_utc, (SELECT COUNT(*) FROM feature_components c WHERE c.map_id = m.id) AS step_count " +
-            $"FROM feature_maps m WHERE {where} ORDER BY m.updated_utc DESC, m.id DESC LIMIT @take OFFSET @skip",
+            $"FROM feature_maps m WHERE {where} ORDER BY {(order == MemoryOrder.Used ? "m.last_used_utc DESC NULLS LAST, m.id DESC" : "m.updated_utc DESC, m.id DESC")} LIMIT @take OFFSET @skip",
             parameters,
             cancellationToken: ct));
         var items = rows

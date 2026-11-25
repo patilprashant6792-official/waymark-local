@@ -16,35 +16,49 @@ public enum NotesView
 {
     Pinned,
     All,
-    FromClaude,
+    FromAgents,
     MayBeStale,
     Detached,
     Retired,
 }
 
 /// <summary>
-/// The Notes section of a workspace: lists the notes by filter, searches them, adds and edits the owner's own, retires, confirms and pins any, imports drafts
-/// from a pasted CLAUDE.md, and excludes the workspace from search by meaning. It reloads when a note changes.
+/// The Notes section of a workspace: lists the notes a page at a time by filter and order, searches them, adds notes and edits any (an agent's note edited
+/// here becomes yours), retires, confirms and pins any, imports drafts from a pasted CLAUDE.md, and excludes the workspace from search by meaning.
+/// It reloads when a note changes and refreshes the last-used times when agents used notes.
 /// </summary>
 public partial class NoteList : LiveComponentBase
 {
+    /// <summary>The most notes the 'May be stale' view checks against the code in one load.</summary>
+    internal const int MaxStaleScan = 1000;
+
     private static readonly IReadOnlyList<WmOption<NotesView>> ViewOptions =
     [
         new(NotesView.All, "All"),
         new(NotesView.Pinned, "Pinned"),
-        new(NotesView.FromClaude, "From Claude"),
+        new(NotesView.FromAgents, "From agents"),
         new(NotesView.MayBeStale, "May be stale"),
         new(NotesView.Detached, "Detached"),
         new(NotesView.Retired, "Retired"),
     ];
 
+    private static readonly IReadOnlyList<WmOption<MemoryOrder>> OrderOptions =
+    [
+        new(MemoryOrder.Changed, "Last changed"),
+        new(MemoryOrder.Used, "Last used"),
+    ];
+
     private static readonly IReadOnlyList<WmOption<NoteKind>> KindOptions = [.. NoteKinds.All.Select(kind => new WmOption<NoteKind>(kind, NoteKinds.ToText(kind)))];
 
     private NotesView _view = NotesView.All;
+    private MemoryOrder _order = MemoryOrder.Changed;
+    private int _page;
     private IReadOnlyList<Note> _notes = [];
     private IReadOnlyList<Note> _pinned = [];
     private IReadOnlyDictionary<long, NoteStaleness> _staleness = new Dictionary<long, NoteStaleness>();
+    private IReadOnlyDictionary<long, DateTimeOffset> _lastUsed = new Dictionary<long, DateTimeOffset>();
     private int _total;
+    private bool _staleScanCut;
     private string _query = string.Empty;
     private MemorySearchResult? _search;
     private List<(Note Note, MemoryMatch Match)> _searchNotes = [];
@@ -65,11 +79,18 @@ public partial class NoteList : LiveComponentBase
     [Parameter, EditorRequired]
     public Workspace Workspace { get; set; } = default!;
 
+    /// <summary>The view to open with, from the address (?view=pinned|agents|stale|detached|retired), so the Overview can link to one.</summary>
+    [Parameter]
+    public string? InitialView { get; set; }
+
     [Inject]
     private NoteAdminService Service { get; set; } = default!;
 
     [Inject]
     private MemoryAdminService Memory { get; set; } = default!;
+
+    [Inject]
+    private MemoryHealthCache Health { get; set; } = default!;
 
     [Inject]
     private IDialogService Dialogs { get; set; } = default!;
@@ -80,11 +101,17 @@ public partial class NoteList : LiveComponentBase
     [Inject]
     private ILogger<NoteList> Logger { get; set; } = default!;
 
-    private IReadOnlyList<Note> Shown => _view == NotesView.MayBeStale
-        ? [.. _notes.Where(note => StalenessOf(note) is { MayBeStale: true })]
-        : _notes;
+    private IReadOnlyList<Note> Shown => _notes;
 
-    protected override void OnInitialized() => RefreshOn<NoteChanged>(changed => changed.WorkspaceId == Workspace.Id ? LoadAsync() : Task.CompletedTask);
+    private int Pages => Math.Max(1, (_total + NoteAdminService.PageSize - 1) / NoteAdminService.PageSize);
+
+    private bool Paged => _search is null && _view != NotesView.MayBeStale && _total > NoteAdminService.PageSize;
+
+    protected override void OnInitialized()
+    {
+        RefreshOn<NoteChanged>(changed => changed.WorkspaceId == Workspace.Id ? LoadAsync() : Task.CompletedTask);
+        RefreshOn<MemoryUsageRecorded>(recorded => recorded.WorkspaceIds.Contains(Workspace.Id) ? LoadLastUsedAsync() : Task.CompletedTask);
+    }
 
     protected override async Task OnParametersSetAsync()
     {
@@ -96,6 +123,8 @@ public partial class NoteList : LiveComponentBase
         _shownId = Workspace.Id;
         _search = null;
         _loaded = false;
+        _page = 0;
+        _view = ViewOf(InitialView);
         await LoadAsync();
     }
 
@@ -103,17 +132,32 @@ public partial class NoteList : LiveComponentBase
     {
         try
         {
-            var page = await Service.ListAsync(Workspace.Id, FilterOf(_view), 0, Cancel);
-            _notes = page.Items;
-            _total = page.Total;
+            if (_view == NotesView.MayBeStale)
+            {
+                await LoadStaleAsync();
+            }
+            else
+            {
+                var page = await Service.ListAsync(Workspace.Id, FilterOf(_view), _page, Cancel, _order);
+                if (page.Items.Count == 0 && _page > 0)
+                {
+                    _page = Math.Max(0, (page.Total - 1) / NoteAdminService.PageSize);
+                    page = await Service.ListAsync(Workspace.Id, FilterOf(_view), _page, Cancel, _order);
+                }
+
+                _notes = page.Items;
+                _total = page.Total;
+                _staleness = await Service.CheckAsync(Workspace, [.. _notes.Concat(_searchNotes.Select(item => item.Note))], Cancel);
+            }
+
             _pinned = await Service.PinnedAsync(Workspace.Id, Cancel);
             _excluded = await Memory.IsExcludedAsync(Workspace.Id, Cancel);
-            _staleness = await Service.CheckAsync(Workspace, [.. _notes.Concat(_searchNotes.Select(item => item.Note))], Cancel);
             if (_search is not null)
             {
                 await RunSearchAsync();
             }
 
+            await LoadLastUsedAsync();
             _error = null;
         }
         catch (OperationCanceledException)
@@ -129,9 +173,96 @@ public partial class NoteList : LiveComponentBase
         _loaded = true;
     }
 
+    // 'May be stale' needs every anchored note checked against the code: page through the active notes (at most MaxStaleScan) and keep the stale ones.
+    // When every active note was checked, the count goes to the Overview through the health cache.
+    private async Task LoadStaleAsync()
+    {
+        var stale = new List<Note>();
+        var staleness = new Dictionary<long, NoteStaleness>();
+        var checkedCount = 0;
+        var total = 0;
+        for (var page = 0; checkedCount < MaxStaleScan; page++)
+        {
+            var batch = await Service.ListAsync(Workspace.Id, NoteFilter.All, page, Cancel);
+            total = batch.Total;
+            if (batch.Items.Count == 0)
+            {
+                break;
+            }
+
+            var judged = await Service.CheckAsync(Workspace, batch.Items, Cancel);
+            foreach (var note in batch.Items)
+            {
+                if (judged.TryGetValue(note.Id, out var verdict) && verdict.MayBeStale)
+                {
+                    stale.Add(note);
+                    staleness[note.Id] = verdict;
+                }
+            }
+
+            checkedCount += batch.Items.Count;
+            if (checkedCount >= batch.Total)
+            {
+                break;
+            }
+        }
+
+        _notes = stale;
+        _total = stale.Count;
+        _staleness = staleness;
+        _staleScanCut = checkedCount < total;
+        if (!_staleScanCut)
+        {
+            Health.SetStale(Workspace.Id, stale.Count);
+        }
+    }
+
+    private async Task LoadLastUsedAsync()
+    {
+        try
+        {
+            var ids = _notes.Select(note => note.Id).Concat(_searchNotes.Select(item => item.Note.Id)).Distinct().ToList();
+            _lastUsed = ids.Count == 0 ? new Dictionary<long, DateTimeOffset>() : await Service.LastUsedAsync(Workspace.Id, ids, Cancel);
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "The last-used times of the notes of workspace {WorkspaceId} could not be loaded", Workspace.Id);
+        }
+    }
+
+    private Task ChangeOrderAsync(MemoryOrder order)
+    {
+        _order = order;
+        _page = 0;
+        return RunBusyAsync(LoadAsync, "The notes could not be loaded.");
+    }
+
+    private Task GoToPageAsync(int page)
+    {
+        _page = Math.Clamp(page, 0, Pages - 1);
+        return RunBusyAsync(LoadAsync, "The notes could not be loaded.");
+    }
+
+    private DateTimeOffset? LastUsedOf(Note note) => _lastUsed.TryGetValue(note.Id, out var used) ? used : null;
+
+    private static NotesView ViewOf(string? view) => (view ?? string.Empty).Trim().ToLowerInvariant() switch
+    {
+        "pinned" => NotesView.Pinned,
+        "agents" => NotesView.FromAgents,
+        "stale" => NotesView.MayBeStale,
+        "detached" => NotesView.Detached,
+        "retired" => NotesView.Retired,
+        _ => NotesView.All,
+    };
+
     private Task ChangeViewAsync(NotesView view)
     {
         _view = view;
+        _page = 0;
         return RunBusyAsync(LoadAsync, "The notes could not be loaded.");
     }
 
@@ -157,6 +288,7 @@ public partial class NoteList : LiveComponentBase
         _searchNotes = [.. ids.Where(item => byId.ContainsKey(item.Id)).Select(item => (byId[item.Id], item.Match))];
         _staleness = await Service.CheckAsync(Workspace, [.. _searchNotes.Select(item => item.Note)], Cancel);
         _search = result;
+        await LoadLastUsedAsync();
     }
 
     private void ClearSearch()
@@ -337,7 +469,7 @@ public partial class NoteList : LiveComponentBase
     private static NoteFilter FilterOf(NotesView view) => view switch
     {
         NotesView.Pinned => NoteFilter.Pinned,
-        NotesView.FromClaude => NoteFilter.FromModels,
+        NotesView.FromAgents => NoteFilter.FromModels,
         NotesView.Detached => NoteFilter.Detached,
         NotesView.Retired => NoteFilter.Retired,
         _ => NoteFilter.All,
@@ -357,9 +489,19 @@ public partial class NoteList : LiveComponentBase
             return $"{_searchNotes.Count} note(s) found for '{_query.Trim()}'.";
         }
 
-        var shown = Shown.Count;
-        var more = _total > _notes.Count ? $" The newest {_notes.Count} are listed." : string.Empty;
-        return $"{shown} note(s) shown, {_total} in this view.{more}";
+        if (_view == NotesView.MayBeStale)
+        {
+            var cut = _staleScanCut ? $" Only the newest {MaxStaleScan} notes were checked." : string.Empty;
+            return $"{_total} note(s) may be stale.{cut}";
+        }
+
+        if (_total <= _notes.Count)
+        {
+            return $"{_total} note(s) in this view.";
+        }
+
+        var first = (_page * NoteAdminService.PageSize) + 1;
+        return $"Notes {first}-{first + _notes.Count - 1} of {_total}, page {_page + 1} of {Pages}.";
     }
 
     /// <summary>One draft of an import, editable before it is saved.</summary>

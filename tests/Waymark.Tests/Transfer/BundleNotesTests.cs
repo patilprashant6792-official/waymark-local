@@ -67,7 +67,7 @@ public sealed class BundleNotesTests
 
         Assert.Equal(2, Assert.Single(applied).NotesAdded);
         var notes = await new NoteStore(db.Connections, db.Writes).ListActiveAsync(workspace.Id, _ct);
-        Assert.All(notes, note => Assert.Equal(new NoteAuthor(NoteAuthorKind.ClaudeClient, "claude-ai"), note.Author));
+        Assert.All(notes, note => Assert.Equal(new NoteAuthor(NoteAuthorKind.Agent, "claude-ai"), note.Author));
         Assert.Equal("missing-flow", notes.Single(note => note.Body == "on a flow").DetachedFrom);
         Assert.Equal(2, await db.CountAsync("note_fts", _ct));
     }
