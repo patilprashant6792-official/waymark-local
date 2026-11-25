@@ -6,8 +6,8 @@ using Waymark.Core.Workspaces;
 
 namespace Waymark.Host.Notes;
 
-/// <summary>A note drafted from pasted instruction text, before the owner saves it.</summary>
-public sealed record NoteDraft(string Body, NoteKind Kind, string? About);
+/// <summary>A note drafted from pasted instruction text, before the owner saves it. The title is derived from the body and the owner can change it.</summary>
+public sealed record NoteDraft(string Title, string Body, NoteKind Kind, string? About);
 
 /// <summary>What an import of drafts did: how many were saved, and why the others were not.</summary>
 public sealed record NoteImportResult(int Saved, IReadOnlyList<string> Problems);
@@ -46,18 +46,18 @@ public sealed class NoteAdminService(INoteService notes, INoteStore store, IMemo
 
     public Task<MemorySearchResult> SearchAsync(long workspaceId, string query, CancellationToken ct) => search.SearchAsync(workspaceId, query, 30, ct);
 
-    public async Task<NoteSaved> AddAsync(Workspace workspace, string? flow, string? step, string? about, NoteKind kind, string body, CancellationToken ct)
+    public async Task<NoteSaved> AddAsync(Workspace workspace, string? flow, string? step, string? about, NoteKind kind, string title, string body, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(workspace);
-        var saved = await notes.AddAsync(workspace, Owner, flow, step, about, NoteKinds.ToText(kind), body, ct).ConfigureAwait(false);
+        var saved = await notes.AddAsync(workspace, Owner, flow, step, about, NoteKinds.ToText(kind), title, body, ct).ConfigureAwait(false);
         await AuditAsync("config.note_added", workspace, saved.Note, ct).ConfigureAwait(false);
         return saved;
     }
 
-    public async Task<Note> EditAsync(Workspace workspace, long id, string body, NoteKind kind, CancellationToken ct)
+    public async Task<Note> EditAsync(Workspace workspace, long id, string title, string body, NoteKind kind, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(workspace);
-        var saved = await notes.EditAsync(workspace, Owner, id, body, NoteKinds.ToText(kind), ct).ConfigureAwait(false);
+        var saved = await notes.EditAsync(workspace, Owner, id, title, body, NoteKinds.ToText(kind), ct).ConfigureAwait(false);
         await AuditAsync("config.note_edited", workspace, saved, ct).ConfigureAwait(false);
         return saved;
     }
@@ -98,7 +98,7 @@ public sealed class NoteAdminService(INoteService notes, INoteStore store, IMemo
             var draft = drafts[i];
             try
             {
-                await notes.AddAsync(workspace, Owner, null, null, draft.About, NoteKinds.ToText(draft.Kind), draft.Body, ct).ConfigureAwait(false);
+                await notes.AddAsync(workspace, Owner, null, null, draft.About, NoteKinds.ToText(draft.Kind), draft.Title, draft.Body, ct).ConfigureAwait(false);
                 saved++;
             }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or KeyNotFoundException)

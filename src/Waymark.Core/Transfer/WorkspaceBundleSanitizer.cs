@@ -236,6 +236,17 @@ public static class WorkspaceBundleSanitizer
             return null;
         }
 
+        // A missing title (a bundle from before titles) or one that breaks the rules is derived from the body, as migration 025 did here: a bad title never costs the note.
+        string title;
+        try
+        {
+            title = string.IsNullOrWhiteSpace(note.Title) ? NoteRules.DeriveTitle(body) : NoteRules.CleanTitle(note.Title);
+        }
+        catch (ArgumentException)
+        {
+            title = NoteRules.DeriveTitle(body);
+        }
+
         if (!NoteKinds.TryParse(note.Kind, out var kind) || !NoteAuthorKinds.TryParse(note.AuthorKind, out var authorKind))
         {
             return null;
@@ -274,13 +285,13 @@ public static class WorkspaceBundleSanitizer
             return null;
         }
 
-        var all = string.Join("\n", body, step ?? string.Empty, about ?? string.Empty, author.Id);
+        var all = string.Join("\n", title, body, step ?? string.Empty, about ?? string.Empty, author.Id);
         if (SensitiveDataScanner.Redact(all).HasFindings || SensitiveDataScanner.ContainsMarker(all))
         {
             return null;
         }
 
-        return new BundleNote(body, NoteKinds.ToText(kind), flow, step, about, flow is null ? detached : null, NoteAuthorKinds.ToText(author.Kind), author.Id, note.CreatedUtc, note.UpdatedUtc);
+        return new BundleNote(body, NoteKinds.ToText(kind), flow, step, about, flow is null ? detached : null, NoteAuthorKinds.ToText(author.Kind), author.Id, note.CreatedUtc, note.UpdatedUtc, title);
     }
 
     private static string? CleanSpec(string? spec, bool allowRange, out bool ok)

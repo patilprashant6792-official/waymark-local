@@ -27,6 +27,7 @@ internal sealed class FlowEditAdvisor(
     private const int MaxHitsPerPath = 60;
     private const int MaxProblemsPerFlow = 3;
     private const int MaxNotesCounted = 50;
+    private const int MaxNoteTitles = 3;
 
     public async Task<string?> AdviseAsync(string workspace, IReadOnlyList<string> relativePaths, FlowEditKind kind, CancellationToken ct)
     {
@@ -76,10 +77,10 @@ internal sealed class FlowEditAdvisor(
         return flowText is null ? noteLine : noteLine is null ? flowText : flowText + "\n" + noteLine;
     }
 
-    // Notes anchored in a changed file may no longer hold: one line that says how many and the call that lists them. Silent when there are none.
+    // Notes anchored in a changed file may no longer hold: one line that says how many, the titles of the newest few, and the call that opens them. Silent when there are none.
     private async Task<string?> NotesLineAsync(long workspaceId, List<string> paths, CancellationToken ct)
     {
-        var ids = new HashSet<long>();
+        var ids = new List<long>();
         var withNotes = new List<string>();
         foreach (var path in paths)
         {
@@ -87,7 +88,7 @@ internal sealed class FlowEditAdvisor(
             if (found.Count > 0)
             {
                 withNotes.Add(path);
-                ids.UnionWith(found);
+                ids.AddRange(found.Except(ids).ToList());
             }
         }
 
@@ -97,11 +98,12 @@ internal sealed class FlowEditAdvisor(
         }
 
         var which = paths.Count == 1 ? "this file" : "these files";
-        var others = withNotes.Count > 1 ? $" (and {withNotes.Count - 1} other file(s): one call each)" : string.Empty;
-        var call = $"memory_recall(action='notes', about='{withNotes[0]}'){others}";
-        return ids.Count == 1
-            ? $"📝 1 note is about {which}: {call} shows it; check it still holds (confirm_note, or edit or retire it if an agent wrote it)."
-            : $"📝 {ids.Count} notes are about {which}: {call} shows them; check they still hold (confirm_note, or edit or retire those agents wrote).";
+        var titled = await notes.GetAsync(workspaceId, ids.Take(MaxNoteTitles).ToList(), ct).ConfigureAwait(false);
+        var titles = string.Join("; ", titled.Select(note => $"#{note.Id} {NoteLines.TitleText(note)}"));
+        var more = ids.Count > titled.Count ? $"; and {ids.Count - titled.Count} more: memory_recall(action='notes', about='{withNotes[0]}')" : string.Empty;
+        var open = titled.Count > 0 ? NoteLines.OpenCall(titled.Select(note => note.Id)) : $"memory_recall(action='notes', about='{withNotes[0]}')";
+        var noun = ids.Count == 1 ? "1 note is" : $"{ids.Count} notes are";
+        return $"📝 {noun} about {which} ({titles}{more}). Open with {open} and check they still hold (confirm_note, or edit or retire those agents wrote).";
     }
 
     // The path the way the flows store it: '/' as the separator, no leading './' or '/'.

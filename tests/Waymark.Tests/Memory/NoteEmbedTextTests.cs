@@ -11,7 +11,7 @@ public sealed class NoteEmbedTextTests
     {
         var text = NoteEmbedText.Compose("waymark", Step("guide-delivery"));
 
-        Assert.Equal("workspace: waymark\nflow: guide delivery\nstep: ToolGuideDelivery.AttachAsync\nkind: gotcha\nOnly one notice per call", text.Text.Replace("\r", string.Empty, StringComparison.Ordinal));
+        Assert.Equal("workspace: waymark\nflow: guide delivery\nstep: ToolGuideDelivery.AttachAsync\nkind: gotcha\ntitle: One notice\nOnly one notice per call", text.Text.Replace("\r", string.Empty, StringComparison.Ordinal));
         Assert.Equal(NoteRules.Hash(text.Text), text.Hash);
     }
 
@@ -22,12 +22,12 @@ public sealed class NoteEmbedTextTests
     [Fact]
     public void AWorkspaceNoteSaysWhatItIsAbout()
     {
-        var note = new Note(2, 1, null, null, null, "src/A.cs", null, NoteKind.Convention, "Keep it small", "h", new NoteAuthor(NoteAuthorKind.Human, "admin-ui"), null, null, null, null, null, null, null, false, At, At);
+        var note = new Note(2, 1, null, null, null, "src/A.cs", null, NoteKind.Convention, "Small A", "Keep it small", "h", new NoteAuthor(NoteAuthorKind.Human, "admin-ui"), null, null, null, null, null, null, null, false, At, At);
 
         Assert.Contains("about: src/A.cs", NoteEmbedText.Compose("waymark", note).Text, StringComparison.Ordinal);
     }
 
     private static Note Step(string flow) =>
-        new(1, 1, 7, flow, "src/Mcp/ToolGuideDelivery.cs:ToolGuideDelivery.AttachAsync", null, null, NoteKind.Gotcha, "Only one notice per call", "h",
+        new(1, 1, 7, flow, "src/Mcp/ToolGuideDelivery.cs:ToolGuideDelivery.AttachAsync", null, null, NoteKind.Gotcha, "One notice", "Only one notice per call", "h",
             new NoteAuthor(NoteAuthorKind.Agent, "claude-ai"), null, 1, null, null, null, null, null, false, At, At);
 }

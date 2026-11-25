@@ -1,6 +1,9 @@
 namespace Waymark.Core.Memory;
 
-/// <summary>A note to add. The anchor is the workspace (all of MapId, StepSpec, About null), a file or member of it (About), a flow (MapId) or one step of a flow (MapId and StepSpec).</summary>
+/// <summary>
+/// A note to add. The anchor is the workspace (all of MapId, StepSpec, About null), a file or member of it (About), a flow (MapId) or one step of a flow (MapId and StepSpec).
+/// <paramref name="Title"/> is already cleaned by the caller; null derives one from the body (<see cref="NoteRules.DeriveTitle"/>).
+/// </summary>
 public sealed record NewNote(
     long WorkspaceId,
     long? MapId,
@@ -10,7 +13,8 @@ public sealed record NewNote(
     string Body,
     NoteAuthor Author,
     string? CodeHash,
-    int? FlowVersion);
+    int? FlowVersion,
+    string? Title = null);
 
 /// <summary>Which notes of a workspace a list shows. Everything but <see cref="Retired"/> is active notes only.</summary>
 public enum NoteFilter
@@ -41,7 +45,7 @@ public interface INoteStore
     /// Supersedes the note and inserts the new revision (same anchor, pin and last-used time, <see cref="Note.ReplacesId"/> set) in one transaction; the full-text row moves to the new id.
     /// The revision is written by <paramref name="author"/>. The owner may revise any note; an agent only an agent's note.
     /// </summary>
-    Task<NoteWriteResult> ReviseAsync(long workspaceId, long id, NoteAuthor author, string body, NoteKind kind, string? codeHash, int? flowVersion, DateTimeOffset now, CancellationToken ct);
+    Task<NoteWriteResult> ReviseAsync(long workspaceId, long id, NoteAuthor author, string title, string body, NoteKind kind, string? codeHash, int? flowVersion, DateTimeOffset now, CancellationToken ct);
 
     /// <summary>Retires the note (kept, no longer active, unpinned, full-text row removed). The owner may retire any note; an agent only an agent's note.</summary>
     Task<NoteWriteResult> RetireAsync(long workspaceId, long id, NoteAuthor author, DateTimeOffset now, CancellationToken ct);
@@ -75,7 +79,7 @@ public interface INoteStore
 
     /// <summary>
     /// Active notes whose words match <paramref name="ftsQuery"/>, an FTS5 expression the caller built from sanitized words only (never user text as is), best first.
-    /// Column weights: body 4, anchor 1.
+    /// Column weights: title and body 4, anchor 1.
     /// </summary>
     Task<IReadOnlyList<NoteWordHit>> SearchWordsAsync(long workspaceId, string ftsQuery, int take, CancellationToken ct);
 

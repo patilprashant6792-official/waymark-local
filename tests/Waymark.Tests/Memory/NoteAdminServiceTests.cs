@@ -19,7 +19,7 @@ public sealed class NoteAdminServiceTests
         var audit = new FakeAuditStore();
         var service = new NoteAdminService(notes, null!, new EmptyMemorySearch(), null!, audit, TimeProvider.System);
 
-        await service.AddAsync(Ws, null, null, "src/A.cs", NoteKind.Why, "because", _ct);
+        await service.AddAsync(Ws, null, null, "src/A.cs", NoteKind.Why, "Because", "because", _ct);
         await service.RetireAsync(Ws, 5, _ct);
         await service.SetPinnedAsync(Ws, 5, true, _ct);
         await service.ConfirmAsync(Ws, 5, _ct);
@@ -36,7 +36,7 @@ public sealed class NoteAdminServiceTests
         var audit = new FakeAuditStore();
         var service = new NoteAdminService(notes, null!, new EmptyMemorySearch(), null!, audit, TimeProvider.System);
 
-        var result = await service.ImportAsync(Ws, [new NoteDraft("good", NoteKind.Note, null), new NoteDraft("bad", NoteKind.Note, null)], _ct);
+        var result = await service.ImportAsync(Ws, [new NoteDraft("Good", "good", NoteKind.Note, null), new NoteDraft("Bad", "bad", NoteKind.Note, null)], _ct);
 
         Assert.Equal(1, result.Saved);
         Assert.Single(result.Problems);
@@ -49,7 +49,7 @@ public sealed class NoteAdminServiceTests
 
         public string? RefuseBody { get; init; }
 
-        public Task<NoteSaved> AddAsync(Workspace workspace, NoteAuthor author, string? flow, string? step, string? about, string? kind, string? body, CancellationToken ct)
+        public Task<NoteSaved> AddAsync(Workspace workspace, NoteAuthor author, string? flow, string? step, string? about, string? kind, string? title, string? body, CancellationToken ct)
         {
             Authors.Add(author);
             if (body == RefuseBody)
@@ -60,7 +60,7 @@ public sealed class NoteAdminServiceTests
             return Task.FromResult(new NoteSaved(Make(1, author), []));
         }
 
-        public Task<Note> EditAsync(Workspace workspace, NoteAuthor author, long id, string? body, string? kind, CancellationToken ct) => Done(id, author);
+        public Task<Note> EditAsync(Workspace workspace, NoteAuthor author, long id, string? title, string? body, string? kind, CancellationToken ct) => Done(id, author);
 
         public Task<Note> RetireAsync(Workspace workspace, NoteAuthor author, long id, CancellationToken ct) => Done(id, author);
 
@@ -78,6 +78,6 @@ public sealed class NoteAdminServiceTests
         }
 
         private static Note Make(long id, NoteAuthor author) =>
-            new(id, 1, null, null, null, null, null, NoteKind.Note, "b", "h", author, null, null, null, null, null, null, null, false, At, At);
+            new(id, 1, null, null, null, null, null, NoteKind.Note, "t", "b", "h", author, null, null, null, null, null, null, null, false, At, At);
     }
 }

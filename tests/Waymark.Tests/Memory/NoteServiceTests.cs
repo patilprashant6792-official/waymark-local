@@ -25,7 +25,7 @@ public sealed class NoteServiceTests
     {
         await using var kit = await Kit.CreateAsync(_ct);
 
-        var saved = await kit.Service.AddAsync(kit.Workspace, Claude, "run-flow", "src/A.cs:A.Run", null, "gotcha", "Run is called twice on start", _ct);
+        var saved = await kit.Service.AddAsync(kit.Workspace, Claude, "run-flow", "src/A.cs:A.Run", null, "gotcha", "Run runs twice", "Run is called twice on start", _ct);
 
         Assert.Equal("src/A.cs:A.Run", saved.Note.StepSpec);
         Assert.StartsWith(StepFingerprint.Prefix, saved.Note.CodeHash, StringComparison.Ordinal);
@@ -39,7 +39,7 @@ public sealed class NoteServiceTests
         await using var kit = await Kit.CreateAsync(_ct);
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
-            kit.Service.AddAsync(kit.Workspace, Claude, null, null, null, null, "use AKIAABCDEFGHIJKLMNOP for the bucket", _ct));
+            kit.Service.AddAsync(kit.Workspace, Claude, null, null, null, null, "Bucket key", "use AKIAABCDEFGHIJKLMNOP for the bucket", _ct));
 
         Assert.Contains("secret", ex.Message, StringComparison.Ordinal);
         Assert.Equal(0, await kit.Db.CountAsync("notes", _ct));
@@ -50,7 +50,7 @@ public sealed class NoteServiceTests
         await Assert.ThrowsAsync<ArgumentException>(async () =>
         {
             await using var kit = await Kit.CreateAsync(_ct);
-            await kit.Service.AddAsync(kit.Workspace, Claude, null, null, null, null, new string('a', NoteRules.MaxBodyChars + 1), _ct);
+            await kit.Service.AddAsync(kit.Workspace, Claude, null, null, null, null, "Too long", new string('a', NoteRules.MaxBodyChars + 1), _ct);
         });
 
     [Fact]
@@ -59,7 +59,7 @@ public sealed class NoteServiceTests
         await using var kit = await Kit.CreateAsync(_ct);
 
         var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
-            kit.Service.AddAsync(kit.Workspace, Claude, "run-flow", "src/A.cs:A.Nope", null, null, "x", _ct));
+            kit.Service.AddAsync(kit.Workspace, Claude, "run-flow", "src/A.cs:A.Nope", null, null, "X", "x", _ct));
 
         Assert.Contains("not a step of flow", ex.Message, StringComparison.Ordinal);
     }
@@ -69,16 +69,16 @@ public sealed class NoteServiceTests
         await Assert.ThrowsAsync<KeyNotFoundException>(async () =>
         {
             await using var kit = await Kit.CreateAsync(_ct);
-            await kit.Service.AddAsync(kit.Workspace, Claude, "no-such-flow", null, null, null, "x", _ct);
+            await kit.Service.AddAsync(kit.Workspace, Claude, "no-such-flow", null, null, null, "X", "x", _ct);
         });
 
     [Fact]
     public async Task AModelCannotEditOrRetireTheOwnersNote()
     {
         await using var kit = await Kit.CreateAsync(_ct);
-        var owners = (await kit.Service.AddAsync(kit.Workspace, Owner, null, null, null, "convention", "Keep A small", _ct)).Note;
+        var owners = (await kit.Service.AddAsync(kit.Workspace, Owner, null, null, null, "convention", "Keep A small", "Keep A small", _ct)).Note;
 
-        var edit = await Assert.ThrowsAsync<InvalidOperationException>(() => kit.Service.EditAsync(kit.Workspace, Claude, owners.Id, "changed", null, _ct));
+        var edit = await Assert.ThrowsAsync<InvalidOperationException>(() => kit.Service.EditAsync(kit.Workspace, Claude, owners.Id, null, "changed", null, _ct));
         await Assert.ThrowsAsync<InvalidOperationException>(() => kit.Service.RetireAsync(kit.Workspace, Claude, owners.Id, _ct));
         await Assert.ThrowsAsync<InvalidOperationException>(() => kit.Service.PinAsync(kit.Workspace, Claude, owners.Id, true, _ct));
 
@@ -90,7 +90,7 @@ public sealed class NoteServiceTests
     public async Task TheOwnerRetiresClaudesNote()
     {
         await using var kit = await Kit.CreateAsync(_ct);
-        var claudes = (await kit.Service.AddAsync(kit.Workspace, Claude, null, null, null, null, "a hint", _ct)).Note;
+        var claudes = (await kit.Service.AddAsync(kit.Workspace, Claude, null, null, null, null, "A hint", "a hint", _ct)).Note;
 
         var retired = await kit.Service.RetireAsync(kit.Workspace, Owner, claudes.Id, _ct);
 
@@ -101,7 +101,7 @@ public sealed class NoteServiceTests
     public async Task ChangingTheAnchoredCodeMakesTheNoteMayBeStaleUntilConfirmed()
     {
         await using var kit = await Kit.CreateAsync(_ct);
-        var note = (await kit.Service.AddAsync(kit.Workspace, Claude, "run-flow", "src/A.cs:A.Run", null, null, "x starts at one", _ct)).Note;
+        var note = (await kit.Service.AddAsync(kit.Workspace, Claude, "run-flow", "src/A.cs:A.Run", null, null, "x starts at one", "x starts at one", _ct)).Note;
         Assert.False((await kit.Service.CheckAsync(kit.Workspace, [note], _ct))[note.Id].MayBeStale);
 
         kit.WriteCode(Code.Replace("var x = 1;", "var x = 2;", StringComparison.Ordinal));
@@ -118,7 +118,7 @@ public sealed class NoteServiceTests
     public async Task OnlyTrailingSpacesChangedIsNotStale()
     {
         await using var kit = await Kit.CreateAsync(_ct);
-        var note = (await kit.Service.AddAsync(kit.Workspace, Claude, "run-flow", "src/A.cs:A.Run", null, null, "note", _ct)).Note;
+        var note = (await kit.Service.AddAsync(kit.Workspace, Claude, "run-flow", "src/A.cs:A.Run", null, null, "Note", "note", _ct)).Note;
 
         kit.WriteCode(Code.Replace("var x = 1;", "var x = 1;   ", StringComparison.Ordinal).Replace("\n", "\r\n", StringComparison.Ordinal));
 
@@ -130,7 +130,7 @@ public sealed class NoteServiceTests
     {
         await using var kit = await Kit.CreateAsync(_ct);
 
-        var saved = await kit.Service.AddAsync(kit.Workspace, Claude, null, null, "src/Missing.cs:M.Go", "why", "kept for the branch that has it", _ct);
+        var saved = await kit.Service.AddAsync(kit.Workspace, Claude, null, null, "src/Missing.cs:M.Go", "why", "Kept for its branch", "kept for the branch that has it", _ct);
 
         Assert.Null(saved.Note.CodeHash);
         Assert.Equal("src/Missing.cs:M.Go", saved.Note.About);
@@ -143,7 +143,7 @@ public sealed class NoteServiceTests
         var ids = new List<long>();
         for (var i = 0; i < NoteRules.MaxPinned + 1; i++)
         {
-            ids.Add((await kit.Service.AddAsync(kit.Workspace, Owner, null, null, null, null, $"rule {i}", _ct)).Note.Id);
+            ids.Add((await kit.Service.AddAsync(kit.Workspace, Owner, null, null, null, null, $"Rule {i}", $"rule {i}", _ct)).Note.Id);
         }
 
         for (var i = 0; i < NoteRules.MaxPinned; i++)
@@ -159,13 +159,50 @@ public sealed class NoteServiceTests
     public async Task AnEditKeepsTheOldRevision()
     {
         await using var kit = await Kit.CreateAsync(_ct);
-        var first = (await kit.Service.AddAsync(kit.Workspace, Claude, null, null, null, null, "first", _ct)).Note;
+        var first = (await kit.Service.AddAsync(kit.Workspace, Claude, null, null, null, null, "First", "first", _ct)).Note;
 
-        var second = await kit.Service.EditAsync(kit.Workspace, Claude, first.Id, "second", null, _ct);
+        var second = await kit.Service.EditAsync(kit.Workspace, Claude, first.Id, null, "second", null, _ct);
 
         Assert.Equal(first.Id, second.ReplacesId);
+        Assert.Equal("First", second.Title);
         Assert.Equal(2, (await kit.Notes.HistoryAsync(kit.Workspace.Id, second.Id, _ct)).Count);
-        await Assert.ThrowsAsync<InvalidOperationException>(() => kit.Service.EditAsync(kit.Workspace, Claude, first.Id, "third", null, _ct));
+        await Assert.ThrowsAsync<InvalidOperationException>(() => kit.Service.EditAsync(kit.Workspace, Claude, first.Id, null, "third", null, _ct));
+    }
+
+    [Theory]
+    [InlineData(null)]
+    [InlineData("   ")]
+    public async Task ANoteWithoutATitleIsRefused(string? title)
+    {
+        await using var kit = await Kit.CreateAsync(_ct);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() => kit.Service.AddAsync(kit.Workspace, Claude, null, null, null, null, title, "a body", _ct));
+
+        Assert.Contains("title is required", ex.Message, StringComparison.Ordinal);
+        Assert.Equal(0, await kit.Db.CountAsync("notes", _ct));
+    }
+
+    [Fact]
+    public async Task ATitleOverTheCapIsRefused()
+    {
+        await using var kit = await Kit.CreateAsync(_ct);
+
+        var ex = await Assert.ThrowsAsync<ArgumentException>(() =>
+            kit.Service.AddAsync(kit.Workspace, Claude, null, null, null, null, new string('t', NoteRules.MaxTitleChars + 1), "a body", _ct));
+
+        Assert.Contains("title is", ex.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task AnEditCanChangeOnlyTheTitle()
+    {
+        await using var kit = await Kit.CreateAsync(_ct);
+        var first = (await kit.Service.AddAsync(kit.Workspace, Claude, null, null, null, null, "Old title", "the body", _ct)).Note;
+
+        var second = await kit.Service.EditAsync(kit.Workspace, Claude, first.Id, "  New   title ", null, null, _ct);
+
+        Assert.Equal("New title", second.Title);
+        Assert.Equal("the body", second.Body);
     }
 
     [Fact]

@@ -6,8 +6,9 @@ namespace Waymark.Core.Memory;
 public sealed record EmbedText(string Text, string Hash);
 
 /// <summary>
-/// Composes what the index embeds for a note: a few header lines that place it (workspace, flow, step or about, kind) and then its body.
+/// Composes what the index embeds for a note: a few header lines that place it (workspace, flow, step or about, kind), its title and then its body.
 /// Pure, so a flow rename changes the text and therefore the hash, and the note is embedded again.
+/// </summary>
 /// </summary>
 public static class NoteEmbedText
 {
@@ -33,6 +34,7 @@ public static class NoteEmbedText
         }
 
         text.Append("kind: ").AppendLine(NoteKinds.ToText(note.Kind));
+        text.Append("title: ").AppendLine(note.Title);
         text.Append(note.Body);
         var composed = text.ToString();
         return new EmbedText(composed, NoteRules.Hash(composed));

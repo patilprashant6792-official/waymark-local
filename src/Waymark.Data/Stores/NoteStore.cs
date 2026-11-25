@@ -17,7 +17,7 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
     private const int MaxIdsPerQuery = 500;
 
     private const string Columns =
-        "n.id, n.workspace_id, n.map_id, m.name AS flow_name, n.step_spec, n.about, n.detached_from, n.kind, n.body, n.content_hash, n.author_kind, n.author_id, " +
+        "n.id, n.workspace_id, n.map_id, m.name AS flow_name, n.step_spec, n.about, n.detached_from, n.kind, n.title, n.body, n.content_hash, n.author_kind, n.author_id, " +
         "n.code_hash, n.flow_version, n.confirmed_utc, n.replaces_id, n.superseded_utc, n.retired_utc, n.retired_by, n.pinned, n.created_utc, n.updated_utc";
 
     private const string From = "FROM notes n LEFT JOIN feature_maps m ON m.id = n.map_id";
@@ -37,13 +37,15 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
     {
         ArgumentNullException.ThrowIfNull(note);
         ArgumentException.ThrowIfNullOrWhiteSpace(note.Body);
+        var title = note.Title ?? NoteRules.DeriveTitle(note.Body);
+        ArgumentException.ThrowIfNullOrWhiteSpace(title, nameof(note));
         var stamp = Timestamp.Format(now);
         return writes.ExecuteAsync(async (connection, tx, k) =>
         {
             await connection.ExecuteAsync(new CommandDefinition(
-                "INSERT INTO notes (workspace_id, map_id, step_spec, about, kind, body, content_hash, author_kind, author_id, code_hash, flow_version, " +
+                "INSERT INTO notes (workspace_id, map_id, step_spec, about, kind, title, body, content_hash, author_kind, author_id, code_hash, flow_version, " +
                 "confirmed_utc, pinned, created_utc, updated_utc) " +
-                "VALUES (@WorkspaceId, @MapId, @StepSpec, @About, @Kind, @Body, @Hash, @AuthorKind, @AuthorId, @CodeHash, @FlowVersion, @Stamp, 0, @Stamp, @Stamp)",
+                "VALUES (@WorkspaceId, @MapId, @StepSpec, @About, @Kind, @Title, @Body, @Hash, @AuthorKind, @AuthorId, @CodeHash, @FlowVersion, @Stamp, 0, @Stamp, @Stamp)",
                 new
                 {
                     note.WorkspaceId,
@@ -51,6 +53,7 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
                     note.StepSpec,
                     note.About,
                     Kind = NoteKinds.ToText(note.Kind),
+                    Title = title,
                     note.Body,
                     Hash = NoteRules.Hash(note.Body),
                     AuthorKind = NoteAuthorKinds.ToText(note.Author.Kind),
@@ -72,6 +75,7 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
         long workspaceId,
         long id,
         NoteAuthor author,
+        string title,
         string body,
         NoteKind kind,
         string? codeHash,
@@ -80,6 +84,7 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
         CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(author);
+        ArgumentException.ThrowIfNullOrWhiteSpace(title);
         ArgumentException.ThrowIfNullOrWhiteSpace(body);
         var stamp = Timestamp.Format(now);
         return writes.ExecuteAsync(async (connection, tx, k) =>
@@ -105,14 +110,15 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
             await DeleteFtsAsync(connection, tx, id, k);
             // The revision is the editor's (an owner's edit of an agent's note makes it the owner's); it keeps when the note was last used.
             await connection.ExecuteAsync(new CommandDefinition(
-                "INSERT INTO notes (workspace_id, map_id, step_spec, about, detached_from, kind, body, content_hash, author_kind, author_id, code_hash, flow_version, " +
+                "INSERT INTO notes (workspace_id, map_id, step_spec, about, detached_from, kind, title, body, content_hash, author_kind, author_id, code_hash, flow_version, " +
                 "confirmed_utc, replaces_id, pinned, created_utc, updated_utc, last_used_utc) " +
-                "SELECT workspace_id, map_id, step_spec, about, detached_from, @kind, @body, @hash, @authorKind, @authorId, @codeHash, @flowVersion, " +
+                "SELECT workspace_id, map_id, step_spec, about, detached_from, @kind, @title, @body, @hash, @authorKind, @authorId, @codeHash, @flowVersion, " +
                 "@stamp, id, @pinned, @stamp, @stamp, last_used_utc FROM notes WHERE id = @id",
                 new
                 {
                     id,
                     kind = NoteKinds.ToText(kind),
+                    title,
                     body,
                     hash = NoteRules.Hash(body),
                     authorKind = NoteAuthorKinds.ToText(author.Kind),
@@ -397,12 +403,13 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
         return row?.ToNote();
     }
 
+    // The title is indexed with the body (weight 4), so a word of either finds the note.
     private static async Task WriteFtsAsync(SqliteConnection connection, SqliteTransaction tx, Note note, CancellationToken ct)
     {
         await DeleteFtsAsync(connection, tx, note.Id, ct);
         await connection.ExecuteAsync(new CommandDefinition(
             "INSERT INTO note_fts (rowid, body, anchor) VALUES (@id, @body, @anchor)",
-            new { id = note.Id, body = note.Body, anchor = AnchorText(note) },
+            new { id = note.Id, body = (note.Title + " " + note.Body).TrimStart(), anchor = AnchorText(note) },
             tx,
             cancellationToken: ct));
     }
@@ -455,6 +462,8 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
 
         public string Kind { get; set; } = string.Empty;
 
+        public string Title { get; set; } = string.Empty;
+
         public string Body { get; set; } = string.Empty;
 
         public string ContentHash { get; set; } = string.Empty;
@@ -492,6 +501,7 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
             About,
             DetachedFrom,
             NoteKinds.FromStored(Kind),
+            Title,
             Body,
             ContentHash,
             new NoteAuthor(NoteAuthorKinds.FromStored(AuthorKind), AuthorId),

@@ -17,7 +17,7 @@ public sealed class MemoryToolsTests
         var memory = new RecordingMemory();
         var tools = new MemoryTools(memory, new FixedCaller("client-7"), NullLogger<MemoryTools>.Instance);
 
-        await tools.Memorise("ws", "add-note", name: "flow-a", note: "hint", step: "a.cs:A.B", kind: "gotcha", cancellationToken: _ct);
+        await tools.Memorise("ws", "add-note", name: "flow-a", title: "One hint", note: "hint", step: "a.cs:A.B", kind: "gotcha", cancellationToken: _ct);
 
         var (action, author) = Assert.Single(memory.Calls);
         Assert.Equal("add", action);
@@ -50,6 +50,17 @@ public sealed class MemoryToolsTests
     }
 
     [Fact]
+    public async Task RecallNotesByIdIsRouted()
+    {
+        var memory = new RecordingMemory();
+        var tools = new MemoryTools(memory, new FixedCaller("c"), NullLogger<MemoryTools>.Instance);
+
+        await tools.Recall("ws", "notes", noteIds: "41,57", cancellationToken: _ct);
+
+        Assert.Equal("notes-by-id", Assert.Single(memory.Calls).Action);
+    }
+
+    [Fact]
     public async Task AnUnknownActionNamesTheKnownOnes()
     {
         var tools = new MemoryTools(new RecordingMemory(), new FixedCaller("c"), NullLogger<MemoryTools>.Instance);
@@ -78,11 +89,11 @@ public sealed class MemoryToolsTests
 
         public Task<string> DeleteAsync(string? workspace, string? name, CancellationToken ct) => Record("delete", null);
 
-        public Task<string> NotesAsync(string? workspace, string? ids, string? about, long? history, int? page, int? pageSize, CancellationToken ct) => Record("notes", null);
+        public Task<string> NotesAsync(string? workspace, string? ids, string? noteIds, string? about, long? history, int? page, int? pageSize, CancellationToken ct) => Record(noteIds is null ? "notes" : "notes-by-id", null);
 
-        public Task<string> AddNoteAsync(string? workspace, NoteAuthor author, string? flow, string? step, string? about, string? kind, string? note, CancellationToken ct) => Record("add", author);
+        public Task<string> AddNoteAsync(string? workspace, NoteAuthor author, string? flow, string? step, string? about, string? kind, string? title, string? note, CancellationToken ct) => Record("add", author);
 
-        public Task<string> EditNoteAsync(string? workspace, NoteAuthor author, long? noteId, string? note, string? kind, CancellationToken ct) => Record("edit", author);
+        public Task<string> EditNoteAsync(string? workspace, NoteAuthor author, long? noteId, string? title, string? note, string? kind, CancellationToken ct) => Record("edit", author);
 
         public Task<string> RetireNoteAsync(string? workspace, NoteAuthor author, long? noteId, CancellationToken ct) => Record("retire", author);
 

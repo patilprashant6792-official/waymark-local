@@ -18,10 +18,11 @@ public interface INoteService
     /// <param name="flow">A flow name for a flow or step note; null for a workspace note.</param>
     /// <param name="step">A step of that flow, as memory_recall shows it; null for a flow note.</param>
     /// <param name="about">For a workspace note: 'path' or 'path:Type.Member'.</param>
-    Task<NoteSaved> AddAsync(Workspace workspace, NoteAuthor author, string? flow, string? step, string? about, string? kind, string? body, CancellationToken ct);
+    /// <param name="title">Required: a few words that say what the note is about (<see cref="NoteRules.MaxTitleChars"/> at most).</param>
+    Task<NoteSaved> AddAsync(Workspace workspace, NoteAuthor author, string? flow, string? step, string? about, string? kind, string? title, string? body, CancellationToken ct);
 
-    /// <summary>Saves a new revision of the author's own note; the old one is kept as history. A null kind keeps the kind.</summary>
-    Task<Note> EditAsync(Workspace workspace, NoteAuthor author, long id, string? body, string? kind, CancellationToken ct);
+    /// <summary>Saves a new revision of the author's own note; the old one is kept as history. A null title, body or kind keeps the current one.</summary>
+    Task<Note> EditAsync(Workspace workspace, NoteAuthor author, long id, string? title, string? body, string? kind, CancellationToken ct);
 
     Task<Note> RetireAsync(Workspace workspace, NoteAuthor author, long id, CancellationToken ct);
 

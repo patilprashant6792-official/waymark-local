@@ -21,14 +21,14 @@ internal sealed class FeatureMemoryService(FlowRecallService recall, FlowSaveSer
     public Task<string> DeleteAsync(string? workspace, string? name, CancellationToken ct) =>
         save.DeleteAsync(workspace, name, ct);
 
-    public Task<string> NotesAsync(string? workspace, string? ids, string? about, long? history, int? page, int? pageSize, CancellationToken ct) =>
-        noteRecall.NotesAsync(workspace, ids, about, history, page, pageSize, ct);
+    public Task<string> NotesAsync(string? workspace, string? ids, string? noteIds, string? about, long? history, int? page, int? pageSize, CancellationToken ct) =>
+        noteRecall.NotesAsync(workspace, ids, noteIds, about, history, page, pageSize, ct);
 
-    public Task<string> AddNoteAsync(string? workspace, NoteAuthor author, string? flow, string? step, string? about, string? kind, string? note, CancellationToken ct) =>
-        noteTools.AddAsync(workspace, author, flow, step, about, kind, note, ct);
+    public Task<string> AddNoteAsync(string? workspace, NoteAuthor author, string? flow, string? step, string? about, string? kind, string? title, string? note, CancellationToken ct) =>
+        noteTools.AddAsync(workspace, author, flow, step, about, kind, title, note, ct);
 
-    public Task<string> EditNoteAsync(string? workspace, NoteAuthor author, long? noteId, string? note, string? kind, CancellationToken ct) =>
-        noteTools.EditAsync(workspace, author, noteId, note, kind, ct);
+    public Task<string> EditNoteAsync(string? workspace, NoteAuthor author, long? noteId, string? title, string? note, string? kind, CancellationToken ct) =>
+        noteTools.EditAsync(workspace, author, noteId, title, note, kind, ct);
 
     public Task<string> RetireNoteAsync(string? workspace, NoteAuthor author, long? noteId, CancellationToken ct) =>
         noteTools.RetireAsync(workspace, author, noteId, ct);

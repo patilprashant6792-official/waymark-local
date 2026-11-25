@@ -160,12 +160,14 @@ public sealed class FlowIndexTests
     [Fact]
     public void WithMeaningOnAStandaloneNoteIsOneLineWithItsScore()
     {
-        var note = new Note(57, 1, null, null, null, "src/Waymark.Host/Mcp/ToolPipeline.cs", null, NoteKind.Convention, "Every call passes here", "h", Claude, null, null, null, null, null, null, null, false, Now, Now);
+        var note = new Note(57, 1, null, null, null, "src/Waymark.Host/Mcp/ToolPipeline.cs", null, NoteKind.Convention, "Every call passes here", "The pipeline wraps every tool call.", "h", Claude, null, null, null, null, null, null, null, false, Now, Now);
         var result = new MemorySearchResult([new MemoryHit(MemoryHitKind.Note, 57, null, null, 0.03, MemoryMatch.Meaning, [], [], 0.7)], true, null);
 
         var text = MemorySearchRenderer.Render("waymark", "pipeline", result, new Dictionary<long, FeatureMap>(), new Dictionary<long, Note> { [57] = note });
 
         Assert.Contains("1. note #57 convention [agent] about src/Waymark.Host/Mcp/ToolPipeline.cs: Every call passes here  0.70", text, StringComparison.Ordinal);
+        Assert.DoesNotContain("wraps every tool call", text, StringComparison.Ordinal);
+        Assert.Contains("memory_recall(action='notes', noteIds='57')", text, StringComparison.Ordinal);
         Assert.Contains(NoteRules.HintLine, text, StringComparison.Ordinal);
     }
 

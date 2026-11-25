@@ -350,7 +350,8 @@ public sealed class WorkspaceBundleService(
         NoteAuthorKinds.ToText(note.Author.Kind),
         note.Author.Id,
         note.CreatedUtc,
-        note.UpdatedUtc);
+        note.UpdatedUtc,
+        note.Title);
 
     // Written after the rules and maps, through the same checks as the Instructions page. The plan said the workspace had no text of its own;
     // text the owner saved since the preview is kept, as import never replaces what is here.

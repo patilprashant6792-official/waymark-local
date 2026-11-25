@@ -75,7 +75,7 @@ public static class WorkspaceGuideRules
     public static string Hash(string workspaceName, WorkspaceGuideText text) => GuideRules.Hash(Stable(workspaceName, text));
 
     /// <summary>
-    /// The hash with the owner's pinned notes in it (each 'id:content hash'), so a client hears when a pin changes. Without pins it equals <see cref="Hash(string, WorkspaceGuideText)"/>.
+    /// The hash with the owner's pinned notes in it (each 'id:content hash:title'), so a client hears when a pin changes. Without pins it equals <see cref="Hash(string, WorkspaceGuideText)"/>.
     /// </summary>
     public static string Hash(string workspaceName, WorkspaceGuideText text, IReadOnlyList<string> pinned)
     {

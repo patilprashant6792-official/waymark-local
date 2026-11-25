@@ -111,5 +111,5 @@ public sealed class NoteRulesTests
     }
 
     private static Note NoteBy(NoteAuthor author, long id = 1, string body = "body") =>
-        new(id, 1, null, null, null, null, null, NoteKind.Note, body, NoteRules.Hash(body), author, null, null, null, null, null, null, null, false, At, At);
+        new(id, 1, null, null, null, null, null, NoteKind.Note, "Title", body, NoteRules.Hash(body), author, null, null, null, null, null, null, null, false, At, At);
 }
