@@ -50,7 +50,7 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
         }
 
         var steps = (await connection.QueryAsync<StepRow>(new CommandDefinition(
-            "SELECT map_id, spec, depth, link_kind, note FROM feature_components WHERE map_id IN @mapIds ORDER BY map_id, ordinal",
+            "SELECT map_id, spec, depth, link_kind, note, branch FROM feature_components WHERE map_id IN @mapIds ORDER BY map_id, ordinal",
             new { mapIds = maps.Keys.ToArray() },
             cancellationToken: ct))).ToLookup(row => row.MapId);
 
@@ -59,7 +59,7 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
         {
             if (maps.TryGetValue(id, out var map))
             {
-                var own = steps[id].Select(row => new FeatureMapStep(row.Spec, (int)row.Depth, row.LinkKind, row.Note)).ToList();
+                var own = steps[id].Select(row => new FeatureMapStep(row.Spec, (int)row.Depth, row.LinkKind, row.Note, row.Branch)).ToList();
                 result.Add(new FeatureMap(map.Id, map.Name, map.Summary, (int)map.Version, map.Ordered != 0, map.DistinctReason, Timestamp.Parse(map.UpdatedUtc), own));
             }
         }
@@ -178,12 +178,13 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
                 }
             }
 
+            var known = await KnownBranchesAsync(connection, tx, existing.Id, k);
             await connection.ExecuteAsync(new CommandDefinition(
                 "DELETE FROM feature_components WHERE map_id = @id",
                 new { id = existing.Id },
                 tx,
                 cancellationToken: k));
-            await InsertStepsAsync(connection, tx, existing.Id, steps, k);
+            await InsertStepsAsync(connection, tx, existing.Id, steps, k, known);
             await connection.ExecuteAsync(new CommandDefinition(
                 "UPDATE feature_maps SET name = @finalName, summary = COALESCE(@summary, summary), version = version + 1, ordered = 1, updated_utc = @stamp WHERE id = @id",
                 new { id = existing.Id, finalName, summary, stamp },
@@ -346,17 +347,70 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
         }, ct);
     }
 
-    private static async Task InsertStepsAsync(SqliteConnection connection, SqliteTransaction tx, long mapId, IReadOnlyList<FeatureMapStep> steps, CancellationToken ct)
+    public Task<int> StampBranchAsync(long workspaceId, long mapId, IReadOnlyCollection<string> specs, string branch, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(specs);
+        ArgumentException.ThrowIfNullOrWhiteSpace(branch);
+        if (specs.Count == 0)
+        {
+            return Task.FromResult(0);
+        }
+
+        return writes.ExecuteAsync<int>(async (connection, tx, k) =>
+            await connection.ExecuteAsync(new CommandDefinition(
+                "UPDATE feature_components SET branch = @branch " +
+                "WHERE map_id = @mapId AND spec IN @specs AND (branch IS NULL OR branch <> @branch) " +
+                "AND map_id IN (SELECT id FROM feature_maps WHERE workspace_id = @workspaceId)",
+                new { workspaceId, mapId, branch, specs = specs.Distinct(StringComparer.OrdinalIgnoreCase).ToArray() },
+                tx,
+                cancellationToken: k)), ct);
+    }
+
+    public async Task<IReadOnlyList<long>> ListIdsAsync(long workspaceId, int limit, CancellationToken ct)
+    {
+        await using var connection = await connections.OpenAsync(ct);
+        var rows = await connection.QueryAsync<long>(new CommandDefinition(
+            "SELECT id FROM feature_maps WHERE workspace_id = @workspaceId ORDER BY updated_utc DESC, id DESC LIMIT @limit",
+            new { workspaceId, limit = Math.Max(1, limit) },
+            cancellationToken: ct));
+        return [.. rows];
+    }
+
+    // A step given without a branch keeps the one the same step had before the replace (known), so a save on one branch does not forget another's steps.
+    private static async Task InsertStepsAsync(
+        SqliteConnection connection,
+        SqliteTransaction tx,
+        long mapId,
+        IReadOnlyList<FeatureMapStep> steps,
+        CancellationToken ct,
+        IReadOnlyDictionary<string, string?>? known = null)
     {
         for (var ordinal = 0; ordinal < steps.Count; ordinal++)
         {
             var step = steps[ordinal];
+            var branch = step.Branch ?? (known is not null && known.TryGetValue(step.Spec, out var had) ? had : null);
             await connection.ExecuteAsync(new CommandDefinition(
-                "INSERT INTO feature_components (map_id, ordinal, spec, note, depth, link_kind, path) VALUES (@mapId, @ordinal, @spec, @note, @depth, @link, @path)",
-                new { mapId, ordinal, spec = step.Spec, note = step.Note, depth = step.Depth, link = step.Link, path = PathOf(step.Spec) },
+                "INSERT INTO feature_components (map_id, ordinal, spec, note, depth, link_kind, path, branch) VALUES (@mapId, @ordinal, @spec, @note, @depth, @link, @path, @branch)",
+                new { mapId, ordinal, spec = step.Spec, note = step.Note, depth = step.Depth, link = step.Link, path = PathOf(step.Spec), branch },
                 tx,
                 cancellationToken: ct));
         }
+    }
+
+    private static async Task<IReadOnlyDictionary<string, string?>> KnownBranchesAsync(SqliteConnection connection, SqliteTransaction tx, long mapId, CancellationToken ct)
+    {
+        var rows = await connection.QueryAsync<(string Spec, string? Branch)>(new CommandDefinition(
+            "SELECT spec, branch FROM feature_components WHERE map_id = @mapId",
+            new { mapId },
+            tx,
+            cancellationToken: ct));
+        var known = new Dictionary<string, string?>(StringComparer.OrdinalIgnoreCase);
+        foreach (var (spec, branch) in rows)
+        {
+            known[spec] = branch;
+        }
+
+        return known;
     }
 
     /// <summary>The file part of a step's text, which is what a lookup by file compares.</summary>
@@ -439,9 +493,11 @@ public sealed class FeatureMapStore(ISqliteConnectionFactory connections, IWrite
 
         public long Depth { get; set; }
 
-        public string LinkKind { get; set; } = "call";
+        public string LinkKind { get; set; } = string.Empty;
 
         public string Note { get; set; } = string.Empty;
+
+        public string? Branch { get; set; }
     }
 
     private sealed class FlowRow

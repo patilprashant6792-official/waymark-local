@@ -26,6 +26,18 @@ public sealed record FileChanged(long WorkspaceId, string RelativePath, FileChan
 /// <summary>A tool created, moved or deleted a whole folder inside a workspace. RelativePath uses '/'.</summary>
 public sealed record FolderChanged(long WorkspaceId, string RelativePath, FileChangeKind Kind);
 
+/// <summary>
+/// Files of a workspace changed on disk, whoever changed them (an editor, git, another agent, Waymark's own tools), after the code index took them in.
+/// <paramref name="Paths"/> are relative with '/'. <paramref name="Whole"/> means too many changed to list (a reconcile, a large checkout): treat the whole workspace as changed.
+/// </summary>
+public sealed record CodeFilesChanged(long WorkspaceId, IReadOnlyList<string> Paths, bool Whole);
+
+/// <summary>The branch checked out in a workspace changed (or the folder became, or stopped being, a git checkout). Null means no branch: not git, or a detached HEAD.</summary>
+public sealed record BranchChanged(long WorkspaceId, string? From, string? To);
+
+/// <summary>The memory repair queue of a workspace changed: items opened, resolved or fixed automatically. <paramref name="Seq"/> rises whenever an item is opened.</summary>
+public sealed record MemoryRepairsChanged(long WorkspaceId, int Open, long Seq);
+
 /// <summary>The access rules of a workspace were added, changed or removed in the admin UI.</summary>
 public sealed record AccessRulesChanged(long WorkspaceId);
 

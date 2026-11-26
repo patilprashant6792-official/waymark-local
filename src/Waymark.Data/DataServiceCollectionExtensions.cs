@@ -73,6 +73,7 @@ public static class DataServiceCollectionExtensions
         services.AddSingleton<IMemoryUsageStore, MemoryUsageStore>();
         services.AddSingleton<IMemoryStatsStore, MemoryStatsStore>();
         services.AddSingleton<IWorkspaceBundleStore, WorkspaceBundleStore>();
+        services.AddSingleton<IMemoryRepairStore, MemoryRepairStore>();
         return services;
     }
 }

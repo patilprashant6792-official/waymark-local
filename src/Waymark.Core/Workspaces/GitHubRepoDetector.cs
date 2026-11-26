@@ -48,6 +48,34 @@ public static partial class GitHubRepoDetector
     }
 
     /// <summary>
+    /// What is checked out in the workspace folder (a linked worktree reads its own HEAD): not git, a branch, or a detached HEAD (branch null).
+    /// It reads .git/HEAD only: no git process runs. A folder that cannot be read counts as not git.
+    /// </summary>
+    public static WorkspaceHead DetectHead(string? workspacePath)
+    {
+        if (string.IsNullOrWhiteSpace(workspacePath))
+        {
+            return WorkspaceHead.NotGit;
+        }
+
+        try
+        {
+            var dotGit = Path.Combine(workspacePath, ".git");
+            var gitDir = Directory.Exists(dotGit) ? dotGit : File.Exists(dotGit) ? ResolvePointer(dotGit, workspacePath) : null;
+            if (gitDir is null || !File.Exists(Path.Combine(gitDir, "HEAD")))
+            {
+                return WorkspaceHead.NotGit;
+            }
+
+            return new WorkspaceHead(true, ReadBranch(gitDir));
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or System.Security.SecurityException)
+        {
+            return WorkspaceHead.NotGit;
+        }
+    }
+
+    /// <summary>
     /// Reads a git remote address in any form git writes: https://github.com/o/r.git, ssh://git@github.com/o/r.git,
     /// git@github.com:o/r.git, with or without .git, a port, credentials or a trailing slash. Only github.com matches.
     /// </summary>

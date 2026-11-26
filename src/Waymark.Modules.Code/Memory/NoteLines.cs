@@ -88,6 +88,10 @@ internal static class NoteLines
         {
             text.Append(" may be stale (").Append(staleness.Reason ?? "changed").Append(')');
         }
+        else if (staleness is { IsCodeNotFound: true })
+        {
+            text.Append(" code not found here (deleted, or on another branch)");
+        }
 
         if (!note.IsActive)
         {

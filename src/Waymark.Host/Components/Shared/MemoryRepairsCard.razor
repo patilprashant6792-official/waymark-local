@@ -1,0 +1,71 @@
+@inherits LiveComponentBase
+@using Waymark.Core.Memory
+@using Waymark.Host.Ui
+
+@* Self-healing memory for one workspace: the owner's repair settings, what drifted and waits for a repair, what Waymark fixed itself (with undo), and steps kept for other branches. *@
+<section class="wm-card" aria-labelledby="ov-repairs">
+    <h2 id="ov-repairs" class="wm-card-title">Memory repairs</h2>
+    <p class="wm-muted">Waymark checks flows and notes against the code after every change, from any editor, git or agent. What drifted is listed here and offered to agents; a step that only moved is fixed by Waymark itself. Steps last seen on another branch are kept and checked again when that branch is checked out.</p>
+    @if (_error is not null)
+    {
+        <InlineAlert Severity="Severity.Warning">@_error</InlineAlert>
+    }
+    @if (_options is null || _counts is null)
+    {
+        <p class="wm-muted" aria-live="polite">Loading...</p>
+    }
+    else
+    {
+        <div class="wm-row">
+            <WmSelect TValue="MemoryRepairMode" Label="Repairs by agents" Options="ModeOptions" Value="_options.Mode" ValueChanged="SetModeAsync" Width="FieldWidth.Medium" />
+            <WmSelect TValue="int" Label="Per session" Options="BudgetOptions" Value="_options.Budget" ValueChanged="SetBudgetAsync" Width="FieldWidth.Small" />
+            <WmSwitch Value="_options.AutoFix" ValueChanged="SetAutoFixAsync" Disabled="_busy" Label="Fix moved steps automatically"
+                      Tooltip="On: when a method step moved to exactly one other file and its links still hold, Waymark updates the flow itself. You can undo each fix below." />
+            <WmButton Kind="ButtonKind.Ghost" Disabled="_busy" OnClick="RecheckAsync">Check again now</WmButton>
+        </div>
+        <p class="wm-muted wm-caption">@ModeHelp(_options.Mode) These settings apply to every workspace.</p>
+
+        <dl class="wm-dl">
+            <dt>Open</dt>
+            <dd>@DisplayFormat.Count(_counts.ForAgents) for agents · @DisplayFormat.Count(_counts.ForOwner) on your notes</dd>
+            <dt>Fixed by Waymark</dt>
+            <dd>@DisplayFormat.Count(_counts.AutoFixedRecently) <span class="wm-muted">in the last 7 days</span></dd>
+            <dt>Kept for other branches</dt>
+            <dd>@DisplayFormat.Count(_counts.OtherBranchSteps) steps <span class="wm-muted">@BranchText()</span></dd>
+        </dl>
+
+        @if (_open.Count > 0)
+        {
+            <h3 class="wm-card-subtitle">Waiting for a repair</h3>
+            <ul class="wm-stack">
+                @foreach (var item in _open)
+                {
+                    <li @key="item.Id" class="wm-stack-item">
+                        <WmTag Tone="@(item.OwnerOnly ? Tone.Warn : Tone.Info)" Text="@MemoryRepairText.Describe(item.Kind)" Title="@(item.OwnerOnly ? "Your note: agents cannot change it" : "Offered to agents")" />
+                        <span>@Target(item)</span>
+                        <span class="wm-muted wm-caption"> · @item.Detail · since @DisplayFormat.Ago(item.FirstSeenUtc, Time.GetUtcNow())</span>
+                    </li>
+                }
+            </ul>
+        }
+
+        @if (_fixed.Count > 0)
+        {
+            <h3 class="wm-card-subtitle">Fixed by Waymark</h3>
+            <ul class="wm-stack">
+                @foreach (var item in _fixed)
+                {
+                    <li @key="item.Id" class="wm-stack-item">
+                        <WmTag Tone="@(item.State == MemoryRepairState.Undone ? Tone.Neutral : Tone.Ok)" Text="@(item.State == MemoryRepairState.Undone ? "undone" : "fixed")" />
+                        <span>flow '@item.TargetName': @item.Detail</span>
+                        <span class="wm-muted wm-caption"> · @DisplayFormat.Ago(item.ResolvedUtc, Time.GetUtcNow())</span>
+                        @if (item.State == MemoryRepairState.AutoFixed)
+                        {
+                            <WmButton Kind="ButtonKind.Ghost" Disabled="_busy" OnClick="() => UndoAsync(item)">Undo</WmButton>
+                        }
+                    </li>
+                }
+            </ul>
+        }
+    }
+</section>

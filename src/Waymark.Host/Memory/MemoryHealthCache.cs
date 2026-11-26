@@ -30,6 +30,10 @@ public sealed class MemoryHealthCache : IDisposable
         _subscriptions.Add(events.Subscribe<NoteChanged>(changed => Forget(changed.WorkspaceId, links: false, stale: true)));
         _subscriptions.Add(events.Subscribe<FileChanged>(changed => Forget(changed.WorkspaceId, links: true, stale: true)));
         _subscriptions.Add(events.Subscribe<FolderChanged>(changed => Forget(changed.WorkspaceId, links: true, stale: true)));
+
+        // Changes made outside Waymark (an editor, git) and branch switches make the figures old too, not only Waymark's own file tools.
+        _subscriptions.Add(events.Subscribe<CodeFilesChanged>(changed => Forget(changed.WorkspaceId, links: true, stale: true)));
+        _subscriptions.Add(events.Subscribe<BranchChanged>(changed => Forget(changed.WorkspaceId, links: true, stale: true)));
     }
 
     /// <summary>The figures still fresh for the workspace.</summary>

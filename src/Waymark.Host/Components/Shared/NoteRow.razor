@@ -20,6 +20,10 @@
         {
             <WmTag Tone="Tone.Warn" Text="may be stale" Title="@($"The {(Staleness.Reason ?? "code")} since the note was written or confirmed")" />
         }
+        else if (Staleness is { IsCodeNotFound: true })
+        {
+            <WmTag Tone="Tone.Neutral" Text="code not found" Title="The code this note is about is not here: deleted, or on another branch. If it is gone for good, retire the note." />
+        }
         @if (Note.IsDetached)
         {
             <WmTag Tone="Tone.Warn" Text="@($"detached from {Note.DetachedFrom}")" Title="Its flow was deleted; the note is kept" />

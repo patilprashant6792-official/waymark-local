@@ -20,7 +20,9 @@ public sealed class WorkspaceSetup(
     IPinnedNotes pinned,
     INoteStore notes,
     IMemorySettings memory,
-    TimeProvider time) : IWorkspaceSetup
+    TimeProvider time,
+    IMemoryRepairStore? repairs = null,
+    IMemoryRepairSettings? repairSettings = null) : IWorkspaceSetup
 {
     /// <summary>The flows the guide lists with search by meaning off: the first page of memory_recall list, so page 2 continues where the guide stops.</summary>
     internal const int MaxMapNamesPerWorkspace = FlowIndex.PageSize;
@@ -35,6 +37,54 @@ public sealed class WorkspaceSetup(
 
     private readonly ConcurrentDictionary<long, (bool On, DateTimeOffset At)> _meaning = new();
 
+    /// <summary>
+    /// The repair queue of the workspace and the owner's mode, the moment an agent starts work here. The mode line is what lets an agent repair without asking:
+    /// the server instructions say to follow the mode the workspace guide states. A failure leaves the section out.
+    /// </summary>
+    private async Task DescribeRepairsAsync(StringBuilder text, Workspace workspace, CancellationToken ct)
+    {
+        if (repairs is null || repairSettings is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var options = await repairSettings.GetAsync(ct);
+            var counts = await repairs.CountsAsync(workspace.Id, time.GetUtcNow().AddDays(-7), ct);
+            var mode = options.Mode switch
+            {
+                MemoryRepairMode.Automatic => $"automatic: the owner approved repairs; do them without asking (what you work on now first, the rest before your final answer), about {options.Budget} per session suggested, more when your work needs it",
+                MemoryRepairMode.Ask => $"ask: offer the owner to repair; repair after a yes, about {options.Budget} per session suggested",
+                _ => "off: the owner repairs memory; do not repair it unless asked",
+            };
+            if (counts.Open == 0 && counts.AutoFixedRecently == 0 && counts.OtherBranchSteps == 0)
+            {
+                text.Append("- Memory repairs: none open (mode ").Append(mode).AppendLine(").");
+                return;
+            }
+
+            text.AppendLine(string.Create(
+                CultureInfo.InvariantCulture,
+                $"- {(counts.ForAgents > 0 ? "🔧 " : string.Empty)}Memory repairs: {counts.ForAgents} open for agents{(counts.ForOwner > 0 ? $", {counts.ForOwner} on the owner's notes" : string.Empty)}{(counts.ForAgents > 0 ? " → memory_recall(action='repairs')" : string.Empty)}. Mode {mode}."));
+            if (counts.AutoFixedRecently > 0)
+            {
+                text.AppendLine(string.Create(CultureInfo.InvariantCulture, $"  - Waymark fixed {counts.AutoFixedRecently} moved step(s) itself in the last 7 days."));
+            }
+
+            if (counts.OtherBranchSteps > 0)
+            {
+                text.AppendLine(string.Create(
+                    CultureInfo.InvariantCulture,
+                    $"  - {counts.OtherBranchSteps} flow step(s) were last seen on another branch: kept, not listed as repairs, checked again when that branch is checked out."));
+            }
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            // The guide goes out without the section; the next one tries again.
+            _ = ex;
+        }
+    }
     public async Task<string> DescribeAsync(Workspace workspace, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(workspace);
@@ -55,6 +105,7 @@ public sealed class WorkspaceSetup(
         }
 
         await DescribeNotesAsync(text, workspace.Id, ct);
+        await DescribeRepairsAsync(text, workspace, ct);
 
         // Only what differs from the overview's list: the gates the owner set for this workspace alone.
         var gates = await policy.ListGatesAsync(ct);

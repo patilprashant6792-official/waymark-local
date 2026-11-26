@@ -264,6 +264,10 @@ internal sealed class FileWatcherHost(
             {
                 Mark(change.WorkspaceId, null, relative);
             }
+            else if (Path.GetExtension(relative).Length > 0)
+            {
+                MarkOther(change.WorkspaceId, relative);
+            }
         }
         catch (Exception ex)
         {
@@ -316,11 +320,42 @@ internal sealed class FileWatcherHost(
         }
     }
 
+    // A changed file the index does not parse: noted for memory only, with the same debounce.
+    private void MarkOther(long workspaceId, string file)
+    {
+        lock (_gate)
+        {
+            if (!_pending.TryGetValue(workspaceId, out var pending))
+            {
+                pending = new PendingChanges(new Timer(_ => Flush(workspaceId), null, Timeout.Infinite, Timeout.Infinite));
+                _pending[workspaceId] = pending;
+            }
+
+            pending.Other.Add(file.Replace('\\', '/'));
+            pending.Debounce.Change(options.WatcherDebounceMs, Timeout.Infinite);
+        }
+    }
+
+    private async Task PublishOtherAsync(long workspaceId, string[] files)
+    {
+        try
+        {
+            await events.PublishAsync(files.Length > WorkspaceIndexer.MaxChangedPathsListed
+                ? new CodeFilesChanged(workspaceId, [], Whole: true)
+                : new CodeFilesChanged(workspaceId, files, Whole: false)).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            logger.LogWatch(LogLevel.Warning, "memory notice failed", NameOf(workspaceId), ex.Message, ex);
+        }
+    }
+
     // The workspace has been quiet for the debounce time: everything noted so far goes to the scheduler in one request.
     private void Flush(long workspaceId)
     {
         string[] files;
         string[] folders;
+        string[] other;
         bool whole;
         lock (_gate)
         {
@@ -331,10 +366,18 @@ internal sealed class FileWatcherHost(
 
             files = [.. pending.Files];
             folders = [.. pending.Folders];
+            other = [.. pending.Other];
             whole = pending.Whole;
             pending.Files.Clear();
             pending.Folders.Clear();
+            pending.Other.Clear();
             pending.Whole = false;
+        }
+
+        if (other.Length > 0)
+        {
+            // Not indexed, so there is nothing to wait for: memory hears about these at once. The index reports source files after it took them in.
+            _ = PublishOtherAsync(workspaceId, other);
         }
 
         if (files.Length == 0 && folders.Length == 0 && !whole)
@@ -382,8 +425,10 @@ internal sealed class FileWatcherHost(
         public Timer Debounce { get; } = debounce;
 
         public HashSet<string> Files { get; } = new(StringComparer.OrdinalIgnoreCase);
-
         public HashSet<string> Folders { get; } = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>Changed files the index does not parse (Razor, SQL, Markdown, config): memory can be anchored in them, so they are reported to it directly.</summary>
+        public HashSet<string> Other { get; } = new(StringComparer.OrdinalIgnoreCase);
 
         public bool Whole { get; set; }
     }

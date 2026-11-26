@@ -42,4 +42,7 @@ public interface IFeatureMemoryService
     Task<string> RetireNoteAsync(string? workspace, NoteAuthor author, long? noteId, CancellationToken ct);
 
     Task<string> ConfirmNoteAsync(string? workspace, NoteAuthor author, long? noteId, CancellationToken ct);
+
+    /// <summary>The open memory repairs of the workspace as a worklist: what drifted, where, and the call that repairs each one.</summary>
+    Task<string> RepairsAsync(string? workspace, int? page, int? pageSize, CancellationToken ct);
 }

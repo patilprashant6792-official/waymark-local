@@ -17,7 +17,8 @@ internal sealed class NoteService(
     IContentInspector contentInspector,
     IMemorySearch search,
     IEventBus events,
-    TimeProvider time) : INoteService
+    TimeProvider time,
+    IMemoryRepairLedger? ledger = null) : INoteService
 {
     private const int SimilarShown = 3;
     private const int SimilarSearched = 20;
@@ -116,6 +117,13 @@ internal sealed class NoteService(
             throw new InvalidOperationException(NotYours(current, "confirm"));
         }
 
+        // Confirming says 'I checked this against the code': an agent must have read the code the note is about in this session, so a warning is never cleared blind.
+        if (author.IsAgent && ledger is not null && NoteAnchors.CodeSpecOf(current) is { } anchor && !ledger.HasRead(author.Id, workspace.Name, anchor))
+        {
+            throw new InvalidOperationException(
+                $"Read the code note #{id} is about before confirming it: {anchor} (code_method for a member, code_read or code_outline for a file). Then confirm_note if it still holds, or edit_note / retire_note.");
+        }
+
         var (codeHash, flowVersion) = await BaselineAsync(workspace, current, ct).ConfigureAwait(false);
         var result = await notes.ConfirmAsync(workspace.Id, id, author, codeHash, flowVersion, time.GetUtcNow(), ct).ConfigureAwait(false);
         var saved = Outcome(result, current, "confirm");
@@ -165,7 +173,14 @@ internal sealed class NoteService(
             if (NoteAnchors.CodeSpecOf(note) is { } spec && note.CodeHash is not null && !note.IsDetached)
             {
                 var now = await anchors.HashAsync(workspace, spec, files, ct).ConfigureAwait(false);
-                var stale = now is not null && !string.Equals(now, note.CodeHash, StringComparison.Ordinal);
+                if (now is null)
+                {
+                    // Deleted, or on another branch: not stale and never queued, but shown so a person can retire the note if the code is gone for good.
+                    result[note.Id] = new NoteStaleness(note.Id, false, NoteStaleness.CodeNotFound);
+                    continue;
+                }
+
+                var stale = !string.Equals(now, note.CodeHash, StringComparison.Ordinal);
                 result[note.Id] = new NoteStaleness(note.Id, stale, stale ? "code changed" : null);
             }
             else if (note.StepSpec is null && note.MapId is { } mapId && note.FlowVersion is { } written && versions.TryGetValue(mapId, out var version))

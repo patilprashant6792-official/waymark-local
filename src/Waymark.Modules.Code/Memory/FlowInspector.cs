@@ -6,21 +6,32 @@ namespace Waymark.Modules.Code.Memory;
 /// <summary>The steps of a flow as the code shows them: one view, one link check and one "moved?" suggestion per step, in step order.</summary>
 internal sealed record StepsInspection(IReadOnlyList<StepView> Views, IReadOnlyList<LinkCheck?> Links, IReadOnlyList<string?> Moved);
 
-/// <summary>A saved flow with what the code says about each of its steps and links.</summary>
-internal sealed record FlowReport(FeatureMap Map, IReadOnlyList<FlowStep> Steps, StepsInspection Inspection)
+/// <summary>
+/// A saved flow with what the code says about each of its steps and links. <paramref name="Head"/> is what was checked out when it was inspected;
+/// with it, a step that is missing is told apart as gone (drift) or on another branch (kept). Null counts as not a git checkout.
+/// </summary>
+internal sealed record FlowReport(FeatureMap Map, IReadOnlyList<FlowStep> Steps, StepsInspection Inspection, WorkspaceHead? Head = null)
 {
     public IReadOnlyList<StepView> Views => Inspection.Views;
 
     public IReadOnlyList<LinkCheck?> Links => Inspection.Links;
 
     public IReadOnlyList<string?> Moved => Inspection.Moved;
+
+    /// <summary>Where step <paramref name="index"/> is: here, gone (drift), on another branch (kept), or not inspected.</summary>
+    public StepPlace Place(int index)
+    {
+        var view = Views[index];
+        var branch = index < Map.Steps.Count ? Map.Steps[index].Branch : null;
+        return MemoryRepairText.Judge(view.Inspected, view.Found, branch, Head ?? WorkspaceHead.NotGit);
+    }
 }
 
 /// <summary>
-/// The one way flows are checked against the code: memory_recall, memory_save, the hint after a file change and the owner's "Check against the code" all go through here,
-/// so they always agree. It only reads; nothing is repaired, moved or dropped.
+/// The one way flows are checked against the code: memory_recall, memory_save, the hint after a file change, the drift scanner and the owner's "Check against the code"
+/// all go through here, so they always agree. It only reads; nothing is repaired, moved or dropped.
 /// </summary>
-internal sealed class FlowInspector(FlowStepReader reader, FlowLinkChecker links, FlowDriftFinder drift)
+internal sealed class FlowInspector(FlowStepReader reader, FlowLinkChecker links, FlowDriftFinder drift, IWorkspaceBranches branches)
 {
     /// <param name="files">The files read so far in this call, shared between flows so a file is parsed once.</param>
     public async Task<FlowReport> InspectAsync(Workspace workspace, FeatureMap map, Dictionary<string, FileView> files, CancellationToken ct)
@@ -28,12 +39,15 @@ internal sealed class FlowInspector(FlowStepReader reader, FlowLinkChecker links
         ArgumentNullException.ThrowIfNull(map);
         var steps = FlowStepText.FromStored(map.Steps);
         var inspection = await InspectStepsAsync(workspace, steps, files, ct).ConfigureAwait(false);
-        return new FlowReport(map, steps, inspection);
+        return new FlowReport(map, steps, inspection, branches.Current(workspace));
     }
 
     /// <summary>The same check for steps that are not stored yet (a flow about to be saved).</summary>
     public Task<StepsInspection> InspectStepsAsync(Workspace workspace, IReadOnlyList<FlowStep> steps, Dictionary<string, FileView> files, CancellationToken ct) =>
         InspectStepsAsync(workspace, steps, null, files, ct);
+
+    /// <summary>What is checked out in the workspace now.</summary>
+    public WorkspaceHead HeadOf(Workspace workspace) => branches.Current(workspace);
 
     /// <summary>
     /// A partial check of a stored flow: only the steps at <paramref name="indices"/> and the steps that call them (so each link can be judged).
@@ -45,7 +59,7 @@ internal sealed class FlowInspector(FlowStepReader reader, FlowLinkChecker links
         ArgumentNullException.ThrowIfNull(indices);
         var steps = FlowStepText.FromStored(map.Steps);
         var inspection = await InspectStepsAsync(workspace, steps, WithParents(steps, indices), files, ct).ConfigureAwait(false);
-        return new FlowReport(map, steps, inspection);
+        return new FlowReport(map, steps, inspection, branches.Current(workspace));
     }
 
     /// <summary>The selected steps plus the step each one is called by.</summary>

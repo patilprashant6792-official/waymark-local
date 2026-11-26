@@ -5,8 +5,17 @@ namespace Waymark.Core.Memory;
 /// <summary>A saved note and, for a new one, up to three active notes on the same anchor that look alike (a hint to confirm or edit instead of adding a duplicate).</summary>
 public sealed record NoteSaved(Note Note, IReadOnlyList<Note> Similar);
 
-/// <summary>Whether an anchored note may be stale: its code or its flow changed since it was written or confirmed.</summary>
-public sealed record NoteStaleness(long NoteId, bool MayBeStale, string? Reason);
+/// <summary>
+/// Whether an anchored note may be stale: its code or its flow changed since it was written or confirmed. A note whose code is not found here is not stale
+/// (the code may be on another branch) but says so with <see cref="CodeNotFound"/>, so a person can retire it when the code is gone for good.
+/// </summary>
+public sealed record NoteStaleness(long NoteId, bool MayBeStale, string? Reason)
+{
+    /// <summary>The reason given when the note's code is not in the workspace now.</summary>
+    public const string CodeNotFound = "code not found here";
+
+    public bool IsCodeNotFound => !MayBeStale && string.Equals(Reason, CodeNotFound, StringComparison.Ordinal);
+}
 
 /// <summary>
 /// The only write path for notes, for Claude (memory_save) and for the owner (admin UI). Each call takes the author from the server, checks the text
