@@ -31,6 +31,7 @@ public sealed class ToolPipeline(
     ToolGuideDelivery guideDelivery,
     ToolPayloadService payloads,
     CallerContext callers,
+    Waymark.Host.Memory.MemoryRepairNotices repairNotices,
     ILogger<ToolPipeline> logger)
 {
     private const string UnknownClient = "unknown";
@@ -189,6 +190,17 @@ public sealed class ToolPipeline(
             var added = await guideDelivery.AttachAsync(result, guideModule, guideRequested, client, workspaceName, ct);
             bytes += added.Bytes;
             tokens += added.Tokens;
+        }
+
+        // Memory drift in the workspace this call works in: at most one 🔧 line, also Waymark's own text. It also notes what the call read or repaired.
+        if (!refused)
+        {
+            var repairLine = await repairNotices.AfterCallAsync(result, tool, client, workspaceName, context.Params?.Arguments, outcome == AuditOutcome.Ok, ct);
+            if (repairLine is not null)
+            {
+                bytes += Encoding.UTF8.GetByteCount(repairLine);
+                tokens += meter.CountTokens(repairLine);
+            }
         }
 
         await RecordAsync(context, tool, client, started, outcome, bytes, tokens, error, outputText);

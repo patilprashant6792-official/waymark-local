@@ -30,6 +30,8 @@ public static class MemoryServiceCollectionExtensions
         services.TryAddSingleton<NoteAdminService>();
         services.TryAddSingleton<MemoryAdminService>();
         services.TryAddSingleton<MemoryHealthCache>();
+        services.TryAddSingleton<MemoryRepairNotices>();
+        services.TryAddSingleton<MemoryRepairAdminService>();
         return services;
     }
 

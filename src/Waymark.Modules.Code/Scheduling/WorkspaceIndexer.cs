@@ -106,17 +106,29 @@ internal sealed class WorkspaceIndexer(
             failed = run.Failed;
 
             // A truncated walk did not see every file, so a missing path proves nothing.
+            var removed = new List<string>();
             if (!truncated && stamps.Count > 0)
             {
                 foreach (var chunk in stamps.Keys.Chunk(GoneChunkSize))
                 {
                     var removal = await store.ApplyBatchAsync(workspace.Id, [], chunk, time.GetUtcNow(), ct).ConfigureAwait(false);
                     changed += removal.Removed;
+                    removed.AddRange(chunk);
                 }
             }
 
             await workspaces.MarkIndexedAsync(workspace.Id, time.GetUtcNow(), ct).ConfigureAwait(false);
             await events.PublishAsync(new CodeIndexProgress(workspace.Id, CodeIndexPhase.Completed, total, processed, changed, failed)).ConfigureAwait(false);
+
+            // A rebuild re-reads everything, so memory treats the whole workspace as changed; otherwise the files that were read again or are gone.
+            if (rebuild && scope is null)
+            {
+                await events.PublishAsync(new CodeFilesChanged(workspace.Id, [], Whole: true)).ConfigureAwait(false);
+            }
+            else if (changed > 0)
+            {
+                await PublishChangedAsync(workspace.Id, [.. work.Select(item => item.RelativePath), .. removed]).ConfigureAwait(false);
+            }
             logger.LogInformation(
                 "Indexed workspace {Workspace}{Scope}: {Total} files, {Changed} updated, {Failed} unreadable in {Elapsed} ms (walk {Walk} ms, read and parse {Parse} ms summed over {Workers} workers, write {Write} ms)",
                 workspace.Name,
@@ -174,6 +186,7 @@ internal sealed class WorkspaceIndexer(
 
         if (resolved.Count == 0)
         {
+            await PublishChangedAsync(workspace.Id, refused).ConfigureAwait(false);
             return;
         }
 
@@ -192,6 +205,28 @@ internal sealed class WorkspaceIndexer(
             workspace.Name,
             run.Changed,
             run.Failed);
+
+        // Memory listens for what changed on disk, whoever changed it. A file whose content did not change parses to nothing new, but the event is cheap and
+        // a step anchored there is re-checked against the same text: no harm. Unchanged files are left out when nothing at all changed.
+        if (run.Changed > 0 || refused.Count > 0)
+        {
+            await PublishChangedAsync(workspace.Id, [.. resolved.Select(path => path.Relative), .. refused]).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>The most paths one <see cref="CodeFilesChanged"/> lists; more is reported as the whole workspace.</summary>
+    internal const int MaxChangedPathsListed = 500;
+
+    private ValueTask PublishChangedAsync(long workspaceId, IReadOnlyCollection<string> paths)
+    {
+        if (paths.Count == 0)
+        {
+            return ValueTask.CompletedTask;
+        }
+
+        return paths.Count > MaxChangedPathsListed
+            ? events.PublishAsync(new CodeFilesChanged(workspaceId, [], Whole: true))
+            : events.PublishAsync(new CodeFilesChanged(workspaceId, [.. paths.Distinct(StringComparer.OrdinalIgnoreCase)], Whole: false));
     }
 
     private static bool IsCurrent(CodeFileStamp stamp, DiskFile file) =>

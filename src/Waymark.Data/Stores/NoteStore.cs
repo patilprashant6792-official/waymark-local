@@ -384,6 +384,46 @@ public sealed class NoteStore(ISqliteConnectionFactory connections, IWriteQueue 
         return new NotePage([.. rows.Select(row => row.ToNote())], (int)total);
     }
 
+    public Task<int> RebaseStepAsync(long workspaceId, long mapId, string oldSpec, string newSpec, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(oldSpec);
+        ArgumentException.ThrowIfNullOrWhiteSpace(newSpec);
+        return writes.ExecuteAsync<int>(async (connection, tx, k) =>
+        {
+            var ids = (await connection.QueryAsync<long>(new CommandDefinition(
+                $"SELECT n.id FROM notes n WHERE n.workspace_id = @workspaceId AND n.map_id = @mapId AND n.step_spec = @oldSpec AND {Active}",
+                new { workspaceId, mapId, oldSpec },
+                tx,
+                cancellationToken: k))).ToList();
+            if (ids.Count == 0)
+            {
+                return 0;
+            }
+
+            await connection.ExecuteAsync(new CommandDefinition(
+                "UPDATE notes SET step_spec = @newSpec WHERE workspace_id = @workspaceId AND id IN @ids",
+                new { workspaceId, ids, newSpec },
+                tx,
+                cancellationToken: k));
+            foreach (var id in ids)
+            {
+                if (await ReadAsync(connection, tx, workspaceId, id, k) is { } moved)
+                {
+                    await WriteFtsAsync(connection, tx, moved, k);
+                }
+            }
+
+            return ids.Count;
+        }, ct);
+    }
+
+    public Task<int> RebaseFlowVersionAsync(long workspaceId, long mapId, int fromVersion, int toVersion, CancellationToken ct) =>
+        writes.ExecuteAsync<int>((connection, tx, k) => connection.ExecuteAsync(new CommandDefinition(
+            $"UPDATE notes SET flow_version = @toVersion WHERE workspace_id = @workspaceId AND map_id = @mapId AND step_spec IS NULL AND flow_version = @fromVersion " +
+            $"AND id IN (SELECT n.id FROM notes n WHERE n.workspace_id = @workspaceId AND n.map_id = @mapId AND {Active})",
+            new { workspaceId, mapId, fromVersion, toVersion },
+            tx,
+            cancellationToken: k)), ct);
     // Who retired a note, as the row keeps it: the owner, or an agent with the client it came through.
     private static string RetiredBy(NoteAuthor author) => author.IsHuman ? "owner" : $"agent ({author.Id})";
 

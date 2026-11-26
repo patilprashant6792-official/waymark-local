@@ -13,6 +13,8 @@ using Waymark.Modules.Code.Rewriting;
 using Waymark.Modules.Code.Search;
 using Waymark.Modules.Code.Memory;
 using Waymark.Modules.Code.Memory.Semantic;
+using Waymark.Modules.Code.Memory.Repairs;
+using Waymark.Core.Workspaces;
 using Waymark.Modules.Code.Skeleton;
 using Waymark.Languages.Python;
 using Waymark.Languages.TypeScript;
@@ -82,6 +84,18 @@ public sealed class CodeModule : IMcpModule
         services.TryAddSingleton<IMemoryUsage>(provider => provider.GetRequiredService<MemoryUsageRecorder>());
         services.AddHostedService(provider => provider.GetRequiredService<MemoryUsageRecorder>());
         services.TryAddSingleton<FlowWordCache>();
+
+        // Self-healing memory: what is checked out (read on demand, watched for switches), the drift scanner that keeps each workspace's repair queue true
+        // to the code, the automatic fix for steps that moved, the owner's repair settings, and what each agent read and repaired this session.
+        services.TryAddSingleton<GitBranchMonitor>();
+        services.TryAddSingleton<IWorkspaceBranches>(provider => provider.GetRequiredService<GitBranchMonitor>());
+        services.AddHostedService(provider => provider.GetRequiredService<GitBranchMonitor>());
+        services.TryAddSingleton<IMemoryRepairSettings, MemoryRepairSettings>();
+        services.TryAddSingleton<IMemoryRepairLedger, MemoryRepairLedger>();
+        services.TryAddSingleton<MemoryAutoRepair>();
+        services.TryAddSingleton<RepairRecallService>();
+        services.TryAddSingleton<MemoryDriftScanner>();
+        services.AddHostedService(provider => provider.GetRequiredService<MemoryDriftScanner>());
 
         // The files module registers a silent advisor with TryAdd; this one replaces it, whichever module registers first.
         services.Replace(ServiceDescriptor.Singleton<IFlowEditAdvisor, FlowEditAdvisor>());

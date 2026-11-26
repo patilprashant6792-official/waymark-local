@@ -97,4 +97,16 @@ public interface INoteStore
 
     /// <summary>Ids of active notes anchored in this file: a workspace note about it (or a member of it), or a step note whose step is in it. At most <paramref name="limit"/>.</summary>
     Task<IReadOnlyList<long>> FindActiveByPathAsync(long workspaceId, string path, int limit, CancellationToken ct);
+
+    /// <summary>
+    /// Moves the active step notes of a flow from one step to another (a step that was moved in the code and repaired in the flow), in place: no new revision,
+    /// because the note says the same about the same code. The full-text rows follow. Returns how many notes moved.
+    /// </summary>
+    Task<int> RebaseStepAsync(long workspaceId, long mapId, string oldSpec, string newSpec, CancellationToken ct);
+
+    /// <summary>
+    /// Moves the active flow notes of a flow that were current at <paramref name="fromVersion"/> to <paramref name="toVersion"/>, in place: a change Waymark made
+    /// itself (an automatic fix or its undo) gives a note no reason to be re-read. Notes already stale stay stale. Returns how many notes moved.
+    /// </summary>
+    Task<int> RebaseFlowVersionAsync(long workspaceId, long mapId, int fromVersion, int toVersion, CancellationToken ct);
 }

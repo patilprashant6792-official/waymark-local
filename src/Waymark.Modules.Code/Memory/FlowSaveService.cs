@@ -105,7 +105,7 @@ internal sealed class FlowSaveService(
                 "A different outcome from the same trigger: save again with distinct='how this one differs'.");
         }
 
-        var saved = await store.CreateAsync(found.Id, name, summary, reason, StepsToStore(steps), time.GetUtcNow(), ct).ConfigureAwait(false);
+        var saved = await store.CreateAsync(found.Id, name, summary, reason, StepsToStore(found, steps, inspection), time.GetUtcNow(), ct).ConfigureAwait(false);
         if (saved.Outcome != FlowWrite.Saved)
         {
             throw new ArgumentException($"A flow named '{name}' exists now. Read it with memory_recall and save it with expectedVersion.");
@@ -149,7 +149,7 @@ internal sealed class FlowSaveService(
             throw new ArgumentException(Refusal(problems));
         }
 
-        var saved = await store.ReplaceAsync(found.Id, name, expectedVersion, newName, summary, StepsToStore(steps), time.GetUtcNow(), ct).ConfigureAwait(false);
+        var saved = await store.ReplaceAsync(found.Id, name, expectedVersion, newName, summary, StepsToStore(found, steps, inspection), time.GetUtcNow(), ct).ConfigureAwait(false);
         switch (saved.Outcome)
         {
             case FlowWrite.NotFound:
@@ -244,7 +244,18 @@ internal sealed class FlowSaveService(
         return message.ToString();
     }
 
-    private static IReadOnlyList<FeatureMapStep> StepsToStore(IReadOnlyList<FlowStep> steps) => FlowStepText.ToStored(steps);
+    // Each step that is in the code now is recorded as seen on the branch checked out; the others keep the branch they had (the store fills it in).
+    private IReadOnlyList<FeatureMapStep> StepsToStore(Workspace found, IReadOnlyList<FlowStep> steps, StepsInspection inspection)
+    {
+        var stored = FlowStepText.ToStored(steps);
+        var head = inspector.HeadOf(found);
+        if (!head.IsGit || head.Branch is null)
+        {
+            return stored;
+        }
+
+        return [.. stored.Select((step, i) => i < inspection.Views.Count && inspection.Views[i].Found ? step with { Branch = head.Branch } : step)];
+    }
 
     private static StoredShape Before(FeatureMap stored) => new(stored);
 

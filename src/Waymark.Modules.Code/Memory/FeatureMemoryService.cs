@@ -5,10 +5,18 @@ namespace Waymark.Modules.Code.Memory;
 /// <summary>
 /// The flows and notes behind memory_recall and memory_save: a thin layer that hands each call to the service that does the work.
 /// Reading flows is <see cref="FlowRecallService"/>; creating, replacing and deleting them is <see cref="FlowSaveService"/>;
-/// reading notes is <see cref="NoteRecallService"/>; writing them is <see cref="NoteToolService"/>.
+/// reading notes is <see cref="NoteRecallService"/>; writing them is <see cref="NoteToolService"/>; the repair worklist is <see cref="Repairs.RepairRecallService"/>.
 /// </summary>
-internal sealed class FeatureMemoryService(FlowRecallService recall, FlowSaveService save, NoteRecallService noteRecall, NoteToolService noteTools) : IFeatureMemoryService
+internal sealed class FeatureMemoryService(
+    FlowRecallService recall,
+    FlowSaveService save,
+    NoteRecallService noteRecall,
+    NoteToolService noteTools,
+    Repairs.RepairRecallService repairs) : IFeatureMemoryService
 {
+    public Task<string> RepairsAsync(string? workspace, int? page, int? pageSize, CancellationToken ct) =>
+        repairs.RepairsAsync(workspace, page, pageSize, ct);
+
     public Task<string> ListAsync(string? workspace, string? query, int? page, int? pageSize, CancellationToken ct) =>
         recall.ListAsync(workspace, query, page, pageSize, ct);
 

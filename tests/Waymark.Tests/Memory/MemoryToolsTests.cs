@@ -61,6 +61,17 @@ public sealed class MemoryToolsTests
     }
 
     [Fact]
+    public async Task RecallRepairsIsRouted()
+    {
+        var memory = new RecordingMemory();
+        var tools = new MemoryTools(memory, new FixedCaller("c"), NullLogger<MemoryTools>.Instance);
+
+        await tools.Recall("ws", "repairs", cancellationToken: _ct);
+
+        Assert.Equal("repairs", Assert.Single(memory.Calls).Action);
+    }
+
+    [Fact]
     public async Task AnUnknownActionNamesTheKnownOnes()
     {
         var tools = new MemoryTools(new RecordingMemory(), new FixedCaller("c"), NullLogger<MemoryTools>.Instance);
@@ -98,6 +109,8 @@ public sealed class MemoryToolsTests
         public Task<string> RetireNoteAsync(string? workspace, NoteAuthor author, long? noteId, CancellationToken ct) => Record("retire", author);
 
         public Task<string> ConfirmNoteAsync(string? workspace, NoteAuthor author, long? noteId, CancellationToken ct) => Record("confirm", author);
+
+        public Task<string> RepairsAsync(string? workspace, int? page, int? pageSize, CancellationToken ct) => Record("repairs", null);
 
         private Task<string> Record(string action, NoteAuthor? author)
         {

@@ -168,7 +168,8 @@ internal static class FlowRecallRenderer
     /// <summary>How to read a step and how to change the flow; once per answer, not per step.</summary>
     public static string Footer(string workspace) =>
         $"Read a step with code_method('{workspace}', path, member, className=type), or code_outline for a file. " +
-        "After a change that alters the path, save the whole flow again with memory_save(expectedVersion=the v shown). A step marked not on this branch is kept: do not remove it for that reason.";
+        "After a change that alters the path, save the whole flow again with memory_save(expectedVersion=the v shown). " +
+        "A step marked NOT ON THIS BRANCH is kept for the branch that has it: do not remove it for that reason. A step marked GONE was last seen on this branch: repair the flow.";
 
     /// <summary>
     /// One page of the flow index (memory_recall list without a query): name and id per flow, newest first, the same lines and order as the workspace guide.
@@ -201,7 +202,12 @@ internal static class FlowRecallRenderer
         return text.ToString();
     }
 
-    private static string Counts(FlowReport report) => Counts(report.Steps.Count, report.Inspection, report.Map.Ordered);
+    private static string Counts(FlowReport report)
+    {
+        var text = Counts(report.Steps.Count, report.Inspection, report.Map.Ordered);
+        var gone = Enumerable.Range(0, report.Steps.Count).Count(i => report.Place(i) == StepPlace.Gone);
+        return gone == 0 ? text : $"{text} Of those not here, {gone} are GONE from this branch: repair the flow.";
+    }
 
     // A flow read in parts: the totals, and the links only of the steps that were checked.
     private static string PartCounts(FlowReport report) =>
@@ -212,7 +218,7 @@ internal static class FlowRecallRenderer
     {
         ArgumentNullException.ThrowIfNull(inspection);
         var away = inspection.Views.Count(view => view.Inspected && !view.Found);
-        var awayText = away == 0 ? "All steps are in the code here." : $"{away} not on this branch (kept).";
+        var awayText = away == 0 ? "All steps are in the code here." : $"{away} not in the code here.";
         if (!ordered)
         {
             return $"{steps} steps (unordered list). {awayText}";
@@ -232,7 +238,12 @@ internal static class FlowRecallRenderer
         line.Append(CultureInfo.InvariantCulture, $"{index + 1,2}. ").Append(' ', step.Depth * FlowStepText.IndentWidth).Append(step.Spec);
         if (!view.Found)
         {
-            line.Append("  NOT ON THIS BRANCH (kept): ").Append(view.Problem);
+            line.Append(report.Place(index) switch
+            {
+                StepPlace.Gone => "  GONE (repair): ",
+                StepPlace.NotInspected => "  not checked in this part: ",
+                _ => "  NOT ON THIS BRANCH (kept): ",
+            }).Append(view.Problem ?? "not looked at");
             if (report.Moved[index] is { } moved)
             {
                 line.Append("  moved? -> ").Append(moved);

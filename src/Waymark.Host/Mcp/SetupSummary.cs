@@ -23,7 +23,9 @@ public sealed class SetupSummary(
     ICommandPolicyStore policy,
     IFeatureMapStore featureMaps,
     IWorkspaceGuides workspaceGuides,
-    TimeProvider time) : ISetupSummary
+    TimeProvider time,
+    IMemoryRepairStore? repairs = null,
+    ILogger<SetupSummary>? logger = null) : ISetupSummary
 {
     private const string None = "none";
     private const int MaxWorkspaceSummaryChars = WorkspaceGuideRules.MaxSummaryChars;
@@ -55,9 +57,10 @@ public sealed class SetupSummary(
         // however many workspaces and flows there are.
         var texts = await workspaceGuides.ListAsync(ct);
         var counts = await featureMaps.CountByWorkspaceAsync(ct);
+        var repairCounts = await RepairCountsAsync(ct);
         text.Append("- Workspaces (each has its own guide with the owner's instructions for it, its flows and its own command gates: call ")
             .Append(GuideRules.OverviewTool)
-            .AppendLine(" with workspace='<name>' before you work in one; 'has instructions' marks those the owner wrote instructions for):");
+            .AppendLine(" with workspace='<name>' before you work in one; 'has instructions' marks those the owner wrote instructions for; 🔧 marks memory that drifted from the code, see memory_recall(action='repairs')):");
         if (folders.Count == 0)
         {
             text.AppendLine("  - none");
@@ -65,7 +68,7 @@ public sealed class SetupSummary(
 
         foreach (var folder in folders.OrderBy(w => w.Name, StringComparer.OrdinalIgnoreCase))
         {
-            text.AppendLine(WorkspaceLine(folder, texts.GetValueOrDefault(folder.Id), counts.GetValueOrDefault(folder.Id)));
+            text.AppendLine(WorkspaceLine(folder, texts.GetValueOrDefault(folder.Id), counts.GetValueOrDefault(folder.Id), repairCounts.GetValueOrDefault(folder.Id)));
         }
         text.Append("- Tools switched off (not in your list; ask the owner to turn one on): ").AppendLine(Names(off));
 
@@ -85,8 +88,27 @@ public sealed class SetupSummary(
         return list.Count == 0 ? None : string.Join(", ", list);
     }
 
-    // One line on one workspace: its name, whether it is on, the owner's summary, how many flows it has and whether the owner wrote instructions for it.
-    private static string WorkspaceLine(Workspace workspace, WorkspaceGuideText? text, int flows)
+    // The repair counts per workspace. A failure leaves them out rather than failing the guide.
+    private async Task<IReadOnlyDictionary<long, RepairCounts>> RepairCountsAsync(CancellationToken ct)
+    {
+        if (repairs is null)
+        {
+            return new Dictionary<long, RepairCounts>();
+        }
+
+        try
+        {
+            return await repairs.CountsAllAsync(time.GetUtcNow().AddDays(-7), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger?.LogWarning(ex, "The memory repair counts could not be read for the overview");
+            return new Dictionary<long, RepairCounts>();
+        }
+    }
+    // One line on one workspace: its name, whether it is on, the owner's summary, how many flows it has, whether the owner wrote instructions for it,
+    // and how many memory repairs wait in it, so an agent knows from the start which workspace's memory drifted.
+    private static string WorkspaceLine(Workspace workspace, WorkspaceGuideText? text, int flows, RepairCounts? repairs)
     {
         var line = new StringBuilder();
         line.Append("  - ").Append(workspace.Name).Append(workspace.Enabled ? " (on)" : " (off)");
@@ -105,6 +127,11 @@ public sealed class SetupSummary(
         if (text?.HasInstructions == true)
         {
             line.Append(" · has instructions");
+        }
+
+        if (workspace.Enabled && repairs is { ForAgents: > 0 } waiting)
+        {
+            line.Append(string.Create(CultureInfo.InvariantCulture, $" · 🔧 {waiting.ForAgents} memory {(waiting.ForAgents == 1 ? "repair" : "repairs")}"));
         }
 
         return line.ToString();

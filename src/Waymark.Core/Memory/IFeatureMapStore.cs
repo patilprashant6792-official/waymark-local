@@ -3,8 +3,10 @@ namespace Waymark.Core.Memory;
 /// <summary>
 /// A saved step as stored: its canonical component text, how deep it is (0 is the trigger), how it is reached from the step above
 /// ("call", "http", "event", "ui", "di" or "job") and the optional note on why it matters.
+/// <paramref name="Branch"/> is the branch the step was last seen in the code on; null when unknown (saved before branches were kept, or not a git checkout).
+/// When a flow is replaced, a step given without a branch keeps the branch it had.
 /// </summary>
-public sealed record FeatureMapStep(string Spec, int Depth, string Link, string Note);
+public sealed record FeatureMapStep(string Spec, int Depth, string Link, string Note, string? Branch = null);
 
 /// <summary>
 /// A feature map, which is a flow: one trigger to one outcome as ordered steps. <paramref name="Version"/> goes up on every change;
@@ -125,4 +127,13 @@ public interface IFeatureMapStore
 
     /// <summary>Deletes the map of this name with its steps. The id that it had, or null when there is none.</summary>
     Task<long?> DeleteAsync(long workspaceId, string name, CancellationToken ct);
+
+    /// <summary>
+    /// Records that these steps of the flow were seen in the code on <paramref name="branch"/>. Neither the version nor the change time moves: the flow says the same.
+    /// Returns how many steps changed.
+    /// </summary>
+    Task<int> StampBranchAsync(long workspaceId, long mapId, IReadOnlyCollection<string> specs, string branch, CancellationToken ct);
+
+    /// <summary>The ids of every flow of the workspace, newest first, at most <paramref name="limit"/>.</summary>
+    Task<IReadOnlyList<long>> ListIdsAsync(long workspaceId, int limit, CancellationToken ct);
 }
