@@ -10,7 +10,7 @@ A console-style view of what Waymark is doing, on the admin UI at **Audit › Li
 | Watcher | `changed  Waymark  src/Foo.cs`, `watching`, `lost events` | `FileWatcherHost`. A burst shows its first 8 lines and then one summary line (`burst  Waymark  37 more changes`) |
 | Auth | pairing, approval, revocation, and requests to `/authorize`, `/token`, `/revoke`, `/register` | `AuditStore` (Auth and Approval entries) and `RequestLoggingMiddleware`. Only the path is logged, never the query |
 | Commands | `#12 waiting for you`, `approved`, `started`, the first 3 output lines, `succeeded  exit 0  0.4s` | `CommandCoordinator`. The full output stays in `/console` |
-| Errors | every Warning and Error line of any tab, plus any error logged by any other part of Waymark or ASP.NET, including failures caught by the safety net (`docs/error-handling.md`) | the same sources; the tab shows a count |
+| Errors | every Warning and Error line of any tab, plus any error logged by any other part of Waymark or ASP.NET, including failures caught by the safety net | the same sources; the tab shows a count |
 
 Not shown: page loads of the admin UI, successful MCP requests (the tool line replaces them), configuration changes (see Audit), and everything logged with a plain `logger.LogInformation(...)`. Those still go to the console and any other provider.
 
