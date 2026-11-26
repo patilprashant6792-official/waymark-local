@@ -270,7 +270,7 @@ public sealed class ToolPipeline(
         }
     }
 
-    // A tool with no saved row follows ToolDefaults: Read tools are on, Confirm tools are off.
+    // A tool with no saved row follows ToolDefaults: every tool starts on, Confirm tools included; the owner switches off what they do not want.
     private static bool IsEnabled(ToolDescriptor descriptor, IReadOnlyList<ToolSetting> rows)
     {
         var row = rows.FirstOrDefault(r => string.Equals(r.ToolName, descriptor.Name, StringComparison.OrdinalIgnoreCase));

@@ -135,7 +135,7 @@ A **flow** is one trigger (an endpoint, a tool, a queue message, a button) to on
 
 - **Host prompt** (the **Host prompt** page): how you like work done, delivered to every connected agent with the overview it reads first.
 - **Per workspace** (a workspace's **Instructions** tab): a one-line summary that helps Claude pick the right workspace, and instructions for that codebase that win over the host prompt there. Gates and approvals still apply.
-- Agents are told once when you change either, so none works from an old copy. Text that looks like a secret is refused, because every agent receives it. Details: [docs/guides.md](docs/guides.md).
+- Agents are told once when you change either, so none works from an old copy. Text that looks like a secret is refused, because every agent receives it.
 
 ### 📦 Real package APIs
 
@@ -220,7 +220,7 @@ Waymark has **no sandbox**. Its job is to limit, show and record what Claude doe
 | Files | `.cs` | `.py` `.pyi` | `.ts .tsx .mts .cts .js .jsx .mjs .cjs` |
 | Packages | NuGet | PyPI | npm |
 | Commands | dotnet, EF Core | uv, pip, pytest, ruff, pyright, mypy | npm, tsc, `package.json` scripts |
-| Details | [docs/modules.md](docs/modules.md) | [docs/language-support/python.md](docs/language-support/python.md) | [docs/language-support/typescript-node.md](docs/language-support/typescript-node.md) |
+| Details | built in | [docs/language-support/python.md](docs/language-support/python.md) | [docs/language-support/typescript-node.md](docs/language-support/typescript-node.md) |
 
 Platforms: Windows 10 and 11; macOS 14 (Sonoma) or later. Not yet: Linux, Poetry and PDM installs, pnpm/yarn/bun installs (their scripts still run), Vue and Svelte single-file components.
 
@@ -320,7 +320,7 @@ That client is the only one connected, so there's no pairing and no tunnel. The 
 | Files | `file_write`, `file_edit_lines`, `file_replace`, `file_move`, `file_delete`, `folder_create`, `folder_move`, `folder_delete` | edits, copies between workspaces, previewed replace |
 | Commands | `cmd_project`, `cmd_git`, `cmd_proc`, `cmd_shell`, `cmd_wait`, `cmd_output`, `cmd_list`, `cmd_stop` | typed .NET / Python / Node / git actions, processes, shell; follow long runs |
 
-Each group has its own guide that Claude reads once, on first use. They're the most carefully written part of Waymark: they tell Claude which call to make, what each mark in a result means, and when **not** to trust a result. See [docs/guides.md](docs/guides.md).
+Each group has its own guide that Claude reads once, on first use. They're the most carefully written part of Waymark: they tell Claude which call to make, what each mark in a result means, and when **not** to trust a result. Each one is the `Guide.md` of its module under `src/`.
 
 </details>
 
@@ -365,10 +365,10 @@ tests/Waymark.Tests                 about 1,990 xunit tests, run on Windows and 
 | [docs/install.md](docs/install.md) | where things live, ports, start log, running from source, troubleshooting |
 | [docs/auth-and-setup.md](docs/auth-and-setup.md) | how Claude connects and pairs, the tunnel |
 | [docs/commands-policy.md](docs/commands-policy.md) | every command operation and its default gate |
-| [docs/modules.md](docs/modules.md) | the modules and how they fit |
-| [docs/guides.md](docs/guides.md) | how Claude learns each tool group; adding your own instructions |
-| [docs/live-log.md](docs/live-log.md), [docs/error-handling.md](docs/error-handling.md) | what the Live page shows; what happens when something fails |
+| [docs/live-log.md](docs/live-log.md) | what the Live page shows |
 | [docs/language-support/](docs/language-support/) | Python and TypeScript / Node in depth |
+
+Knowledge for working on Waymark's own code (how the modules fit, conventions, decisions, gotchas) is not kept in files: it lives in Waymark's memory as flows and notes, which Waymark checks against the code after every change.
 
 ---
 

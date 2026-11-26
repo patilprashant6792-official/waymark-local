@@ -155,7 +155,7 @@ Not named `Waymark.Modules.*`, so `ToolRegistry` does not treat it as a module. 
 
 ### 9. Docs and install
 
-- `README.md`, `docs/modules.md` (also fix its stale "next migration: 012"), `docs/commands-policy.md`, `docs/safety.md`, `docs/install.md` (Node optional), `docs/guides.md`.
+- `README.md`, `docs/commands-policy.md`, `docs/safety.md`, `docs/install.md` (Node optional).
 - `scripts/waymark.ps1`: publish is portable (no RID), so native libs for every platform ship; measure size, consider `-r win-x64`.
 
 ### 10. Tests (D5)

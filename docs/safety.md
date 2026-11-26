@@ -35,7 +35,7 @@ Only single words are stored, never lines or sentences, kept in the order of fir
 | `Waymark:Safety:AppendFooter` | false | add the safety line to every result |
 | `Waymark:Safety:FooterText` | built-in line | the safety line (at most 500 characters) |
 
-The line is off by default because the overview (see [guides.md](guides.md)) already tells agents what to do. The note "Waymark hid ..." is still added whenever something is hidden. Switching the line on costs about 40 tokens per call.
+The line is off by default because the overview already tells agents what to do. The note "Waymark hid ..." is still added whenever something is hidden. Switching the line on costs about 40 tokens per call.
 
 ## Risk tiers
 

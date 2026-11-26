@@ -16,7 +16,7 @@ Copy the whole of [expert-programmer.md](expert-programmer.md) and paste it wher
 
 - **claude.ai:** Settings > Profile, in your personal preferences. It applies to new chats only.
 - **Claude Code:** `~/.claude/CLAUDE.md` for every project, or `CLAUDE.md` in a repository for that project only.
-- **Waymark:** the **Host prompt** page ("Instructions from the owner") also works and reaches every connected agent, but Claude reads it only after it has loaded the Waymark overview. See [docs/guides.md](../docs/guides.md). Personal preferences are read first, so use them for the Waymark section below.
+- **Waymark:** the **Host prompt** page ("Instructions from the owner") also works and reaches every connected agent, but Claude reads it only after it has loaded the Waymark overview. Personal preferences are read first, so use them for the Waymark section below.
 
 ### Keep the Waymark section
 
