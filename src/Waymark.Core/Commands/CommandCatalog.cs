@@ -1,7 +1,8 @@
 namespace Waymark.Core.Commands;
 
 /// <summary>
-/// One operation Claude can ask for. <see cref="Mutating"/> operations run one at a time per workspace (two builds would fight over obj/).
+/// One operation Claude can ask for. <see cref="Mutating"/> operations run one at a time per workspace (two builds would fight over obj/); for a
+/// command that keeps running in a terminal it applies to its preparing build and its start only, never to the time it runs.
 /// <see cref="DriftSensitive"/> operations load project or repository files that can run code (MSBuild targets, git hooks), so they ask
 /// again when those files changed since the owner last approved a command. <see cref="MaxGate"/> caps what the owner may choose.
 /// </summary>
@@ -27,8 +28,11 @@ public static class CommandCatalog
     public const string GitFamily = "git";
     public const string ProcessFamily = "processes";
     public const string ShellFamily = "shell";
+    public const string TerminalFamily = "terminals";
 
     public const string ShellRun = "shell.run";
+    public const string TerminalInput = "terminal.input";
+    public const string TerminalShellInput = "terminal.shell_input";
 
     private static readonly IReadOnlyList<OperationInfo> All =
     [
@@ -51,7 +55,8 @@ public static class CommandCatalog
         new("dotnet.ef_migrations_add", DotnetFamily, "EF Core, add migration", "dotnet ef migrations add", CommandGate.Ask, true, true),
         new("dotnet.ef_migrations_remove", DotnetFamily, "EF Core, remove migration", "dotnet ef migrations remove", CommandGate.Ask, true, true),
         new("dotnet.ef_database_update", DotnetFamily, "EF Core, update database", "dotnet ef database update (changes a database)", CommandGate.Ask, true, true),
-        new("dotnet.run", DotnetFamily, "Run the app", "dotnet run (stays running until stopped)", CommandGate.Ask, true, true),
+        new("dotnet.run", DotnetFamily, "Run the app", "dotnet build, then dotnet run in a terminal (stays running until stopped)", CommandGate.Ask, true, true),
+        new("dotnet.watch", DotnetFamily, "Watch and run the app", "dotnet watch in a terminal: rebuilds and hot-reloads on every change (stays running until stopped)", CommandGate.Ask, true, true),
 
         new("python.info", PythonFamily, "Python info", "Python, uv, pip and ruff versions on this computer", CommandGate.Auto, false, false),
         new("python.list", PythonFamily, "List installed packages", "Packages installed in the project's virtual environment (starts that environment's Python)", CommandGate.Ask, false, true),
@@ -61,7 +66,7 @@ public static class CommandCatalog
         new("python.lint", PythonFamily, "Lint", "ruff check", CommandGate.Auto, false, true),
         new("python.format", PythonFamily, "Format", "ruff format (changes files)", CommandGate.Ask, true, true),
         new("python.typecheck", PythonFamily, "Type check", "pyright or mypy (a mypy plugin is project code)", CommandGate.Ask, false, true),
-        new("python.run", PythonFamily, "Run a module or script", "python -m module or a script file (stays running until stopped)", CommandGate.Ask, true, true),
+        new("python.run", PythonFamily, "Run a module or script", "python -m module or a script file in a terminal (stays running until stopped)", CommandGate.Ask, false, true),
         new("python.package_add", PythonFamily, "Add a package", "uv add or pip install of one package at an exact version", CommandGate.Ask, true, false),
         new("python.package_remove", PythonFamily, "Remove a package", "uv remove or pip uninstall", CommandGate.Ask, true, false),
 
@@ -73,7 +78,7 @@ public static class CommandCatalog
         new("node.test", NodeFamily, "Test", "a test script of package.json (runs the test code, which can be code Claude has just written)", CommandGate.Ask, true, true),
         new("node.lint", NodeFamily, "Lint", "a lint script of package.json (project code)", CommandGate.Ask, true, true),
         new("node.script", NodeFamily, "Run any package.json script", "a named script of package.json; its text is shown on the approval card", CommandGate.Ask, true, true, CommandGate.Ask),
-        new("node.run", NodeFamily, "Run a dev server or script", "a package.json script that stays running until stopped", CommandGate.Ask, true, true),
+        new("node.run", NodeFamily, "Run a dev server or script", "a package.json script in a terminal (stays running until stopped)", CommandGate.Ask, false, true),
         new("node.package_add", NodeFamily, "Add a package", "npm install --save-exact --ignore-scripts of one package at an exact version", CommandGate.Ask, true, false),
         new("node.package_remove", NodeFamily, "Remove a package", "npm uninstall --ignore-scripts", CommandGate.Ask, true, false),
 
@@ -95,6 +100,9 @@ public static class CommandCatalog
         new("proc.clean_outputs", ProcessFamily, "Delete bin and obj", "Deletes the bin and obj folders under a path", CommandGate.Ask, true, false),
 
         new(ShellRun, ShellFamily, "System shell", "Any script in PowerShell, cmd or bash. Always approved by you, never automatic.", CommandGate.Ask, true, true, CommandGate.Ask),
+
+        new(TerminalInput, TerminalFamily, "Type into a running app", "Send a line to a program Claude started in a terminal from a typed action (an answer to its prompt)", CommandGate.Auto, false, false),
+        new(TerminalShellInput, TerminalFamily, "Type into a running script", "Send a line to a shell script running in a terminal. It can be any command, so you always approve it.", CommandGate.Ask, false, false, CommandGate.Ask),
     ];
 
     private static readonly Dictionary<string, OperationInfo> ByKey = All.ToDictionary(o => o.Key, StringComparer.Ordinal);

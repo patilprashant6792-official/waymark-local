@@ -23,7 +23,7 @@ public sealed class CommandCatalogTests
         string[] families =
         [
             CommandCatalog.DotnetFamily, CommandCatalog.PythonFamily, CommandCatalog.NodeFamily,
-            CommandCatalog.GitFamily, CommandCatalog.ProcessFamily, CommandCatalog.ShellFamily,
+            CommandCatalog.GitFamily, CommandCatalog.ProcessFamily, CommandCatalog.ShellFamily, CommandCatalog.TerminalFamily,
         ];
 
         Assert.All(CommandCatalog.Operations, o =>
@@ -39,7 +39,7 @@ public sealed class CommandCatalogTests
     {
         var present = CommandCatalog.Operations.Select(o => o.Family).ToHashSet();
 
-        Assert.Equal(6, present.Count);
+        Assert.Equal(7, present.Count);
     }
 
     [Fact]
@@ -47,11 +47,11 @@ public sealed class CommandCatalogTests
         Assert.All(CommandCatalog.Operations, o => Assert.True(o.Default <= o.MaxGate, o.Key));
 
     [Fact]
-    public void OnlyTheShellAndAnyPackageScriptAreCappedAtAsk()
+    public void OnlyTheShellAnyPackageScriptAndTypingIntoAScriptAreCappedAtAsk()
     {
         var capped = CommandCatalog.Operations.Where(o => o.MaxGate == CommandGate.Ask).Select(o => o.Key).Order().ToList();
 
-        Assert.Equal(["node.script", "shell.run"], capped);
+        Assert.Equal(["node.script", "shell.run", "terminal.shell_input"], capped);
     }
 
     [Theory]

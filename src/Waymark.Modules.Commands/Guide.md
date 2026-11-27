@@ -12,6 +12,7 @@ Typed tools run programs in a workspace without a shell, and the owner watches e
 | a question about the computer itself (monitors, hardware, OS settings, installed apps, processes, network, disks) | `cmd_shell` with no workspace, a short read-only script |
 | anything else none of those can do | `cmd_shell` (last resort) |
 | follow or inspect a run | `cmd_wait`, `cmd_output`, `cmd_list`, `cmd_stop` |
+| follow, answer, restart or stop a program that keeps running (an app, a dev server, a watcher) | `cmd_terminal` (see Terminals) |
 
 Prefer a typed tool: it is checked and can run without waiting for the owner. Give `purpose` as one sentence: the owner reads it before approving, sees it on the live log, and it is kept in the audit log.
 
@@ -22,8 +23,8 @@ Prefer a typed tool: it is checked and can run without waiting for the owner. Gi
 - Waiting for approval means nothing has run. Tell the user to approve it in the Waymark admin UI (Console page), then `cmd_wait`. An undecided request is denied after about 10 minutes. After a denial do not resend the same command; ask the user why.
 - `cmd_output(runId)` shows the plain-text output, last lines by default. `grep` finds lines; `fromLine` with `lines` (up to 500) pages through it. A build prints thousands of lines, so read the errors in the result first.
 - `cmd_list(workspace?, limit up to 30)` shows recent runs with their ids and status.
-- `cmd_stop(runId)` ends a run that waits, is queued or is running (a `run` action, say), with its whole process tree. It does nothing for a finished run.
-- Operations that change files run one at a time per workspace; a second one is queued.
+- `cmd_stop(runId)` ends a run that waits, is queued or is running, with its whole process tree; a program in a terminal is stopped cleanly first (Ctrl+C, then terminate, then kill). It does nothing for a finished run.
+- Operations that change files run one at a time per workspace; a second one is queued. A program in a terminal holds that turn only while it builds and starts, never while it runs.
 
 ## cmd_project: .NET
 
@@ -73,7 +74,7 @@ Python actions start with `py_` and work on one project: option `project` is its
 2. `py_test` results list the failed tests (`failed: tests/test_a.py::test_b`) and the last lines. Read the failing test and the code it calls (`code_method`), fix, run `py_test` again with `filter` or `paths` set to just that test. Run the whole suite once at the end.
 3. `py_lint` and `py_typecheck` list findings as `path(line): CODE message`. Fix errors before warnings; the same finding after two attempts means re-read the code.
 4. Adding a package: look it up first (`pkg_find` with `ecosystem: "pypi"`), confirm with the user, then `py_package_add` with the exact `version`. It edits pyproject.toml and uv.lock. A pip project changes its requirements file with `file_edit_lines` instead, then `py_install`.
-5. `py_run` keeps a server running until stopped: give the user the run id and let them watch the Console. End it with `cmd_stop(runId)` (that ends its whole process tree); `cmd_proc stop_port` queues behind a running `py_run` in the same workspace, so use it only for a server that was started elsewhere.
+5. `py_run` keeps a server running in a terminal until it is stopped (see Terminals). Use `uvicorn --reload` style modules so edits apply by themselves, and read the terminal for errors. A port held by a terminal is stopped through the terminal (`cmd_terminal` stop), not `cmd_proc stop_port`.
 6. A passing test run is the proof that a refactor works. The code index cannot see dynamic Python, so a clean `py_lint` is not proof.
 
 ## cmd_project: Node
@@ -91,14 +92,14 @@ Node actions start with `node_` and work on one project: option `project` is its
 - **Installs run no lifecycle scripts.** `node_install` is `npm ci --ignore-scripts` from `package-lock.json` (it refuses a project without one); `node_package_add` is `npm install name@exact --save-exact --ignore-scripts`. A package that needs its install script (esbuild, sharp, prisma) must be set up by the owner through `cmd_shell`.
 - **A script runs only when package.json names it.** `node_build`, `node_test`, `node_lint`, `node_script` and `node_run` read package.json first; an unknown name is refused with the list of real ones, and the approval card shows the script's text. Extra `args` go after `--`, limited to plain characters; options that load or evaluate code (`--require`, `--import`, `--loader`, `--eval`, `--inspect`) are refused.
 - **npm only for installs.** A pnpm, yarn or bun project can still build, test and run its scripts (`npm run`), but `node_install` and `node_package_*` refuse it and say so; use `cmd_shell` for those.
-- `CI=1` is set for every run, so test runners do not start in watch mode.
+- `CI=1` is set for every run that ends by itself, so test runners do not start in watch mode. A program in a terminal does not get it.
 
 ### Typical flows
 
 1. Fresh clone with a lock file: `node_install`, then `node_typecheck`, then `node_test`. The typecheck result lists `file(line): error TS...` findings; fix errors before warnings and run it again.
 2. A failing test run lists the failed tests (`failed: ...`) and the last lines; read the test and the code it calls (`code_method`), fix, and run `node_test` again with `args` naming just that test (for vitest and jest `["-t", "name"]`, or a file path). Run the whole suite once at the end.
 3. Adding a package: look it up first (`pkg_find` with `ecosystem: "npm"`), confirm with the user, then `node_package_add` with the exact `version` (and `dev: true` for a development dependency). It edits package.json and package-lock.json.
-4. `node_run` keeps a dev server running until stopped: give the user the run id and let them watch the Console. End it with `cmd_stop(runId)`.
+4. `node_run` keeps a dev server or watcher running in a terminal until it is stopped (see Terminals); hot reload applies your edits, and the terminal shows the compile errors.
 5. Starting from an empty folder: write package.json, tsconfig.json and the sources with the file tools, create the lock file with `npm install --package-lock-only --ignore-scripts` through `cmd_shell`, then `node_install`.
 
 ## cmd_git
@@ -118,14 +119,30 @@ Every script waits for the owner, who may edit it before approving; the edited t
 
 - Write for the shell that will run it: PowerShell on Windows and zsh on macOS, unless you name another with `shell`. The live setup of the overview names the computer's system.
 - Keep it short and do one thing: it is approved faster.
-- Nothing can be typed to it while it runs.
+- Without `terminal` nothing can be typed to it while it runs. With `terminal`, it keeps running (see Terminals).
 - For a question about the computer itself, leave `workspace` out and keep the script read-only (a `Get-CimInstance` query on Windows; `sw_vers`, `system_profiler` or `sysctl` on macOS, say). This is the owner's real machine; answer from the output rather than saying you cannot reach it.
 - `timeoutSeconds` is 5 to 3600 (default 300). With `workspace` it starts in that folder; without, it is a system script that starts in the home folder.
 - Plan for slow approval: `waitSeconds` returns a run id, then use `cmd_wait`.
 
-### Long runs and hand-offs
+### Long one-off runs
 
-A server, a watcher, a big test run or an installer can take minutes. Start it with a short `waitSeconds`, give the user the run id, say what is running and that they can watch it live on the Console page, then stop and let them tell you when it is done. Do not sit in a `cmd_wait` loop: it spends your context to show what the user already sees. When they say it is done, read `cmd_output` and check the result (a status command, a health check) before you report success.
+A big test run or an installer can take minutes. Start it with a short `waitSeconds`, give the user the run id and say they can watch it live on the Console page; check back with `cmd_wait` now and then rather than in a tight loop. When it is done, read `cmd_output` and check the result before you report success.
+
+## Terminals: programs that keep running
+
+A terminal is a named slot of a workspace (or of the computer) that runs one program at a time and keeps it running until it is stopped, like a terminal tab in an IDE. The owner watches it live in the Console and can only stop it; starting, answering and restarting are yours.
+
+- **Start**: `cmd_project` `run` (builds, then runs), `watch` (dotnet watch, hot reload), `node_run`, `py_run`, or `cmd_shell` with `terminal`. Options: `terminal` (a name; default the project folder's), `readyPattern` / `readyPort` (how to tell it is up), `replace` (stop what runs there first). The call returns as soon as it is up, crashed or waits for the owner: never wait for it to end.
+- **Prefer hot reload**: `watch`, `npm run dev`, `uvicorn --reload`. Your edits then apply by themselves; read the terminal for the errors they cause. Use `restart` only after a change it cannot reload (a new package, configuration read at start-up, a migration).
+- **Read only what is new**: `cmd_terminal(action='read', name)` with no `since` gives the newest lines after your last read, a count of error lines and the prompt it waits at, if any, and moves your cursor to the end.
+- **Page through output**: `optionsJson={"since": N}` gives the lines after N in order, older ones from the stored log, and says where the next page starts. `grep` gives matching lines in order and does not move your cursor. `cmd_output(runId)` reads the same log with the same line numbers, also after the program ended.
+- **.NET launch profile**: `run` and `watch` start the app without a launch profile unless you pass `launchProfile`, so both use the same environment and addresses. Without a profile ASP.NET listens on port 5000, which on macOS the AirPlay Receiver may hold; pass `launchProfile` (or `appArgs: ["--urls", "http://localhost:5080"]`) when the port is taken.
+- **Answer a prompt**: `send` with `text` (Enter is pressed by default). Typing into an app is automatic; into a script the owner approves it.
+- **Start again**: `rerun` (it must not run) or `restart` (stop, then start). The owner's approval is reused while the command and the project files are unchanged; a script always asks.
+- **Do not build what a watch terminal already rebuilds**: read the terminal instead. Building a project whose app runs with `run` works, but the app keeps the old code until you `restart` it (on Windows the build may fail on locked files: stop it first).
+- **The owner stopped it**: you hear it on your next call. Do not start it again unless the user asks.
+- A short line in any result tells you when a terminal crashed, its app went down, it printed new errors or it waits for an answer. The workspace guide lists the terminals of the workspace.
+- `cmd_terminal(action='list')` shows every terminal; `close` stops one and removes it. When Waymark stops, it stops every terminal; nothing starts again by itself.
 
 ### Project scripts
 

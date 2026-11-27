@@ -9,8 +9,9 @@ using Waymark.Core.Workspaces;
 namespace Waymark.Host.Mcp;
 
 /// <summary>
-/// Tells an agent what is live in one workspace: the index of the flows saved for it, the owner's pinned notes, how many other notes there are, and the
-/// command gates the owner set for it alone. Names and switches only, like the overview's live setup: no paths, no secrets.
+/// Tells an agent what is live in one workspace: the index of the flows saved for it, the owner's pinned notes, how many other notes there are, the
+/// command gates the owner set for it alone, and its terminals (what keeps running there, its address and its unread errors).
+/// Names and switches only, like the overview's live setup: no paths, no secrets.
 /// Nothing is loaded whole: with search by meaning off the guide carries the name and id of the newest <see cref="FlowIndex.PageSize"/> flows; with it on it
 /// lists none, so it stays the same size however many flows are saved, and memory_recall finds them by meaning.
 /// </summary>
@@ -22,7 +23,8 @@ public sealed class WorkspaceSetup(
     IMemorySettings memory,
     TimeProvider time,
     IMemoryRepairStore? repairs = null,
-    IMemoryRepairSettings? repairSettings = null) : IWorkspaceSetup
+    IMemoryRepairSettings? repairSettings = null,
+    ITerminals? terminals = null) : IWorkspaceSetup
 {
     /// <summary>The flows the guide lists with search by meaning off: the first page of memory_recall list, so page 2 continues where the guide stops.</summary>
     internal const int MaxMapNamesPerWorkspace = FlowIndex.PageSize;
@@ -106,6 +108,7 @@ public sealed class WorkspaceSetup(
 
         await DescribeNotesAsync(text, workspace.Id, ct);
         await DescribeRepairsAsync(text, workspace, ct);
+        await DescribeTerminalsAsync(text, workspace, ct);
 
         // Only what differs from the overview's list: the gates the owner set for this workspace alone.
         var gates = await policy.ListGatesAsync(ct);
@@ -119,6 +122,29 @@ public sealed class WorkspaceSetup(
             ? "none"
             : string.Join(", ", own.Select(row => $"{row.Key} {GateWord(row.Here)}")));
         return text.ToString();
+    }
+
+    // What keeps running in the workspace, so a new conversation reuses a terminal instead of starting the same program twice. A failure leaves it out.
+    private async Task DescribeTerminalsAsync(StringBuilder text, Workspace workspace, CancellationToken ct)
+    {
+        if (terminals is null)
+        {
+            return;
+        }
+
+        try
+        {
+            var list = await terminals.ListAsync(new TerminalQuery(WorkspaceId: workspace.Id), ct);
+            var block = TerminalGuideText.Block(
+                list,
+                time.GetUtcNow(),
+                $"cmd_terminal(workspace='{workspace.Name}', action='read', name=...) gives a terminal's new output; 'rerun' starts its last command again, 'stop' ends it:");
+            text.Append("- Terminals (programs that keep running until stopped): ").AppendLine(block);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            text.AppendLine("- Terminals: could not be read just now; cmd_terminal(action='list') shows them.");
+        }
     }
 
     /// <summary>

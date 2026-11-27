@@ -494,7 +494,7 @@ public partial class Home : LiveComponentBase
     // change reads differently from a reload that found nothing new.
     private string CardToken(string cardId) => cardId switch
     {
-        DashboardCards.Server => $"{Status.Paused}|{Status.ActiveNow}",
+        DashboardCards.Server => $"{Status.Paused}|{Status.ActiveNow}|{Status.LiveTerminals.Count}|{Status.CrashedTerminals.Count}",
         DashboardCards.Tunnel => $"{Status.Tunnel.Phase}|{Status.Tunnel.Domain}|{Status.Tunnel.Message}",
         DashboardCards.CodeIndex => $"{IndexedFiles}|{IndexedTypes}|{CodeIndexState.Text}|{_workspaces.Count}",
         DashboardCards.Tools => $"{EnabledTools}|{_tools.Count}|{EnabledTokens}",

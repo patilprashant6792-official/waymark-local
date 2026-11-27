@@ -345,7 +345,16 @@ public sealed class PythonRecipes(ExecutableLocator executables, ProcessRunner r
         }
 
         args.AddRange(c.Options.List("appArgs", 30, 300));
-        return Make(c, "python.run", layout.InterpreterDisplay, args, layout, 30, 480, interpreter);
+        var settings = TerminalSettings.Read(c.Options);
+        return new CommandPlan("python.run", layout.InterpreterDisplay, args, Timeout.InfiniteTimeSpan, null, null, interpreter, layout.Folder)
+        {
+            Lifetime = PlanLifetime.Terminal,
+            Terminal = settings,
+            ReadyPatterns = ReadySignals.PythonReady,
+            AppDownPatterns = ReadySignals.PythonDown,
+            AppUpPatterns = ReadySignals.PythonUp,
+            DefaultTerminalName = TerminalNames.ForFolder(layout.Folder, module is null ? "app" : TerminalNames.From(module, "app")),
+        };
     }
 
     private CommandPlan PackageAdd(RecipeContext c)

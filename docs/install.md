@@ -44,7 +44,7 @@ The program has no window, so a failed start would leave no trace. The sign-in t
 
 ## Updating
 
-`update.cmd` runs `git pull --ff-only` in your clone and installs the result. If you changed files in the clone, git may refuse the pull; commit or stash your changes and run it again. Your data stays as it is, and database migrations run when the new version starts.
+`update.cmd` runs `git pull --ff-only` in your clone and installs the result. If you changed files in the clone, git may refuse the pull; commit or stash your changes and run it again. Your data stays as it is, and database migrations run when the new version starts. Before a migration changes your database, Waymark writes a copy of it to the `backups` folder beside it (`waymark-v<old>-before-v<new>-<time>.db`, the newest 5 kept); if that copy cannot be written, the database is left unchanged and Waymark does not start. To go back, stop Waymark, install the older version and copy the backup over `waymark.db` (delete `waymark.db-wal` and `waymark.db-shm` first).
 
 ## Removing
 

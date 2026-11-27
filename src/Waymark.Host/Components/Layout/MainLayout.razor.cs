@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components;
 using Microsoft.JSInterop;
 using MudBlazor;
+using Waymark.Core.Commands;
 using Waymark.Core.Edge;
 using Waymark.Host.Components.Shared;
 using Waymark.Host.Components.Theme;
@@ -24,6 +25,7 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     private bool _navAnimate;
     private PageErrorBoundary? _boundary;
     private int _lastAlert = -1;
+    private bool _appsOpen;
 
     [Inject]
     private ShellStatus Status { get; set; } = default!;
@@ -39,6 +41,15 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     [Inject]
     private IDialogService Dialogs { get; set; } = default!;
+
+    [Inject]
+    private ITerminals Terminals { get; set; } = default!;
+
+    private string AppsText => Status.RunningTerminals == 1 ? "1 app live" : $"{Status.RunningTerminals} apps live";
+
+    private string StartingText => $"{Status.StartingTerminals} starting";
+
+    private string CrashedText => $"{Status.CrashedTerminals.Count} crashed";
 
     private (StatusState State, string Text) ServerChip =>
         Status.Paused ? (StatusState.Attention, "Paused") : (StatusState.Healthy, "Server running");
@@ -133,6 +144,39 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
         try
         {
             await Status.SetPausedAsync(!Status.Paused, _cancel.Token);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private void ToggleApps() => _appsOpen = !_appsOpen;
+
+    private void CloseApps() => _appsOpen = false;
+
+    // The owner may stop what Claude left running; starting, restarting and typing stay Claude's.
+    private async Task StopAppAsync(long terminalId)
+    {
+        _busy = true;
+        try
+        {
+            await Terminals.StopAsync(terminalId, TerminalActors.Owner, _cancel.Token);
+            await Status.RefreshAsync(_cancel.Token);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task StopAllAppsAsync()
+    {
+        _busy = true;
+        try
+        {
+            await Terminals.StopAllAsync(TerminalActors.Owner, _cancel.Token);
+            await Status.RefreshAsync(_cancel.Token);
         }
         finally
         {

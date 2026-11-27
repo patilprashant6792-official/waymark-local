@@ -1,0 +1,107 @@
+@inherits LiveComponentBase
+@using Waymark.Core.Commands
+@using Waymark.Core.Events
+@using Waymark.Host.Ui
+@* The terminals of one workspace, live: on the Overview only what runs, on the Terminals page every terminal with its last state. *@
+
+<section class="wm-card @(LiveCount > 0 ? "wm-ws-live" : string.Empty)" aria-labelledby="@_headingId">
+    <div class="wm-apps-head">
+        <h2 id="@_headingId" class="wm-card-title">@Title</h2>
+        @if (LiveCount > 0)
+        {
+            <span class="wm-muted">@LiveCount running</span>
+        }
+    </div>
+    @if (_error is not null)
+    {
+        <InlineAlert Severity="Severity.Warning">@_error</InlineAlert>
+    }
+    else if (!_loaded)
+    {
+        <p class="wm-muted" aria-live="polite">Loading...</p>
+    }
+    else
+    {
+        <TerminalRows Items="Shown" Now="Time.GetUtcNow()" Compact="!ShowAll" />
+        @if (ShowAll)
+        {
+            <p class="wm-apps-foot">A terminal keeps one program running (a dev server, a watcher) until Claude or you stop it. Only Claude starts and types into terminals; you can stop them here, in the header or in the Console. Terminals unused for 30 days are removed.</p>
+        }
+        else if (!ShowAll && _all.Count > Shown.Count)
+        {
+            <p class="wm-apps-foot"><a href="@WorkspaceSections.Terminals.Href(WorkspaceId)">All terminals of this workspace</a></p>
+        }
+    }
+</section>
+
+@code {
+    private readonly string _headingId = "terms-" + Guid.NewGuid().ToString("N")[..8];
+    private IReadOnlyList<TerminalInfo> _all = [];
+    private string? _error;
+    private bool _loaded;
+    private long _shownId;
+
+    [Parameter, EditorRequired]
+    public long WorkspaceId { get; set; }
+
+    /// <summary>Every terminal with its last state; otherwise only the ones that run or ended in the last hour.</summary>
+    [Parameter]
+    public bool ShowAll { get; set; }
+
+    [Parameter]
+    public string Title { get; set; } = "Running apps";
+
+    [Inject]
+    private ITerminals Terminals { get; set; } = default!;
+
+    [Inject]
+    private TimeProvider Time { get; set; } = default!;
+
+    [Inject]
+    private ILogger<WorkspaceTerminalsCard> Logger { get; set; } = default!;
+
+    private int LiveCount => _all.Count(t => t.Terminal.State.IsLive());
+
+    private IReadOnlyList<TerminalInfo> Shown => ShowAll
+        ? _all
+        : _all.Where(t => t.Terminal.State.IsLive() || t.Terminal.EndedUtc is { } ended && Time.GetUtcNow() - ended < TimeSpan.FromHours(1)).ToList();
+
+    protected override void OnInitialized() =>
+        RefreshOn<TerminalChanged>(changed => changed.WorkspaceId == WorkspaceId ? LoadAsync() : Task.CompletedTask);
+
+    protected override async Task OnParametersSetAsync()
+    {
+        if (_shownId != WorkspaceId)
+        {
+            _shownId = WorkspaceId;
+            _loaded = false;
+            await LoadAsync();
+        }
+    }
+
+    private async Task LoadAsync()
+    {
+        try
+        {
+            var all = await Terminals.ListAsync(new TerminalQuery(WorkspaceId: WorkspaceId), Cancel);
+            _all = all
+                .OrderByDescending(t => t.Terminal.State.IsLive())
+                .ThenByDescending(t => t.Terminal.EndedUtc ?? t.Terminal.StartedUtc)
+                .ThenBy(t => t.Terminal.Name, StringComparer.Ordinal)
+                .ToList();
+            _error = null;
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+            return;
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "The terminals of workspace {WorkspaceId} could not be loaded", WorkspaceId);
+            _error = "The terminals could not be loaded.";
+        }
+
+        _loaded = true;
+    }
+}

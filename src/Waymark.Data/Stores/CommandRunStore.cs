@@ -10,7 +10,7 @@ public sealed class CommandRunStore(ISqliteConnectionFactory connections, IWrite
     private const int MaxLimit = 500;
     private const string Columns =
         "id, workspace_id, workspace_name, tier, operation, shell, command_line, original_command, working_dir, purpose, status, exit_code, " +
-        "requested_utc, decided_utc, started_utc, ended_utc, actor, decided_by, ask_reason, note, risks, output_bytes, output_path";
+        "requested_utc, decided_utc, started_utc, ended_utc, actor, decided_by, ask_reason, note, risks, output_bytes, output_path, terminal_id, stopped_by";
     private const string ActiveStatuses = "'waitingapproval', 'queued', 'running'";
 
     public Task<CommandRun> CreateAsync(NewCommandRun run, CancellationToken ct)
@@ -19,8 +19,8 @@ public sealed class CommandRunStore(ISqliteConnectionFactory connections, IWrite
         return writes.ExecuteAsync<CommandRun>(async (connection, tx, k) =>
         {
             await connection.ExecuteAsync(new CommandDefinition(
-                "INSERT INTO command_runs (workspace_id, workspace_name, tier, operation, shell, command_line, working_dir, purpose, status, requested_utc, actor, ask_reason, risks) " +
-                "VALUES (@workspaceId, @workspaceName, @tier, @operation, @shell, @commandLine, @workingDir, @purpose, @status, @requested, @actor, @askReason, @risks)",
+                "INSERT INTO command_runs (workspace_id, workspace_name, tier, operation, shell, command_line, working_dir, purpose, status, requested_utc, actor, ask_reason, risks, terminal_id) " +
+                "VALUES (@workspaceId, @workspaceName, @tier, @operation, @shell, @commandLine, @workingDir, @purpose, @status, @requested, @actor, @askReason, @risks, @terminalId)",
                 new
                 {
                     workspaceId = run.WorkspaceId,
@@ -36,6 +36,7 @@ public sealed class CommandRunStore(ISqliteConnectionFactory connections, IWrite
                     actor = run.Actor,
                     askReason = run.AskReason,
                     risks = JsonSerializer.Serialize(run.Risks),
+                    terminalId = run.TerminalId,
                 },
                 tx,
                 cancellationToken: k));
@@ -65,6 +66,7 @@ public sealed class CommandRunStore(ISqliteConnectionFactory connections, IWrite
             "SELECT " + Columns + " FROM command_runs " +
             "WHERE ((@systemOnly = 1 AND workspace_id IS NULL) OR (@systemOnly = 0 AND (@workspaceId IS NULL OR workspace_id = @workspaceId))) " +
             "AND (@status IS NULL OR status = @status) AND (@beforeId IS NULL OR id < @beforeId) " +
+            "AND (@inTerminal IS NULL OR (@inTerminal = 1 AND terminal_id IS NOT NULL) OR (@inTerminal = 0 AND terminal_id IS NULL)) " +
             "ORDER BY id DESC LIMIT @limit",
             new
             {
@@ -72,6 +74,7 @@ public sealed class CommandRunStore(ISqliteConnectionFactory connections, IWrite
                 workspaceId = query.WorkspaceId,
                 status = query.Status is { } status ? EnumText.ToDb(status) : null,
                 beforeId = query.BeforeId,
+                inTerminal = query.InTerminal is { } inTerminal ? (inTerminal ? 1 : 0) : (int?)null,
                 limit = Math.Clamp(query.Limit, 1, MaxLimit),
             },
             cancellationToken: ct));
@@ -87,6 +90,16 @@ public sealed class CommandRunStore(ISqliteConnectionFactory connections, IWrite
         return rows.Select(ToRun).ToList();
     }
 
+    public async Task<IReadOnlyList<CommandRun>> ListByTerminalAsync(long terminalId, int limit, CancellationToken ct)
+    {
+        await using var connection = await connections.OpenAsync(ct);
+        var rows = await connection.QueryAsync<RunRow>(new CommandDefinition(
+            "SELECT " + Columns + " FROM command_runs WHERE terminal_id = @terminalId ORDER BY id DESC LIMIT @limit",
+            new { terminalId, limit = Math.Clamp(limit, 1, MaxLimit) },
+            cancellationToken: ct));
+        return rows.Select(ToRun).ToList();
+    }
+
     public Task<bool> UpdateAsync(long id, CommandRunUpdate update, CancellationToken ct)
     {
         ArgumentNullException.ThrowIfNull(update);
@@ -97,7 +110,8 @@ public sealed class CommandRunStore(ISqliteConnectionFactory connections, IWrite
                 "decided_utc = COALESCE(@decided, decided_utc), decided_by = COALESCE(@decidedBy, decided_by), " +
                 "started_utc = COALESCE(@started, started_utc), ended_utc = COALESCE(@ended, ended_utc), " +
                 "command_line = COALESCE(@commandLine, command_line), original_command = COALESCE(@original, original_command), " +
-                "note = COALESCE(@note, note), output_bytes = COALESCE(@outputBytes, output_bytes), output_path = COALESCE(@outputPath, output_path) " +
+                "note = COALESCE(@note, note), output_bytes = COALESCE(@outputBytes, output_bytes), output_path = COALESCE(@outputPath, output_path), " +
+                "stopped_by = COALESCE(@stoppedBy, stopped_by) " +
                 "WHERE id = @id",
                 new
                 {
@@ -113,21 +127,38 @@ public sealed class CommandRunStore(ISqliteConnectionFactory connections, IWrite
                     note = update.Note,
                     outputBytes = update.OutputBytes,
                     outputPath = update.OutputPath,
+                    stoppedBy = update.StoppedBy,
                 },
                 tx,
                 cancellationToken: k)) > 0,
             ct);
     }
 
+    // Runs of a terminal are closed by the terminal sweep at start-up, which ends their program first and words the note for a terminal.
     public Task<int> FailInterruptedAsync(DateTimeOffset now, CancellationToken ct) =>
         writes.ExecuteAsync<int>(async (connection, tx, k) =>
             await connection.ExecuteAsync(new CommandDefinition(
                 "UPDATE command_runs SET status = 'failed', ended_utc = @now, note = 'Waymark stopped before this run finished.' " +
-                "WHERE status IN (" + ActiveStatuses + ")",
+                "WHERE status IN (" + ActiveStatuses + ") AND terminal_id IS NULL",
                 new { now = Timestamp.Format(now) },
                 tx,
                 cancellationToken: k)),
             ct);
+
+    public Task<int> EndInterruptedTerminalRunsAsync(DateTimeOffset now, string runsDirectory, CancellationToken ct)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(runsDirectory);
+        var prefix = Path.Combine(Path.GetFullPath(runsDirectory), "run-");
+        return writes.ExecuteAsync<int>(async (connection, tx, k) =>
+            await connection.ExecuteAsync(new CommandDefinition(
+                "UPDATE command_runs SET status = 'cancelled', ended_utc = @now, stopped_by = COALESCE(stopped_by, 'waymark'), " +
+                "output_path = COALESCE(output_path, @prefix || id || '.log'), " +
+                "note = 'Ended: Waymark stopped while it ran.' WHERE status IN (" + ActiveStatuses + ") AND terminal_id IS NOT NULL",
+                new { now = Timestamp.Format(now), prefix },
+                tx,
+                cancellationToken: k)),
+            ct);
+    }
 
     public Task<IReadOnlyList<string>> DeleteEndedBeforeAsync(DateTimeOffset cutoff, CancellationToken ct) =>
         writes.ExecuteAsync<IReadOnlyList<string>>(async (connection, tx, k) =>
@@ -170,7 +201,9 @@ public sealed class CommandRunStore(ISqliteConnectionFactory connections, IWrite
             row.Note,
             ParseRisks(row.Risks),
             row.OutputBytes,
-            row.OutputPath);
+            row.OutputPath,
+            row.TerminalId,
+            row.StoppedBy);
 
     private static IReadOnlyList<string> ParseRisks(string json)
     {
@@ -231,5 +264,9 @@ public sealed class CommandRunStore(ISqliteConnectionFactory connections, IWrite
         public long OutputBytes { get; set; }
 
         public string? OutputPath { get; set; }
+
+        public long? TerminalId { get; set; }
+
+        public string? StoppedBy { get; set; }
     }
 }

@@ -3,8 +3,9 @@ using Waymark.Core.Commands;
 namespace Waymark.Host.Ui;
 
 /// <summary>
-/// The groups of command operations as the owner knows them: three language toolchains (.NET, Python, Node.js) and the three that work on any project (git,
-/// processes, the system shell). One list, so the Commands page and the Safety page name and order them the same way.
+/// The groups of command operations as the owner knows them: three language toolchains (.NET, Python, Node.js) and the four that work on any project (git,
+/// processes, the system shell, typing into terminals). One list, so the Commands page and the Safety page name and order them the same way.
+/// </summary>
 /// </summary>
 public static class Toolchains
 {
@@ -21,6 +22,7 @@ public static class Toolchains
         new(CommandCatalog.GitFamily, "Git", "status, commit, push", false),
         new(CommandCatalog.ProcessFamily, "Processes and ports", "ports, stop a program, clean build output", false),
         new(CommandCatalog.ShellFamily, "System shell", "any script, always approved by you", false),
+        new(CommandCatalog.TerminalFamily, "Terminals", "type into programs that keep running (answers to prompts, a shell's next line)", false),
     ];
 
     /// <summary>The toolchain of a picker value or family key; null for <see cref="All"/>, empty or an unknown word.</summary>

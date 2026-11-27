@@ -6,7 +6,7 @@ public static class DotnetRecipes
     public static readonly IReadOnlyList<string> Actions =
     [
         "build", "rebuild", "clean", "restore", "test", "format_check", "format", "info", "list", "new", "sln", "reference",
-        "package_add", "package_remove", "tool_restore", "ef_list", "ef_migrations_add", "ef_migrations_remove", "ef_database_update", "run",
+        "package_add", "package_remove", "tool_restore", "ef_list", "ef_migrations_add", "ef_migrations_remove", "ef_database_update", "run", "watch",
     ];
 
     private static readonly string[] Verbosities = ["quiet", "minimal", "normal", "detailed"];
@@ -48,6 +48,7 @@ public static class DotnetRecipes
         "ef_migrations_remove" => EfRemove(c),
         "ef_database_update" => EfUpdate(c),
         "run" => Run(c),
+        "watch" => Watch(c),
         _ => throw new ArgumentException($"Unknown dotnet action '{action}'. Actions: {string.Join(", ", Actions)}."),
     };
 
@@ -313,12 +314,80 @@ public static class DotnetRecipes
         return Make(c, "dotnet.ef_database_update", args, 10, 60);
     }
 
+    // The app runs in a terminal until it is stopped. It is built first as a command of its own, which holds the workspace's turn like any build;
+    // the app itself then starts with --no-build and holds nothing, so builds and tests of the workspace can run while it serves.
     private static CommandPlan Run(RecipeContext c)
     {
         var project = c.ExistingProject("project");
+        var common = new List<string>();
+        AddConfiguration(c, common);
+        AddFramework(c, common);
         var args = new List<string> { "run", "--project", project };
-        AddConfiguration(c, args);
-        AddFramework(c, args);
+        args.AddRange(common);
+        AddLaunchProfile(c, args);
+        var noBuild = c.Options.Flag("noBuild");
+        args.Add("--no-build");
+        var appArguments = c.Options.List("appArgs", 20, 200);
+        if (appArguments.Count > 0)
+        {
+            args.Add("--");
+            args.AddRange(appArguments);
+        }
+
+        var settings = TerminalSettings.Read(c.Options);
+        var buildArgs = new List<string> { "build", project };
+        buildArgs.AddRange(common);
+        var prepare = noBuild ? null : new CommandPlan("dotnet.build", "dotnet", buildArgs, TimeSpan.FromMinutes(15));
+        return new CommandPlan("dotnet.run", "dotnet", args, Timeout.InfiniteTimeSpan)
+        {
+            Lifetime = PlanLifetime.Terminal,
+            Terminal = settings,
+            Prepare = prepare,
+            ReadyPatterns = ReadySignals.DotnetReady,
+            DefaultTerminalName = TerminalNames.From(Path.GetFileNameWithoutExtension(project), "app"),
+        };
+    }
+
+    // dotnet watch builds, runs and hot-reloads the app on every change, so the Console and Claude see the build errors as they happen. It builds the
+    // project itself, so it holds the workspace's turn until the app is up. The launch profile is an option of dotnet watch itself, which reads
+    // launchSettings.json for the app it starts: after 'run --' it would reach dotnet run too late. Without launchProfile both run and watch start
+    // the app with no profile, the same way. Options after the first -- go to dotnet run, the app's own after a second.
+    private static CommandPlan Watch(RecipeContext c)
+    {
+        var project = c.ExistingProject("project");
+        var runOptions = new List<string>();
+        AddConfiguration(c, runOptions);
+        AddFramework(c, runOptions);
+        var args = new List<string> { "watch", "--project", project, "--non-interactive" };
+        AddLaunchProfile(c, args);
+        args.Add("run");
+        var appArguments = c.Options.List("appArgs", 20, 200);
+        if (runOptions.Count > 0 || appArguments.Count > 0)
+        {
+            args.Add("--");
+            args.AddRange(runOptions);
+        }
+
+        if (appArguments.Count > 0)
+        {
+            args.Add("--");
+            args.AddRange(appArguments);
+        }
+
+        var settings = TerminalSettings.Read(c.Options);
+        return new CommandPlan("dotnet.watch", "dotnet", args, Timeout.InfiniteTimeSpan)
+        {
+            Lifetime = PlanLifetime.Terminal,
+            Terminal = settings,
+            ReadyPatterns = ReadySignals.DotnetReady,
+            AppDownPatterns = ReadySignals.DotnetWatchDown,
+            AppUpPatterns = ReadySignals.DotnetWatchUp,
+            DefaultTerminalName = TerminalNames.From(Path.GetFileNameWithoutExtension(project), "app"),
+        };
+    }
+
+    private static void AddLaunchProfile(RecipeContext c, List<string> args)
+    {
         var profile = c.Options.Token("launchProfile", RecipeRules.LaunchProfile(), "a launch profile name");
         if (profile is null)
         {
@@ -329,20 +398,6 @@ public static class DotnetRecipes
             args.Add("--launch-profile");
             args.Add(profile);
         }
-
-        if (c.Options.Flag("noBuild"))
-        {
-            args.Add("--no-build");
-        }
-
-        var appArguments = c.Options.List("appArgs", 20, 200);
-        if (appArguments.Count > 0)
-        {
-            args.Add("--");
-            args.AddRange(appArguments);
-        }
-
-        return Make(c, "dotnet.run", args, 30, 480);
     }
 
     private static CommandPlan Simple(RecipeContext c, string operation, List<string> args, int defaultMinutes) =>

@@ -30,7 +30,7 @@ public static class RiskTiers
     // fingerprint covers it, so these operations ask by default.
     private static readonly HashSet<string> ProjectCodeOperations = new(StringComparer.Ordinal)
     {
-        "dotnet.test", "dotnet.run", "dotnet.ef_read", "dotnet.ef_migrations_add", "dotnet.ef_migrations_remove", "dotnet.ef_database_update",
+        "dotnet.test", "dotnet.run", "dotnet.watch", "dotnet.ef_read", "dotnet.ef_migrations_add", "dotnet.ef_migrations_remove", "dotnet.ef_database_update",
         "python.test", "python.run", "python.typecheck", "python.list",
         "node.test", "node.run", "node.typecheck", "node.list", "node.build", "node.lint", "node.script",
     };
@@ -39,6 +39,7 @@ public static class RiskTiers
     {
         ArgumentNullException.ThrowIfNull(operation);
         if (operation.Key == CommandCatalog.ShellRun
+            || operation.Family == CommandCatalog.TerminalFamily
             || ((operation.Family == CommandCatalog.DotnetFamily || operation.Family == CommandCatalog.PythonFamily || operation.Family == CommandCatalog.NodeFamily) && operation.DriftSensitive))
         {
             return RiskTier.RunsCode;
@@ -56,7 +57,7 @@ public static class RiskTiers
     public static bool RunsProjectCode(OperationInfo operation)
     {
         ArgumentNullException.ThrowIfNull(operation);
-        return ProjectCodeOperations.Contains(operation.Key) || operation.Key == CommandCatalog.ShellRun;
+        return ProjectCodeOperations.Contains(operation.Key) || operation.Key == CommandCatalog.ShellRun || operation.Family == CommandCatalog.TerminalFamily;
     }
 
     public static string Label(RiskTier tier) => tier switch

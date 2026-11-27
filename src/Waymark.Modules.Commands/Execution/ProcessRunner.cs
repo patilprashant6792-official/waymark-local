@@ -110,6 +110,68 @@ public sealed class ProcessRunner
         return new RunResult(ReadExitCode(process), timedOut, cancelled, null);
     }
 
+    /// <summary>
+    /// Starts a program that keeps running (a terminal's program): its input stays open, it has no time limit unless <paramref name="maxLifetime"/> is
+    /// given, and what it prints is streamed to <paramref name="onText"/> until it ends. Returns the failure text instead when it cannot start.
+    /// </summary>
+    public (RunningProcess? Process, string? StartFailure) Start(RunSpec spec, Action<string> onText, TimeSpan? maxLifetime)
+    {
+        ArgumentNullException.ThrowIfNull(spec);
+        ArgumentNullException.ThrowIfNull(onText);
+
+        var info = new ProcessStartInfo(spec.FileName)
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardInput = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            StandardInputEncoding = new UTF8Encoding(false),
+            StandardOutputEncoding = Encoding.UTF8,
+            StandardErrorEncoding = Encoding.UTF8,
+            WorkingDirectory = spec.WorkingDirectory,
+        };
+        foreach (var argument in spec.Arguments)
+        {
+            info.ArgumentList.Add(argument);
+        }
+
+        info.Environment.Clear();
+        foreach (var (key, value) in spec.Environment)
+        {
+            info.Environment[key] = value;
+        }
+
+        var process = new Process { StartInfo = info };
+        var job = ProcessJob.TryCreate();
+        try
+        {
+            process.Start();
+        }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException or IOException)
+        {
+            job?.Dispose();
+            process.Dispose();
+            return (null, $"Could not start '{spec.FileName}': {ex.Message}");
+        }
+
+        job?.Assign(process);
+        var gate = new object();
+        void Emit(string text)
+        {
+            lock (gate)
+            {
+                onText(text);
+            }
+        }
+
+        var pumps = new CancellationTokenSource();
+        var readers = Task.WhenAll(Pump(process.StandardOutput, Emit, pumps.Token), Pump(process.StandardError, Emit, pumps.Token));
+        var running = new RunningProcess(process, job, readers, pumps, Path.GetFileNameWithoutExtension(spec.FileName));
+        running.Begin(maxLifetime);
+        return (running, null);
+    }
+
     /// <summary>Runs a program to its end and returns what it printed. For short helper commands such as netstat.</summary>
     public async Task<(int? ExitCode, string Output)> CaptureAsync(string fileName, IReadOnlyList<string> arguments, TimeSpan timeout, CancellationToken ct)
     {

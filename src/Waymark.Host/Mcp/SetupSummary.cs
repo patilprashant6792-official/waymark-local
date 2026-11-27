@@ -25,7 +25,8 @@ public sealed class SetupSummary(
     IWorkspaceGuides workspaceGuides,
     TimeProvider time,
     IMemoryRepairStore? repairs = null,
-    ILogger<SetupSummary>? logger = null) : ISetupSummary
+    ILogger<SetupSummary>? logger = null,
+    ITerminals? terminals = null) : ISetupSummary
 {
     private const string None = "none";
     private const int MaxWorkspaceSummaryChars = WorkspaceGuideRules.MaxSummaryChars;
@@ -58,9 +59,10 @@ public sealed class SetupSummary(
         var texts = await workspaceGuides.ListAsync(ct);
         var counts = await featureMaps.CountByWorkspaceAsync(ct);
         var repairCounts = await RepairCountsAsync(ct);
-        text.Append("- Workspaces (each has its own guide with the owner's instructions for it, its flows and its own command gates: call ")
+        var terminalInfos = await TerminalsAsync(ct);
+        text.Append("- Workspaces (each has its own guide with the owner's instructions for it, its flows, its terminals and its own command gates: call ")
             .Append(GuideRules.OverviewTool)
-            .AppendLine(" with workspace='<name>' before you work in one; 'has instructions' marks those the owner wrote instructions for; 🔧 marks memory that drifted from the code, see memory_recall(action='repairs')):");
+            .AppendLine(" with workspace='<name>' before you work in one; 'has instructions' marks those the owner wrote instructions for; 🔧 marks memory that drifted from the code, see memory_recall(action='repairs'); 🖥 marks programs that keep running in its terminals):");
         if (folders.Count == 0)
         {
             text.AppendLine("  - none");
@@ -68,8 +70,17 @@ public sealed class SetupSummary(
 
         foreach (var folder in folders.OrderBy(w => w.Name, StringComparer.OrdinalIgnoreCase))
         {
-            text.AppendLine(WorkspaceLine(folder, texts.GetValueOrDefault(folder.Id), counts.GetValueOrDefault(folder.Id), repairCounts.GetValueOrDefault(folder.Id)));
+            text.AppendLine(WorkspaceLine(folder, texts.GetValueOrDefault(folder.Id), counts.GetValueOrDefault(folder.Id), repairCounts.GetValueOrDefault(folder.Id))
+                + TerminalGuideText.Marks(terminalInfos.Where(t => t.Terminal.WorkspaceId == folder.Id)));
         }
+
+        if (terminals is not null)
+        {
+            var system = terminalInfos.Where(t => t.Terminal.WorkspaceId is null).ToList();
+            text.Append("- System terminals (scripts that keep running outside every workspace): ")
+                .AppendLine(TerminalGuideText.Block(system, time.GetUtcNow(), "cmd_terminal(action='read', name=...) with no workspace gives one's new output:"));
+        }
+
         text.Append("- Tools switched off (not in your list; ask the owner to turn one on): ").AppendLine(Names(off));
 
         // Auto is what most operations do, so only the ones that ask or are refused are listed.
@@ -104,6 +115,25 @@ public sealed class SetupSummary(
         {
             logger?.LogWarning(ex, "The memory repair counts could not be read for the overview");
             return new Dictionary<long, RepairCounts>();
+        }
+    }
+
+    // Every terminal, for the workspace marks and the system terminals. A failure leaves them out rather than failing the guide.
+    private async Task<IReadOnlyList<TerminalInfo>> TerminalsAsync(CancellationToken ct)
+    {
+        if (terminals is null)
+        {
+            return [];
+        }
+
+        try
+        {
+            return await terminals.ListAsync(new TerminalQuery(), ct);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger?.LogWarning(ex, "The terminals could not be read for the overview");
+            return [];
         }
     }
     // One line on one workspace: its name, whether it is on, the owner's summary, how many flows it has, whether the owner wrote instructions for it,

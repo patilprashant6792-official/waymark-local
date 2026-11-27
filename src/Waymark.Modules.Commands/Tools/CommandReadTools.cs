@@ -10,7 +10,8 @@ public sealed class CommandReadTools(CommandService service)
     [McpServerTool(Name = "cmd_wait", ReadOnly = true, Idempotent = true)]
     [Description(
         "Waits for one command run to finish, or for the owner to approve or deny it, then returns the same report as the call that started it: status, exit code, duration and the last output lines. " +
-        "It returns as soon as the run ends; when waitSeconds runs out first it reports the current state (waiting for approval, queued or running) and you call it again. Waiting changes nothing.\n" +
+        "It returns as soon as the run ends; when waitSeconds runs out first it reports the current state (waiting for approval, queued or running) and you call it again. Waiting changes nothing. " +
+        "A run in a terminal (an app, a dev server, a watcher) counts as done waiting once its program is up: it never ends by itself, so do not wait for that.\n" +
         "WHEN TO USE: cmd_project, cmd_git, cmd_proc or cmd_shell gave you a run id instead of a result, because the run waits for approval or takes longer than its waitSeconds. " +
         "Not for reading more output now (cmd_output), ending a run (cmd_stop) or finding a lost run id (cmd_list). An unknown run id is an error.")]
     public Task<string> Wait(
@@ -50,9 +51,9 @@ public sealed class CommandReadTools(CommandService service)
     [McpServerTool(Name = "cmd_stop", ReadOnly = false, Destructive = true, Idempotent = true)]
     [Description(
         "Ends one command run. A run that still waits for approval or is queued is withdrawn and never starts. " +
-        "A running one is killed together with every process it started: a forced stop, so the program cannot clean up or save state. " +
-        "It then waits up to 8 seconds and reports the final state like cmd_wait. A run that already finished is left as it is and the reply gives its status; an unknown run id is an error.\n" +
-        "WHEN TO USE: to end an app that keeps running (run, py_run, node_run), a hung build or test, or a request you no longer want. " +
+        "A program running in a terminal is stopped as a developer stops it: Ctrl+C, then a request to terminate, then a kill of everything it started; any other run is killed at once with its processes. " +
+        "It then waits a few seconds and reports the final state like cmd_wait. A run that already finished is left as it is and the reply gives its status; an unknown run id is an error.\n" +
+        "WHEN TO USE: to end a hung build or test, a request you no longer want, or an app in a terminal (cmd_terminal action stop does the same by terminal name). " +
         "For a program Waymark did not start that holds a port use cmd_proc stop_port; to find run ids use cmd_list.")]
     public Task<string> Stop(
         [Description("The run number to end, from a cmd_* result or cmd_list, for example 12.")] long runId,

@@ -2,12 +2,13 @@ using Waymark.Core.Commands;
 using Waymark.Core.Workspaces;
 using Waymark.Modules.Commands.Execution;
 using Waymark.Modules.Commands.Recipes;
+using Waymark.Modules.Commands.Terminals;
 
 namespace Waymark.Modules.Commands;
 
 /// <summary>
 /// One checked request for a command. A recipe run carries its <see cref="Plan"/>; a shell run carries its <see cref="Shell"/> and <see cref="Script"/>.
-/// <see cref="Workspace"/> is null for a shell run outside every workspace.
+/// <see cref="Workspace"/> is null for a shell run outside every workspace. <see cref="Terminal"/> is set for a command that keeps running in a terminal.
 /// </summary>
 public sealed record CommandSubmission(
     Workspace? Workspace,
@@ -22,7 +23,8 @@ public sealed record CommandSubmission(
     CommandPlan? Plan,
     ShellInfo? Shell,
     string? Script,
-    IReadOnlyList<string> Risks);
+    IReadOnlyList<string> Risks,
+    TerminalLaunch? Terminal = null);
 
 /// <summary>The stored run, and the reason when it was refused before it started (the operation is switched off).</summary>
 public sealed record SubmitResult(CommandRun Run, string? RefusalReason)

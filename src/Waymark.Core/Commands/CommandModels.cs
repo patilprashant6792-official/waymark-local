@@ -36,7 +36,8 @@ public static class CommandRunStatusExtensions
 
 /// <summary>
 /// One command Claude asked for. <see cref="WorkspaceId"/> is null for a run outside any workspace (a system shell run) and after its
-/// workspace was removed; <see cref="WorkspaceName"/> keeps the name for the history.
+/// workspace was removed; <see cref="WorkspaceName"/> keeps the name for the history. <see cref="TerminalId"/> is set for a run started in a
+/// terminal (it keeps running until it is stopped); <see cref="StoppedBy"/> names who ended a run that was stopped (claude, owner or waymark).
 /// </summary>
 public sealed record CommandRun(
     long Id,
@@ -61,7 +62,9 @@ public sealed record CommandRun(
     string? Note,
     IReadOnlyList<string> Risks,
     long OutputBytes,
-    string? OutputPath);
+    string? OutputPath,
+    long? TerminalId = null,
+    string? StoppedBy = null);
 
 public sealed record NewCommandRun(
     long? WorkspaceId,
@@ -76,7 +79,8 @@ public sealed record NewCommandRun(
     string Actor,
     string? AskReason,
     IReadOnlyList<string> Risks,
-    DateTimeOffset RequestedUtc);
+    DateTimeOffset RequestedUtc,
+    long? TerminalId = null);
 
 /// <summary>Fields left null keep their stored value.</summary>
 public sealed record CommandRunUpdate
@@ -102,10 +106,16 @@ public sealed record CommandRunUpdate
     public long? OutputBytes { get; init; }
 
     public string? OutputPath { get; init; }
+
+    /// <summary>Who stopped the run: claude, owner or waymark.</summary>
+    public string? StoppedBy { get; init; }
 }
 
-/// <summary>Newest first. <see cref="SystemOnly"/> lists the runs that belong to no workspace; it wins over <see cref="WorkspaceId"/>.</summary>
-public sealed record CommandRunQuery(long? WorkspaceId = null, bool SystemOnly = false, CommandRunStatus? Status = null, long? BeforeId = null, int Limit = 50);
+/// <summary>
+/// Newest first. <see cref="SystemOnly"/> lists the runs that belong to no workspace; it wins over <see cref="WorkspaceId"/>.
+/// <see cref="InTerminal"/>: true lists only runs started in a terminal, false only the others, null both.
+/// </summary>
+public sealed record CommandRunQuery(long? WorkspaceId = null, bool SystemOnly = false, CommandRunStatus? Status = null, long? BeforeId = null, int Limit = 50, bool? InTerminal = null);
 
 /// <summary>The output of a run. <see cref="Seq"/> is the number of the last output chunk included, so a live view can skip chunks it already has.</summary>
 public sealed record RunOutputSnapshot(string Text, long Seq, bool IsLive);

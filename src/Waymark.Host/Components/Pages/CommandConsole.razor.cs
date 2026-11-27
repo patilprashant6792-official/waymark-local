@@ -15,7 +15,7 @@ namespace Waymark.Host.Components.Pages;
 public partial class CommandConsole : LiveComponentBase
 {
     private IReadOnlyList<WmTab> TabList =>
-        [.. Tabs.Select(t => new WmTab(t.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), t.Name, t.Active, $"{t.Active} running or waiting"))];
+        [.. Tabs.Select(t => new WmTab(t.Id.ToString(System.Globalization.CultureInfo.InvariantCulture), t.Name, t.Active + t.Live, $"{t.Active} command(s) running or waiting, {t.Live} terminal(s) running"))];
 
     private string SelectedTab => _tab.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
@@ -41,9 +41,15 @@ public partial class CommandConsole : LiveComponentBase
     private bool _forceScroll;
     private bool _busy;
     private string? _error;
+    private IReadOnlyList<TerminalInfo> _terminalInfos = [];
+    private TerminalInfo? _terminal;
 
     [Parameter]
     public long? RunId { get; set; }
+
+    /// <summary>A terminal to show: /console/terminal/{id}.</summary>
+    [Parameter]
+    public long? TerminalRef { get; set; }
 
     [Inject]
     private ICommandRuns Runs { get; set; } = default!;
@@ -63,9 +69,20 @@ public partial class CommandConsole : LiveComponentBase
     [Inject]
     private ILogger<CommandConsole> Logger { get; set; } = default!;
 
+    [Inject]
+    private ITerminals Terminals { get; set; } = default!;
+
+    // The history: one-off runs. A terminal's runs are shown in its terminal.
     private IReadOnlyList<CommandRun> AllTabRuns => _allRuns
-        .Where(r => _tab == SystemTab ? r.WorkspaceId is null : r.WorkspaceId == _tab)
+        .Where(r => r.TerminalId is null && (_tab == SystemTab ? r.WorkspaceId is null : r.WorkspaceId == _tab))
         .Take(TabLimit)
+        .ToList();
+
+    // The terminals of the tab: running ones first, then by name.
+    private IReadOnlyList<TerminalInfo> TabTerminals => _terminalInfos
+        .Where(t => _tab == SystemTab ? t.Terminal.WorkspaceId is null : t.Terminal.WorkspaceId == _tab)
+        .OrderByDescending(t => t.Terminal.State.IsLive())
+        .ThenBy(t => t.Terminal.Name, StringComparer.Ordinal)
         .ToList();
 
     // What the list shows: the runs of the tab that match the filter box.
@@ -79,25 +96,37 @@ public partial class CommandConsole : LiveComponentBase
     }
 
     private IReadOnlyList<TabInfo> Tabs => _workspaces
-        .Select(w => new TabInfo(w.Id, w.Name, ActiveIn(w.Id)))
-        .Append(new TabInfo(SystemTab, "System", ActiveIn(null)))
+        .Select(w => new TabInfo(w.Id, w.Name, ActiveIn(w.Id), LiveIn(w.Id)))
+        .Append(new TabInfo(SystemTab, "System", ActiveIn(null), LiveIn(null)))
         .ToList();
 
     protected override async Task OnInitializedAsync()
     {
         await LoadWorkspacesAsync();
         await LoadRunsAsync();
+        await LoadTerminalsAsync();
         RefreshOn<CommandRunChanged>(OnRunChangedAsync);
         RefreshOn<CommandOutputChunk>(OnChunkAsync);
         RefreshOn<WorkspaceChanged>(LoadWorkspacesAsync);
+        RefreshOn<TerminalChanged>(OnTerminalChangedAsync);
         _ = TickAsync();
     }
 
     protected override async Task OnParametersSetAsync()
     {
+        if (TerminalRef is { } terminalId)
+        {
+            if (_terminal?.Terminal.Id != terminalId)
+            {
+                await SelectTerminalAsync(terminalId, byUser: true);
+            }
+
+            return;
+        }
+
         if (RunId is { } id)
         {
-            if (_selected?.Id != id)
+            if (_selected?.Id != id || _terminal is not null)
             {
                 await SelectRunAsync(id, byUser: true);
             }
@@ -105,12 +134,21 @@ public partial class CommandConsole : LiveComponentBase
             return;
         }
 
-        if (_selected is null)
+        if (_selected is null && _terminal is null)
         {
-            var first = _allRuns.FirstOrDefault(r => r.Status.IsActive()) ?? _allRuns.FirstOrDefault();
+            var live = _terminalInfos.FirstOrDefault(t => t.Terminal.State.IsLive());
+            var first = _allRuns.FirstOrDefault(r => r.Status.IsActive() && r.TerminalId is null);
             if (first is not null)
             {
                 await SelectRunAsync(first.Id, byUser: false);
+            }
+            else if (live is not null)
+            {
+                await SelectTerminalAsync(live.Terminal.Id, byUser: false);
+            }
+            else if (_allRuns.FirstOrDefault() is { } newest)
+            {
+                await SelectRunAsync(newest.Id, byUser: false);
             }
         }
     }
@@ -188,6 +226,60 @@ public partial class CommandConsole : LiveComponentBase
         }
     }
 
+    private async Task LoadTerminalsAsync()
+    {
+        try
+        {
+            _terminalInfos = await Terminals.ListAsync(new TerminalQuery(), Cancel);
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "The Console page could not load the terminals");
+            _error = "The terminals could not be loaded. The page will try again.";
+        }
+    }
+
+    private async Task OnTerminalChangedAsync(TerminalChanged change)
+    {
+        await LoadTerminalsAsync();
+        if (_terminal?.Terminal.Id != change.TerminalId)
+        {
+            return;
+        }
+
+        if (change.Closed)
+        {
+            _terminal = null;
+            _selected = null;
+            _buffer = new AnsiBuffer();
+            return;
+        }
+
+        var info = _terminalInfos.FirstOrDefault(t => t.Terminal.Id == change.TerminalId) ?? await Terminals.GetAsync(change.TerminalId, Cancel);
+        if (info is null)
+        {
+            return;
+        }
+
+        // A new program started in the terminal: show it from its start, with the earlier runs above it.
+        var shownRun = info.Terminal.CurrentRunId ?? info.Terminal.LastRunId;
+        if (shownRun != _selected?.Id)
+        {
+            await SelectTerminalAsync(change.TerminalId, byUser: false);
+            return;
+        }
+
+        _terminal = info;
+        if (shownRun is { } runId)
+        {
+            _selected = await Runs.GetAsync(runId, Cancel);
+        }
+    }
+
     private async Task OnRunChangedAsync(CommandRunChanged change)
     {
         await LoadRunsAsync();
@@ -200,7 +292,15 @@ public partial class CommandConsole : LiveComponentBase
         var isNew = change.Status is CommandRunStatus.WaitingApproval or CommandRunStatus.Queued or CommandRunStatus.Running;
         if (_followNew && isNew && (_selected is null || _selected.Id < change.RunId))
         {
-            await SelectRunAsync(change.RunId, byUser: false);
+            var run = await Runs.GetAsync(change.RunId, Cancel);
+            if (run?.TerminalId is { } terminalId)
+            {
+                await SelectTerminalAsync(terminalId, byUser: false);
+            }
+            else
+            {
+                await SelectRunAsync(change.RunId, byUser: false);
+            }
         }
     }
 
@@ -212,12 +312,78 @@ public partial class CommandConsole : LiveComponentBase
         }
         else if (chunk.RunId == _selected?.Id && chunk.Seq > _lastSeq)
         {
-            _buffer.Write(chunk.Text);
+            // Claude cleared the terminal: the view starts again after the marker line.
+            var text = chunk.Text;
+            if (_terminal is not null && AfterClear(text) is { } rest)
+            {
+                _buffer = new AnsiBuffer();
+                text = rest;
+            }
+
+            _buffer.Write(text);
             _lastSeq = chunk.Seq;
             _scroll = true;
         }
 
         return Task.CompletedTask;
+    }
+
+    private async Task SelectTerminalAsync(long id, bool byUser)
+    {
+        if (byUser)
+        {
+            _followNew = false;
+        }
+
+        try
+        {
+            var info = await Terminals.GetAsync(id, Cancel);
+            if (info is null)
+            {
+                _error = "That terminal does not exist any more.";
+                return;
+            }
+
+            var shownRun = info.Terminal.CurrentRunId ?? info.Terminal.LastRunId;
+            _loading = shownRun ?? 0;
+            _early.Clear();
+            var output = await Terminals.GetOutputAsync(id, Cancel);
+            var run = output?.RunId is { } runId ? await Runs.GetAsync(runId, Cancel) : null;
+            var buffer = new AnsiBuffer();
+            var seq = output?.Seq ?? 0;
+            var text = output?.Text ?? string.Empty;
+            buffer.Write(AfterClear(text) ?? text);
+            foreach (var chunk in _early.Where(c => c.RunId == run?.Id && c.Seq > seq).OrderBy(c => c.Seq))
+            {
+                buffer.Write(chunk.Text);
+                seq = chunk.Seq;
+            }
+
+            _terminal = info;
+            _selected = run;
+            _buffer = buffer;
+            _lastSeq = seq;
+            _tab = info.Terminal.WorkspaceId ?? SystemTab;
+            _tabChosen = true;
+            _scroll = true;
+            _forceScroll = true;
+            _findInfo = string.Empty;
+            _error = null;
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "The Console page could not load terminal {TerminalId}", id);
+            _error = "That terminal could not be loaded.";
+        }
+        finally
+        {
+            _loading = 0;
+            _early.Clear();
+        }
     }
 
     private async Task SelectRunAsync(long id, bool byUser)
@@ -232,6 +398,16 @@ public partial class CommandConsole : LiveComponentBase
         try
         {
             var run = await Runs.GetAsync(id, Cancel);
+
+            // A run of a terminal is shown in its terminal, after the runs before it.
+            if (run?.TerminalId is { } terminalId && await Terminals.GetAsync(terminalId, Cancel) is not null)
+            {
+                _loading = 0;
+                await SelectTerminalAsync(terminalId, byUser);
+                return;
+            }
+
+            _terminal = null;
             var snapshot = run is null ? null : await Runs.GetOutputAsync(id, Cancel);
             if (_loading != id)
             {
@@ -288,16 +464,27 @@ public partial class CommandConsole : LiveComponentBase
     {
         _tab = tab;
         _tabChosen = true;
+
+        // Nothing of the previous tab stays on screen while the new one loads.
+        _selected = null;
+        _terminal = null;
+        _buffer = new AnsiBuffer();
+        _lastSeq = 0;
+        var live = TabTerminals.FirstOrDefault(t => t.Terminal.State.IsLive());
         var first = AllTabRuns.FirstOrDefault(r => r.Status.IsActive()) ?? AllTabRuns.FirstOrDefault();
-        if (first is not null)
+        if (first is not null && (first.Status.IsActive() || live is null))
         {
             await SelectRunAsync(first.Id, byUser: true);
             return;
         }
 
+        if (live is not null)
+        {
+            await SelectTerminalAsync(live.Terminal.Id, byUser: true);
+            return;
+        }
+
         _followNew = false;
-        _selected = null;
-        _buffer = new AnsiBuffer();
     }
 
     private async Task ToggleFollowAsync()
@@ -319,7 +506,7 @@ public partial class CommandConsole : LiveComponentBase
 
     private async Task StopAsync()
     {
-        if (_selected is not { } run)
+        if (_selected is not { } run && _terminal is null)
         {
             return;
         }
@@ -327,9 +514,12 @@ public partial class CommandConsole : LiveComponentBase
         _busy = true;
         try
         {
-            if (!await Runs.StopAsync(run.Id, Cancel))
+            var stopped = _terminal is { } terminal
+                ? await Terminals.StopAsync(terminal.Terminal.Id, TerminalActors.Owner, Cancel)
+                : await Runs.StopAsync(_selected!.Id, Cancel);
+            if (!stopped)
             {
-                Snackbar.Add("That command had already ended.", Severity.Info);
+                Snackbar.Add(_terminal is null ? "That command had already ended." : "Nothing runs in that terminal now.", Severity.Info);
             }
         }
         catch (OperationCanceledException)
@@ -344,15 +534,26 @@ public partial class CommandConsole : LiveComponentBase
 
     private async Task CopyOutputAsync()
     {
-        if (_selected is not { } run)
+        if (_selected is null && _terminal is null)
         {
             return;
         }
 
         try
         {
-            var snapshot = await Runs.GetOutputAsync(run.Id, Cancel);
-            await Js.InvokeVoidAsync("navigator.clipboard.writeText", Cancel, AnsiText.Plain(snapshot?.Text ?? string.Empty));
+            string text;
+            if (_terminal is { } terminal)
+            {
+                var output = await Terminals.GetOutputAsync(terminal.Terminal.Id, Cancel);
+                text = output?.Text ?? string.Empty;
+            }
+            else
+            {
+                var snapshot = await Runs.GetOutputAsync(_selected!.Id, Cancel);
+                text = snapshot?.Text ?? string.Empty;
+            }
+
+            await Js.InvokeVoidAsync("navigator.clipboard.writeText", Cancel, AnsiText.Plain(text));
             Snackbar.Add("Output copied.", Severity.Success);
         }
         catch (Exception ex) when (ex is JSException or JSDisconnectedException)
@@ -372,7 +573,35 @@ public partial class CommandConsole : LiveComponentBase
         return Task.CompletedTask;
     }
 
-    private int ActiveIn(long? workspaceId) => _allRuns.Count(r => r.Status.IsActive() && r.WorkspaceId == workspaceId);
+    private int ActiveIn(long? workspaceId) => _allRuns.Count(r => r.TerminalId is null && r.Status.IsActive() && r.WorkspaceId == workspaceId);
+
+    private int LiveIn(long? workspaceId) => _terminalInfos.Count(t => t.Terminal.State.IsLive() && t.Terminal.WorkspaceId == workspaceId);
+
+    // The text after the last "cleared" marker line, or null when there is none.
+    private static string? AfterClear(string text)
+    {
+        var at = text.LastIndexOf(Waymark.Modules.Commands.CommandCoordinator.ClearedMarker, StringComparison.Ordinal);
+        if (at < 0)
+        {
+            return null;
+        }
+
+        var newline = text.IndexOf('\n', at);
+        return newline < 0 ? string.Empty : text[(newline + 1)..];
+    }
+
+    private string ReadLine(TerminalInfo info)
+    {
+        if (info.ReadUtc is not { } read)
+        {
+            return info.Terminal.State.IsLive() ? "Claude has not read it yet" : string.Empty;
+        }
+
+        var ago = DisplayFormat.Ago(read, Time.GetUtcNow());
+        return info.TotalLines > 0
+            ? $"Claude read {info.ReadLine} of {info.TotalLines} lines {ago}"
+            : $"Claude read it {ago}";
+    }
 
     private static string Label(CommandRun run) =>
         CommandCatalog.TryGet(run.Operation, out var info) && info is not null ? info.Label : run.Operation;
@@ -419,7 +648,7 @@ public partial class CommandConsole : LiveComponentBase
         {
             while (await timer.WaitForNextTickAsync(Cancel))
             {
-                if (_pending.Count > 0 || _selected?.Status.IsActive() == true)
+                if (_pending.Count > 0 || _selected?.Status.IsActive() == true || _terminal?.Terminal.State.IsLive() == true)
                 {
                     await InvokeAsync(StateHasChanged);
                 }
@@ -435,5 +664,5 @@ public partial class CommandConsole : LiveComponentBase
         }
     }
 
-    private sealed record TabInfo(long Id, string Name, int Active);
+    private sealed record TabInfo(long Id, string Name, int Active, int Live);
 }

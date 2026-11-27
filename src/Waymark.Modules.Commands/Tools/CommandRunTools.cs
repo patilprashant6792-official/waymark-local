@@ -33,7 +33,8 @@ public sealed class CommandRunTools(CommandService service)
         "  ef_migrations_add: name*, project*, startupProject, context, outputDir\n" +
         "  ef_migrations_remove: project*, startupProject, context\n" +
         "  ef_database_update: project*, startupProject, context, migration or revertAll\n" +
-        "  run: project*, configuration, launchProfile, noBuild, appArgs (array), timeoutMinutes (the app keeps running until stopped)\n" +
+        "  run: project*, configuration, framework, launchProfile, noBuild, appArgs (array) + TERMINAL OPTIONS   - builds, then runs the app in a terminal until it is stopped\n" +
+        "  watch: project*, configuration, framework, launchProfile, appArgs (array) + TERMINAL OPTIONS   - dotnet watch in a terminal: rebuilds and hot-reloads on every change\n" +
         "PYTHON ACTIONS (every one accepts project and timeoutMinutes; paths are relative to the workspace; packages are installed as wheels only, nothing is built):\n" +
         "  py_info: -   - versions of Python, pip, uv, ruff, pyright and mypy, and the project's lock file and virtual environment\n" +
         "  py_list: tool (uv|pip), venv   - packages installed in the project's virtual environment\n" +
@@ -43,7 +44,7 @@ public sealed class CommandRunTools(CommandService service)
         "  py_lint: paths (array)   - ruff check\n" +
         "  py_format: check, paths (array)   - ruff format; it changes files unless check is true\n" +
         "  py_typecheck: checker (pyright|mypy), venv, paths (array)\n" +
-        "  py_run: venv, module* or script* (give one), appArgs (array)   - python -m module or a script; the program keeps running until stopped\n" +
+        "  py_run: venv, module* or script* (give one), appArgs (array) + TERMINAL OPTIONS   - python -m module or a script, in a terminal until it is stopped\n" +
         "  py_package_add: package*, version*, group, tool   - uv add of one package at an exact version\n" +
         "  py_package_remove: package*, group, tool   - uv remove\n" +
         "NODE ACTIONS (every one accepts project, a folder or its package.json, default the workspace folder, where the command runs, and timeoutMinutes; npm runs as node npm-cli.js, installs run no lifecycle scripts):\n" +
@@ -53,14 +54,17 @@ public sealed class CommandRunTools(CommandService service)
         "  node_typecheck: tsconfig   - tsc --noEmit with the project's own TypeScript\n" +
         "  node_build, node_test, node_lint: script (default build, test, lint), args (array, passed after --)   - a script named in package.json\n" +
         "  node_script: script*, args (array)   - any script of package.json; its text is shown on the approval card\n" +
-        "  node_run: script (default dev, else start), args (array)   - a script that keeps running until stopped\n" +
+        "  node_run: script (default dev, else start), args (array) + TERMINAL OPTIONS   - a dev server or watcher, in a terminal until it is stopped\n" +
         "  node_package_add: package*, version*, dev   - npm install of one package at an exact version, --save-exact --ignore-scripts\n" +
         "  node_package_remove: package*   - npm uninstall --ignore-scripts\n" +
+        "TERMINAL OPTIONS (run, watch, py_run, node_run): terminal (a name such as web or api; default the project folder's name), readyPattern (text it prints when it is up), " +
+        "readyPort (a port it listens on when it is up), readyTimeoutSeconds (5-600, default 120), replace (true: stop what runs in that terminal first), timeoutMinutes (most it may run; default no limit). " +
+        "These keep running in a named terminal and the call returns as soon as the program is up (or crashed, or waits for the owner), never when it ends. Follow them with cmd_terminal.\n" +
         "When 'target' is omitted the only .sln/.slnx file in the workspace root is used. For git use cmd_git; for ports and locked build files cmd_proc; for anything without a typed action cmd_shell.\n" +
         "RETURNS: result, compiler or linter findings (workspace-relative paths), test summary and the last output lines. If it takes longer than waitSeconds you get a run id for cmd_wait / cmd_output.")]
     public Task<string> Project(
         [Description(WorkspaceHelp)] string workspace,
-        [Description("One of: build, rebuild, clean, restore, test, format_check, format, info, list, new, sln, reference, package_add, package_remove, tool_restore, ef_list, ef_migrations_add, ef_migrations_remove, ef_database_update, run, py_info, py_list, py_venv, py_install, py_test, py_lint, py_format, py_typecheck, py_run, py_package_add, py_package_remove, node_info, node_list, node_install, node_typecheck, node_build, node_test, node_lint, node_script, node_run, node_package_add, node_package_remove")]
+        [Description("One of: build, rebuild, clean, restore, test, format_check, format, info, list, new, sln, reference, package_add, package_remove, tool_restore, ef_list, ef_migrations_add, ef_migrations_remove, ef_database_update, run, watch, py_info, py_list, py_venv, py_install, py_test, py_lint, py_format, py_typecheck, py_run, py_package_add, py_package_remove, node_info, node_list, node_install, node_typecheck, node_build, node_test, node_lint, node_script, node_run, node_package_add, node_package_remove")]
         string action,
         [Description(PurposeHelp)] string purpose,
         [Description("JSON object with the options of the action, for example {\"configuration\":\"Release\",\"noRestore\":true} or {\"project\":\"api\",\"filter\":\"test_login\"}. Omit when none are needed.")]
@@ -111,7 +115,7 @@ public sealed class CommandRunTools(CommandService service)
         "ACTIONS and optionsJson keys (* = required):\n" +
         "  ports: port (1-65535, show only that port)   - reads only: a PORT, PID, PROGRAM, ADDRESS table of listening TCP ports\n" +
         "  stop_port: port*   - kills the program listening on that port with its child processes. Only a dotnet, Python or Node program, or one that runs from the workspace; " +
-        "never Waymark or a system process, and any other program is refused with its path. Nothing listening is not an error\n" +
+        "never Waymark or a system process, and any other program is refused with its path. A port that belongs to a terminal is refused: stop the terminal instead. Nothing listening is not an error\n" +
         "  build_server: timeoutMinutes (1-10, default 2)   - dotnet build-server shutdown: frees files that compiler servers keep locked after a build\n" +
         "  clean_outputs: path (folder, default the workspace), dryRun (true: only list)   - deletes the bin and obj folders next to each .csproj, .fsproj or .vbproj; node_modules, .git, .vs and .idea are skipped\n" +
         "WHEN TO USE: a port is already in use, a build fails because files are locked, or stale build output must go. " +
@@ -135,7 +139,10 @@ public sealed class CommandRunTools(CommandService service)
         "USE IT for any question about the computer itself, not only projects: displays and monitors, hardware, OS version and settings, installed apps, running processes, network, disks, files outside a workspace. Leave workspace out for these system scripts. " +
         "Do not tell the user you cannot reach their computer; run a read-only script instead.\n" +
         "For project work prefer the typed tools (cmd_project, cmd_git, cmd_proc) when one fits: they are checked and can run without waiting.\n" +
-        "Write the script for the shell that will run it; a short script that does one thing is approved faster. Nothing can be typed to it while it runs.\n" +
+        "Write the script for the shell that will run it; a short script that does one thing is approved faster.\n" +
+        "KEEPS RUNNING: give 'terminal' (a name such as tunnel or worker) and the script runs in that terminal until it is stopped, with no time limit (timeoutSeconds is then the most it may run). " +
+        "The call returns when it is up: when it prints readyPattern, listens on readyPort, or, given neither, goes quiet after its first output. Follow it with cmd_terminal (read, send, restart, stop). " +
+        "Without 'terminal' the script runs to its end and nothing can be typed to it.\n" +
         "RETURNS: result and the end of the output; waits up to waitSeconds (the owner needs time to approve - use cmd_wait).")]
     public Task<string> Shell(
         [Description("The script text.")] string script,
@@ -146,8 +153,11 @@ public sealed class CommandRunTools(CommandService service)
         string? shell = null,
         [Description("Optional start folder: relative to the workspace, or a full path when no workspace is given.")]
         string? cwd = null,
-        [Description("Time limit in seconds (5-3600, default 300).")] int? timeoutSeconds = null,
+        [Description("Time limit in seconds (5-3600, default 300). With 'terminal': the most it may run (default no limit).")] int? timeoutSeconds = null,
         [Description(WaitHelp)] int? waitSeconds = null,
+        [Description("Optional: a terminal name (lower-case letters, digits and '-') to keep the script running there until it is stopped.")] string? terminal = null,
+        [Description("Optional, with terminal: text the script prints when it is up.")] string? readyPattern = null,
+        [Description("Optional, with terminal: a port it listens on when it is up.")] int? readyPort = null,
         CancellationToken cancellationToken = default) =>
-        service.ShellAsync(workspace, script, purpose, shell, cwd, timeoutSeconds, waitSeconds, cancellationToken);
+        service.ShellAsync(workspace, script, purpose, shell, cwd, timeoutSeconds, waitSeconds, cancellationToken, terminal, readyPattern, readyPort);
 }

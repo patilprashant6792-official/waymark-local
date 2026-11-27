@@ -58,6 +58,37 @@ public static class ChildEnvironment
         ["npm_config_fund"] = "false",
     };
 
+    // A program in a terminal keeps running and can be answered, so it is not told it runs on a build server: watchers, dev-server comforts and
+    // interactive answers stay on. A watcher restarts on edits it cannot apply instead of asking, and nothing opens a browser on the owner's screen.
+    private static readonly Dictionary<string, string> TerminalForced = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["DOTNET_WATCH_RESTART_ON_RUDE_EDIT"] = "1",
+        ["DOTNET_WATCH_SUPPRESS_LAUNCH_BROWSER"] = "1",
+        ["BROWSER"] = "none",
+        ["PY_COLORS"] = "1",
+    };
+
+    /// <summary>The environment of a program that keeps running in a terminal: the same as <see cref="Build"/> without CI=1, plus the terminal settings.</summary>
+    public static Dictionary<string, string> BuildForTerminal(IReadOnlyDictionary<string, string>? extra = null)
+    {
+        var result = Build();
+        result.Remove("CI");
+        foreach (var (key, value) in TerminalForced)
+        {
+            result[key] = value;
+        }
+
+        if (extra is not null)
+        {
+            foreach (var (key, value) in extra)
+            {
+                result[key] = value;
+            }
+        }
+
+        return result;
+    }
+
     public static Dictionary<string, string> Build(IReadOnlyDictionary<string, string>? extra = null)
     {
         var result = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);

@@ -1,15 +1,18 @@
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
 using Waymark.Core.Commands;
+using Waymark.Modules.Commands.Execution;
 
 namespace Waymark.Modules.Commands;
 
 /// <summary>
-/// At start-up: runs that were waiting or running when Waymark stopped can never finish, so they are closed as failed.
-/// Then, every few hours, finished runs older than the retention time are removed together with their stored output.
+/// At start-up: runs that were waiting or running when Waymark stopped can never finish, so they are closed as failed (runs of a terminal are closed
+/// by <see cref="Terminals.TerminalLifetimeService"/>, which ends their programs first). Then, every few hours, finished runs older than the retention
+/// time are removed together with their stored output (the rotated files of a terminal's log included), and so are terminals nobody used since.
 /// </summary>
 public sealed class CommandMaintenanceService(
     ICommandRunStore runs,
+    ITerminalStore terminals,
     CommandsOptions options,
     TimeProvider time,
     ILogger<CommandMaintenanceService> logger) : BackgroundService
@@ -65,6 +68,16 @@ public sealed class CommandMaintenanceService(
             foreach (var file in files)
             {
                 DeleteStoredOutput(file, root);
+                foreach (var rotated in TerminalLog.CompanionPaths(file, options.TerminalLogFiles))
+                {
+                    DeleteStoredOutput(rotated, root);
+                }
+            }
+
+            var removed = await terminals.DeleteUnusedBeforeAsync(cutoff, stop).ConfigureAwait(false);
+            if (removed > 0)
+            {
+                logger.LogInformation("{Count} terminal(s) unused for {Days} days were removed.", removed, options.RetentionDays);
             }
         }
         catch (OperationCanceledException)

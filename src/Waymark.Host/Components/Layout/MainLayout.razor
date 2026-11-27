@@ -33,6 +33,49 @@
                 <a class="wm-header-link" href="console"><WmStatus State="StatusState.Attention" Text="@CommandText" /></a>
             }
             <a class="wm-header-link" href="audit?view=live"><WmStatus State="StatusState.Working" Text="@ActiveText" /></a>
+            @if (Status.RunningTerminals > 0 || Status.StartingTerminals > 0 || Status.CrashedTerminals.Count > 0)
+            {
+                <div class="wm-apps">
+                    <button type="button" class="wm-apps-toggle" aria-expanded="@(_appsOpen ? "true" : "false")" aria-controls="wm-apps-pop" title="Programs that keep running in terminals" @onclick="ToggleApps">
+                        @if (Status.RunningTerminals > 0)
+                        {
+                            <WmStatus State="StatusState.Healthy" Text="@AppsText" />
+                        }
+                        @if (Status.StartingTerminals > 0)
+                        {
+                            <WmStatus State="StatusState.Working" Live="true" Text="@StartingText" />
+                        }
+                        @if (Status.CrashedTerminals.Count > 0)
+                        {
+                            <WmStatus State="StatusState.Failed" Text="@CrashedText" />
+                        }
+                    </button>
+                    @if (_appsOpen)
+                    {
+                        <div id="wm-apps-pop" class="wm-apps-pop" role="dialog" aria-label="Programs running in terminals">
+                            <div class="wm-apps-head">
+                                <strong>Terminals</strong>
+                                <WmButton Kind="ButtonKind.Danger" Small="true" Icon="@Icons.Material.Outlined.Stop" Disabled="@(_busy || Status.LiveTerminals.Count == 0)" OnClick="StopAllAppsAsync">Stop all apps</WmButton>
+                            </div>
+                            @foreach (var info in Status.LiveTerminals.Concat(Status.CrashedTerminals))
+                            {
+                                var terminal = info.Terminal;
+                                var chip = TerminalView.Chip(terminal);
+                                <div class="wm-apps-row" @key="terminal.Id">
+                                    <WmStatus State="chip.State" Live="chip.Live" Text="@chip.Text" />
+                                    <a class="wm-apps-name" href="console/terminal/@terminal.Id" @onclick="CloseApps">@terminal.Scope / @terminal.Name</a>
+                                    <span class="wm-muted wm-mono">@(TerminalView.ShortAddress(terminal) ?? TerminalView.ShortCommand(terminal.CommandLine, 32))</span>
+                                    @if (terminal.State.IsLive())
+                                    {
+                                        <WmButton Kind="ButtonKind.Danger" Small="true" Icon="@Icons.Material.Outlined.Stop" Disabled="_busy" OnClick="() => StopAppAsync(terminal.Id)">Stop</WmButton>
+                                    }
+                                </div>
+                            }
+                            <p class="wm-apps-foot">Pause all blocks Claude's tools; it does not stop these. Only Claude starts them.</p>
+                        </div>
+                    }
+                </div>
+            }
         </div>
 
         <div class="wm-header-actions">

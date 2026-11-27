@@ -32,7 +32,7 @@
                 @foreach (var item in _items)
                 {
                     <li @key="item.Id">
-                        <WorkspaceCard Workspace="item" Stats="_stats.GetValueOrDefault(item.Id)" Memory="_memory.GetValueOrDefault(item.Id)" Progress="_progress.GetValueOrDefault(item.Id)" Repo="_repos.GetValueOrDefault(item.Id)" ShownPath="@ShownPath(item.Path)" Now="Time.GetUtcNow()" />
+                        <WorkspaceCard Workspace="item" Stats="_stats.GetValueOrDefault(item.Id)" Memory="_memory.GetValueOrDefault(item.Id)" Progress="_progress.GetValueOrDefault(item.Id)" Repo="_repos.GetValueOrDefault(item.Id)" ShownPath="@ShownPath(item.Path)" Now="Time.GetUtcNow()" Terminals="TerminalsOf(item.Id)" />
                     </li>
                 }
             </ul>
