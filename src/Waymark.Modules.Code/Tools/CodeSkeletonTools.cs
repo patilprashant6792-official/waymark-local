@@ -64,7 +64,7 @@ public sealed class CodeSkeletonTools(ISkeletonService skeleton, ILogger<CodeSke
     public Task<string> ChangesSince(
         [Description("Workspace name as shown in Waymark (a single workspace; '*' is not accepted)")]
         string workspace,
-        [Description("The point in time: Unix seconds ('1705449600') or ISO 8601 ('2026-01-17T09:30:00Z', '2026-01-17T15:00:00+05:30'). A date or time without an offset is read as UTC, so add the owner's offset for a local time (util_datetime gives it).")]
+        [Description("The point in time: Unix seconds ('1705449600') or ISO 8601 ('2026-01-17T09:30:00Z', '2026-01-17T15:00:00+05:30'). A date or time without an offset is read as UTC, so add the owner's offset for a local time.")]
         string sinceTimestamp,
         CancellationToken cancellationToken = default) =>
         RunAsync(() => skeleton.ChangesSinceAsync(workspace, sinceTimestamp, cancellationToken));

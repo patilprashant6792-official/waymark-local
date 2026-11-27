@@ -60,7 +60,7 @@ public sealed class ToolPipeline(
                 tool.Meta ??= new JsonObject();
                 tool.Meta[AlwaysLoadKey] = true;
             }
-            // The other overview tools (waymark_ping, util_datetime) get no guide flag: the overview comes from waymark_guide.
+            // The overview tool takes no guide flag: calling it is the request.
             else if (!GuideRules.IsOverview(descriptor.Module) && guideDelivery.IsGuided(descriptor.Module))
             {
                 tool.InputSchema = GuideSchema.WithGuideProperty(tool.InputSchema, descriptor.Module);
@@ -274,7 +274,7 @@ public sealed class ToolPipeline(
     private static bool IsEnabled(ToolDescriptor descriptor, IReadOnlyList<ToolSetting> rows)
     {
         var row = rows.FirstOrDefault(r => string.Equals(r.ToolName, descriptor.Name, StringComparison.OrdinalIgnoreCase));
-        return row?.Enabled ?? ToolDefaults.IsOnByDefault(descriptor);
+        return ToolDefaults.IsEnabled(descriptor, row?.Enabled);
     }
 
     // Cuts text beyond the output limit and returns the size of what is sent.
