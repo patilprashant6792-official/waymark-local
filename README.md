@@ -306,14 +306,14 @@ That client is the only one connected, so there's no pairing and no tunnel. The 
 
 ---
 
-## All 35 tools
+## All 33 tools
 
 <details>
 <summary><b>Show the tool list</b></summary>
 
 | Group | Tools | What for |
 |---|---|---|
-| Guide | `waymark_guide`, `waymark_ping`, `util_datetime` | the live overview Claude reads first; reachability; time zones |
+| Guide | `waymark_guide` | the live overview Claude reads first; always on, not listed on the Tools page |
 | Code | `code_skeleton`, `code_search`, `code_outline`, `code_method`, `code_read`, `code_grep`, `code_callers`, `code_types`, `code_folder_files`, `code_changes_since` | overview with package pins → search → structure → one body; text search in any file; impact; recent changes |
 | Memory | `memory_recall`, `memory_save` | flows and notes: search, read, save |
 | Packages | `pkg_search`, `pkg_find`, `pkg_outline`, `pkg_expand` | NuGet, PyPI and npm APIs at your pinned version |

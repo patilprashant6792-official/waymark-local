@@ -13,7 +13,7 @@ A question about the computer itself (which monitors are connected, hardware, OS
 | files | create, edit, copy, move and delete files and folders | any `file_*` or `folder_*` tool |
 | commands | build, test and run .NET, Python or Node projects, run git, and run scripts on the computer itself (`cmd_shell`) | any `cmd_*` tool |
 
-A group's guide covers its tools, their order and their pitfalls. Ask for it once, when you first use the group; a group you never use costs nothing. `waymark_guide` returns this overview again with a fresh live setup. `util_datetime` gives the time and time zones, and `waymark_ping` checks that Waymark is reachable.
+A group's guide covers its tools, their order and their pitfalls. Ask for it once, when you first use the group; a group you never use costs nothing. `waymark_guide` returns this overview again with a fresh live setup; a call that succeeds also shows that Waymark is reachable.
 
 ## Workspaces have their own guides
 

@@ -62,9 +62,10 @@ public sealed class ToolRegistry : IToolRegistry
         }
 
         var gate = method.GetCustomAttribute<ToolGateAttribute>()?.Gate ?? ToolGate.Read;
+        var isInternal = method.GetCustomAttribute<InternalToolAttribute>() is not null;
         var chars = (method.GetCustomAttribute<DescriptionAttribute>()?.Description.Length ?? 0)
             + method.GetParameters().Sum(p => p.GetCustomAttribute<DescriptionAttribute>()?.Description.Length ?? 0);
-        return new ToolDescriptor(name, module, gate, chars);
+        return new ToolDescriptor(name, module, gate, chars, isInternal);
     }
 
     private static string ModuleName(Assembly assembly)

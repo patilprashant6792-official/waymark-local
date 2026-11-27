@@ -41,7 +41,7 @@ public sealed class SetupSummary(
             .Where(tool =>
             {
                 var row = rows.FirstOrDefault(r => string.Equals(r.ToolName, tool.Name, StringComparison.OrdinalIgnoreCase));
-                return !(row?.Enabled ?? ToolDefaults.IsOnByDefault(tool));
+                return !ToolDefaults.IsEnabled(tool, row?.Enabled);
             })
             .Select(tool => tool.Name)
             .Order(StringComparer.Ordinal);

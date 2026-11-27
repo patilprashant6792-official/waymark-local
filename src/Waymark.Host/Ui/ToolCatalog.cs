@@ -10,7 +10,7 @@ public sealed record ToolRow(ToolDescriptor Tool, bool Enabled, bool HasSavedSwi
     public int Tokens => ToolCatalog.EstimateTokens(Tool.DescriptionChars);
 }
 
-/// <summary>Joins the tool registry, the saved switches and the audit trail into the rows the Home and Tools pages show.</summary>
+/// <summary>Joins the tool registry, the saved switches and the audit trail into the rows the Home and Tools pages show. Internal tools are always on and are not listed.</summary>
 public sealed class ToolCatalog(IToolRegistry registry, IToolSettingsStore settings, IAuditStore audit)
 {
     private const int RecentCalls = 500;
@@ -29,10 +29,11 @@ public sealed class ToolCatalog(IToolRegistry registry, IToolSettingsStore setti
             .ToDictionary(g => g.Key, g => g.Max(e => e.Entry.TimestampUtc), StringComparer.OrdinalIgnoreCase);
 
         return registry.Tools
+            .Where(tool => !tool.Internal)
             .Select(tool =>
             {
                 var hasSaved = saved.TryGetValue(tool.Name, out var row);
-                var enabled = hasSaved ? row!.Enabled : ToolDefaults.IsOnByDefault(tool);
+                var enabled = ToolDefaults.IsEnabled(tool, hasSaved ? row!.Enabled : null);
                 return new ToolRow(tool, enabled, hasSaved, lastUsed.TryGetValue(tool.Name, out var at) ? at : null);
             })
             .ToList();

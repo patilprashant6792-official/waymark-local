@@ -34,7 +34,7 @@ The tunnel forwards to the MCP port only: `ngrok http 47101`. `ListenerGuard` re
 | Listeners, guard, security headers, event bus, public address, rate limits | done |
 | Discovery documents, instance probe, `/register`, `/authorize`, `/authorize/wait` | done |
 | Admin UI: Dashboard, Approvals, Audit, Live, Workspaces, Tools, Access keys, Setup (installs ngrok, starts and stops the tunnel, verifies the address). The Vault and Connectors pages exist but are hidden from the menu for now | done |
-| Grant store (codes, access and refresh pairs), access-key store, bearer check, `/token`, `/revoke`, `/mcp` with `waymark_ping` | done, built but not yet tried against Claude |
+| Grant store (codes, access and refresh pairs), access-key store, bearer check, `/token`, `/revoke`, `/mcp` with `waymark_guide` | done, built but not yet tried against Claude |
 
 Migration `002_grants.sql` recreates the code, token and API-key tables with the columns the stores use. File names containing token, credential, apikey or secret are refused by the dotnet-mcp-server connector, so these pieces are called Grant and AccessKey.
 
