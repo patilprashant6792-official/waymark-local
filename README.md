@@ -25,7 +25,7 @@
   <a href="#what-changes-when-claude-has-waymark">What it does</a> ·
   <a href="#why-not-just-use-claude-code">Why not just Claude Code?</a> ·
   <a href="#safety-model">Safety</a> ·
-  <a href="#all-35-tools">All tools</a> ·
+  <a href="#all-34-tools">All tools</a> ·
   <a href="docs/">Docs</a>
 </p>
 
@@ -56,6 +56,7 @@ Waymark is a local [MCP](https://modelcontextprotocol.io) server that runs on yo
 
 ### New in 0.4
 
+- **Terminals** for apps that keep running: dev servers, watchers and tunnels start in a named terminal, report when they're up, and no longer block Waymark. Claude reads, types into, restarts and stops them; you watch and stop them on **Console**.
 - **Notes** next to flows, written by you and Claude, and optional **search by meaning** for both.
 - **Instructions per workspace**, alongside the host prompt every agent reads.
 - **Desktop notifications** when an approval waits, so you don't have to keep the page open.
@@ -174,9 +175,23 @@ Downloads use HTTPS, integrity hashes are checked where the registry publishes t
 
 Claude fills in an action, its options and a one-line purpose. Waymark builds the real command line, and the purpose is shown on your approval card.
 
+#### Terminals: apps that keep running
+
+A dev server, a `dotnet watch`, a Vite server or a tunnel never ends by itself, so it runs in a **terminal**: a named, long-running command that Waymark keeps track of.
+
+- **Started like any command.** `cmd_project` run / watch / py_run / node_run, or `cmd_shell` with a `terminal` name. The call returns when the app is up: it printed the ready text (`readyPattern`), it listens on a port (`readyPort`), or it went quiet after its first output.
+- **Doesn't block Waymark.** The workspace lock is held only while the app starts (at most 180 s); builds, tests and other calls run while it's live.
+- **Followed with `cmd_terminal`:** `list`, `read` (pages through the whole log, older lines included), `send` (types a line), `rerun`, `restart`, `stop`, `clear`, `close`.
+- **Watched for you.** Claude gets a 🖥 notice in its next result when an app crashes or waits for input. The header shows how many apps are live or crashed, with **Stop all**, and the Overview lists them.
+- **Stopped cleanly.** Ctrl+C first, then terminate after 5 seconds, then kill, for the whole process tree, child processes included (on Windows through a job object and a process snapshot). Apps left running when Waymark itself stopped are found by process id and start time and stopped when it starts again.
+- **Logs that don't fill the disk.** Each terminal's output rotates at 20 MB, three files.
+- **.NET:** `run` and `watch` use the project's default launch profile from `launchSettings.json`; pass `launchProfile` for another one or `noLaunchProfile` for none.
+
+Terminals on Windows are newer and less tested than on macOS; please [report](https://github.com/patilprashant6792-official/waymark-local/issues) anything that doesn't stop or keeps running.
+
 ### 🖥️ The admin UI
 
-A live log of every call as it happens, one inbox for approvals, a side panel with the full input and output of any call, each workspace's Flows, Notes and Instructions, Packages, Commands gates, Safety, Audit with retention settings, and Setup for the tunnel, desktop notifications and search by meaning. The browser tab shows a dot when something is waiting for you, and a **desktop notification** (Windows or macOS, on by default, switchable in Setup) says so even when the page is closed. It carries counts only; approving still happens on the page. The **feedback** button in the header opens a ready email to the author in your own mail app.
+A live log of every call as it happens, one inbox for approvals, a side panel with the full input and output of any call, each workspace's Flows, Notes and Instructions, Packages, Commands gates, Safety, Audit with retention settings, and Setup for the tunnel, desktop notifications and search by meaning. **Console** shows everything Claude runs, per workspace: running terminals and one-time commands side by side, with live output, Stop, and a way to delete a finished command or clear a workspace's finished history (terminals and running commands are kept; deletions are audited). The browser tab shows a dot when something is waiting for you, and a **desktop notification** (Windows or macOS, on by default, switchable in Setup) says so even when the page is closed. It carries counts only; approving still happens on the page. The **feedback** button in the header opens a ready email to the author in your own mail app.
 
 ---
 
@@ -202,6 +217,7 @@ Waymark has **no sandbox**. Its job is to limit, show and record what Claude doe
 
 - **Approvals happen only on this computer.** Claude cannot approve, deny or change a gate. Pairing a new Claude client also needs your approval.
 - **Gates per operation:** Off (refused), Ask (waits for you) or Auto. Tests, runs, scripts, installs and package changes ask by default. Every shell script always asks. `git reset --hard`, `clean` and branch delete are off.
+- **Terminals ask like any run.** Starting one waits for your approval; an approval is reused for the same command in the same place for up to 7 days (shown on **Commands**). Typing into a shell terminal never runs without your approval. You can stop any terminal from Console or the header at any time.
 - **Installs run no package code.** Python installs are wheels only and never build the project. Node installs are `npm ci --ignore-scripts`. Requirements files are checked first: editable installs, paths, URLs and options such as `-r`, `-c`, `-f` and `--no-binary` are refused.
 - **Build files that can run code** (`Directory.Build.*`, `global.json`, `nuget.config`, git hooks) make the first Auto run after a change ask you once.
 - **Secrets are hidden** in tool results, in the index and in stored call details. Detection is shape-based and has known gaps, listed in [docs/safety.md](docs/safety.md).
@@ -306,7 +322,7 @@ That client is the only one connected, so there's no pairing and no tunnel. The 
 
 ---
 
-## All 33 tools
+## All 34 tools
 
 <details>
 <summary><b>Show the tool list</b></summary>
@@ -354,7 +370,7 @@ src/
 ├── Waymark.Modules.Files           edits, copies, replace
 ├── Waymark.Modules.Commands        typed command recipes, runs, shell
 └── Waymark.Connectors(.Abstractions)
-tests/Waymark.Tests                 about 1,990 xunit tests, run on Windows and macOS in CI
+tests/Waymark.Tests                 about 2,120 xunit tests, run on Windows and macOS in CI
 ```
 
 ## Documentation
@@ -383,7 +399,7 @@ If a user asked you to explain, evaluate, compare, install or troubleshoot Wayma
 
 ### The short version
 
-Waymark is a **local MCP server** that runs on the user's own Windows or macOS computer. It gives Claude (claude.ai or Claude Code) tools to read code across several repositories, look up real package APIs at the versions the project pins, remember how features flow through the code and keep notes about it, edit files, and run builds, tests, git and scripts. Changes and commands can wait for the user's approval, which can only be given on that computer. It's open source (MIT), written in C# on .NET 10, and early (v0.x; currently 0.4).
+Waymark is a **local MCP server** that runs on the user's own Windows or macOS computer. It gives Claude (claude.ai or Claude Code) tools to read code across several repositories, look up real package APIs at the versions the project pins, remember how features flow through the code and keep notes about it, edit files, run builds, tests, git and scripts, and keep dev servers and watchers running in terminals. Changes and commands can wait for the user's approval, which can only be given on that computer. It's open source (MIT), written in C# on .NET 10, and early (v0.x; currently 0.4).
 
 ### What it is not
 
@@ -424,8 +440,10 @@ Short hints kept per workspace instead of a `CLAUDE.md`: why something is so, go
 **Can Claude change files or run things without the user knowing?**
 Every call appears on the Live page as it happens and is kept in the audit trail. Operations set to Auto run without asking, by the user's choice; everything else waits. **Pause all** in the header stops every tool at once.
 
+**Can Claude run a dev server or a watcher?**
+Yes, in a **terminal**: `cmd_project` run / watch / py_run / node_run, or `cmd_shell` with a `terminal` name. The call returns once the app is up (ready text, a listening port, or quiet output), the app keeps running without blocking other calls, and Claude follows it with `cmd_terminal` (read, send, restart, stop). The user sees every terminal on the Console page and can stop one, or all, at any time. Starting one asks for approval like any run.
 **Is it stable?**
-It's early software (v0.x): tools and options may change between versions. It has about 1,990 automated tests that run on Windows and macOS in CI.
+It's early software (v0.x): tools and options may change between versions. It has about 2,120 automated tests that run on Windows and macOS in CI.
 
 ### Helping a user install it
 
