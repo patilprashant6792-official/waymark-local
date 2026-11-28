@@ -1,4 +1,5 @@
 @using Waymark.Core.Code
+@using Waymark.Core.Commands
 @using Waymark.Core.Memory
 @using Waymark.Core.Workspaces
 @using Waymark.Host.Ui
@@ -8,7 +9,7 @@
     var languages = WorkspaceView.LanguagesOf(Stats);
     var progressText = WorkspaceView.ProgressText(Progress);
 }
-<article class="wm-tile wm-ws-card @WorkspaceView.AccentOf(status.State) @(Workspace.Enabled ? string.Empty : "is-off")">
+<article class="wm-tile wm-ws-card @WorkspaceView.AccentOf(status.State) @(Workspace.Enabled ? string.Empty : "is-off") @(LiveCount > 0 ? "wm-ws-live" : string.Empty)">
     <header class="wm-ws-card-head">
         <span class="wm-ico"><MudIcon Icon="@Icons.Material.Outlined.Folder" Size="Size.Small" /></span>
         <h2 class="wm-ws-name"><a class="wm-ws-link" href="@WorkspaceSections.Overview.Href(Workspace.Id)">@Workspace.Name</a></h2>
@@ -26,7 +27,19 @@
         {
             <span class="wm-muted">@progressText</span>
         }
+        @if (LiveCount > 0)
+        {
+            <WmStatus State="StatusState.Healthy" Live="true" Text="@($"{LiveCount} running")" />
+        }
+        @if (Crashed > 0)
+        {
+            <WmStatus State="StatusState.Failed" Text="@($"{Crashed} crashed")" />
+        }
     </div>
+    @if (ShownTerminals.Count > 0)
+    {
+        <TerminalRows Items="ShownTerminals" Now="Now" Compact="true" />
+    }
     @if (languages.Count > 0)
     {
         <div class="wm-row wm-ws-chips">
@@ -70,6 +83,19 @@
 
     [Parameter]
     public DateTimeOffset Now { get; set; }
+
+    /// <summary>The workspace's terminals; the card shows the running ones and those that crashed in the last hour.</summary>
+    [Parameter]
+    public IReadOnlyList<TerminalInfo> Terminals { get; set; } = [];
+
+    private int LiveCount => Terminals.Count(t => t.Terminal.State.IsLive());
+
+    private int Crashed => Terminals.Count(RecentCrash);
+
+    private IReadOnlyList<TerminalInfo> ShownTerminals => Terminals.Where(t => t.Terminal.State.IsLive() || RecentCrash(t)).ToList();
+
+    private bool RecentCrash(TerminalInfo info) =>
+        info.Terminal.State == TerminalState.Crashed && info.Terminal.EndedUtc is { } ended && Now - ended < TimeSpan.FromHours(1);
 
     private static string GitHubTitle(GitHubRepo repo) =>
         repo.Branch is null ? $"{repo.FullName} on GitHub" : $"{repo.FullName} on GitHub (branch {repo.Branch})";

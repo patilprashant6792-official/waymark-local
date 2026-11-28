@@ -1,9 +1,13 @@
+using Waymark.Core.Platform;
+
 namespace Waymark.Modules.Files;
 
 internal static class AtomicFile
 {
     /// <summary>
     /// The new content is written next to the target and then moved over it, so a failure never leaves a half-written file.
+    /// It is written into a scratch folder of its own beside the target (see <see cref="ScratchPaths"/>), not as a file beside it: a watcher that
+    /// follows the project's files (dotnet watch) then sees one change, the target, instead of a temporary file appearing and vanishing.
     /// On Windows an existing target is swapped with ReplaceFile (File.Replace), which keeps its creation time, ACLs, attributes and named streams;
     /// a plain move would give the file the temporary file's identity. If the swap itself is refused, the move is the fallback.
     /// On macOS and Linux the move is the way, and the target's permission bits are copied to the new file first, so an edited script keeps
@@ -11,9 +15,11 @@ internal static class AtomicFile
     /// </summary>
     public static async Task ReplaceAsync(string absolutePath, byte[] bytes, CancellationToken ct)
     {
-        var temp = Path.Combine(Path.GetDirectoryName(absolutePath)!, $".waymark-{Guid.NewGuid():N}.tmp");
+        var scratch = Path.Combine(Path.GetDirectoryName(absolutePath)!, $"{ScratchPaths.Prefix}{Guid.NewGuid():N}");
+        var temp = Path.Combine(scratch, "content.tmp");
         try
         {
+            Directory.CreateDirectory(scratch);
             await File.WriteAllBytesAsync(temp, bytes, ct).ConfigureAwait(false);
             if (OperatingSystem.IsWindows())
             {
@@ -31,10 +37,28 @@ internal static class AtomicFile
         }
         finally
         {
+            RemoveScratch(scratch, temp);
+        }
+    }
+
+    // A scratch folder that cannot be removed now (a virus scanner holds it) is left; it holds no content of the target once the move is done.
+    private static void RemoveScratch(string scratch, string temp)
+    {
+        try
+        {
             if (File.Exists(temp))
             {
                 File.Delete(temp);
             }
+
+            if (Directory.Exists(scratch))
+            {
+                Directory.Delete(scratch, recursive: true);
+            }
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // Left for the next cleanup; the write itself succeeded or already reported its own failure.
         }
     }
 

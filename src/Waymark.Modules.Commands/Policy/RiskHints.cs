@@ -77,4 +77,25 @@ public static partial class RiskHints
 
         return hints;
     }
+    /// <summary>The hints of <see cref="Scan"/>, plus one for a script that keeps running in a terminal and starts something in the background, which escapes the terminal: stopping it would not stop that.</summary>
+    public static IReadOnlyList<string> ScanForTerminal(string script)
+    {
+        var hints = Scan(script).ToList();
+        try
+        {
+            if (BackgroundPattern().IsMatch(script))
+            {
+                hints.Add("starts a program in the background, which stopping the terminal may not stop");
+            }
+        }
+        catch (RegexMatchTimeoutException)
+        {
+            hints.Add("starts a program in the background (could not be checked in time)");
+        }
+
+        return hints;
+    }
+
+    [GeneratedRegex(@"\bnohup\b|\bdisown\b|\bsetsid\b|&\s*$|Start-Process\b|\bstart\s+/b\b", RegexOptions.IgnoreCase | RegexOptions.Multiline, 200)]
+    private static partial Regex BackgroundPattern();
 }

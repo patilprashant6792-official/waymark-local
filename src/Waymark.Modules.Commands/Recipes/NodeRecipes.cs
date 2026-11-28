@@ -171,6 +171,7 @@ public sealed class NodeRecipes(ExecutableLocator executables, ProcessRunner run
         return Npm(c, operation, Display(project, name, extra), args, project, defaultMinutes, maxMinutes);
     }
 
+    // A dev server or watcher runs in a terminal until it is stopped. It does not hold the workspace's turn: builds and tests run beside it.
     private CommandPlan RunLong(RecipeContext c)
     {
         var project = ReadProject(c);
@@ -189,7 +190,20 @@ public sealed class NodeRecipes(ExecutableLocator executables, ProcessRunner run
             }
         }
 
-        return Npm(c, "node.run", Display(project, name, extra), args, project, 30, 480);
+        var settings = TerminalSettings.Read(c.Options);
+        var node = executables.Find("node") ?? throw new ArgumentException($"Node.js was not found on this computer. {NodeHint}");
+        var cli = executables.FindNpmCli(node) ?? throw new ArgumentException("npm was not found next to node. Reinstall Node.js with npm included.");
+        var npmArgs = new List<string> { cli };
+        npmArgs.AddRange(args);
+        return new CommandPlan("node.run", "node", npmArgs, Timeout.InfiniteTimeSpan, null, Display(project, name, extra), node, project.Folder)
+        {
+            Lifetime = PlanLifetime.Terminal,
+            Terminal = settings,
+            ReadyPatterns = ReadySignals.NodeReady,
+            AppDownPatterns = ReadySignals.NodeDown,
+            AppUpPatterns = ReadySignals.NodeUp,
+            DefaultTerminalName = TerminalNames.ForFolder(project.Folder, "web"),
+        };
     }
 
     private CommandPlan PackageAdd(RecipeContext c)

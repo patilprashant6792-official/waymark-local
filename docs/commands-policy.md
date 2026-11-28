@@ -9,10 +9,11 @@ How Claude may run commands on this computer, and how the owner stays in control
 | `cmd_project` | 1, typed | .NET: build, rebuild, clean, restore, test, format, info, list, new, sln, reference, package add/remove, tool restore, EF Core, run. Python (`py_*`): info, list, venv, install, test, lint, format, typecheck, run, package add/remove |
 | `cmd_git` | 1, typed | status, diff, log, show, branches, stashes, remotes, add, commit, branch, stash, restore, pull, push, and (off by default) reset hard, clean, branch delete |
 | `cmd_proc` | 1, typed | list ports, stop the program on a port, stop build servers, delete `bin` and `obj` |
-| `cmd_shell` | 2, any script | PowerShell, cmd or bash. **Every script waits for the owner.** |
+| `cmd_shell` | 2, any script | PowerShell, cmd or bash. **Every script waits for the owner.** With `terminal`, the script keeps running in a terminal |
+| `cmd_terminal` | terminals | list, read, send (type a line), rerun, restart, stop, clear, close: work with programs that keep running (see Terminals) |
 | `cmd_wait`, `cmd_output`, `cmd_list`, `cmd_stop` | read | follow, read, list and end runs |
 
-The four tools that start something carry `ToolGate.Confirm`, so they follow the Tools page like the file tools. A run is detached and returns a run id, because one tool call is limited to 60 seconds (`Waymark:Tools:CallTimeoutSeconds`); `waitSeconds` is at most about 45, then `cmd_wait` continues.
+The tools that start something carry `ToolGate.Confirm`, so they follow the Tools page like the file tools. A run is detached and returns a run id, because one tool call is limited to 60 seconds (`Waymark:Tools:CallTimeoutSeconds`); `waitSeconds` is at most about 45, then `cmd_wait` continues.
 
 ## Gates: Off, Ask, Auto
 
@@ -31,6 +32,7 @@ The gate that applies is the first of: the owner's choice for this workspace, th
 | git | read (status, diff, log, show, blame, branches, stashes) | add, commit, branch, stash, restore, pull, push | reset hard, clean, branch delete |
 | processes | list ports, stop build servers | stop the program on a port, delete bin and obj | - |
 | shell | - | system shell | - |
+| terminals | type into a running app | type into a running script (capped at Ask) | - |
 
 Choices are made on `/commands` (per workspace or for all) and each change writes a Config audit row: `config.command_gate`, `config.command_gate_reset`.
 
@@ -59,6 +61,22 @@ Before a script, the card shows plain-language hints (`RiskHints`): deletes file
 - Git: no force push, no pager, no external diff or textconv, paths after `--`.
 - Operations that change files run one at a time per workspace.
 
+
+## Terminals: programs that keep running
+
+A dev server, `dotnet watch`, `npm run dev` or `python -m app` does not end, so it cannot be a normal run that Claude waits for. Such commands start in a **terminal**: a named slot per workspace (or System) that runs one program at a time, like a tab in an IDE's terminal panel. Code: `Waymark.Modules.Commands/Terminals` (`TerminalCoordinator`, `ReadyDetector`, `HealthWatch`, `TerminalLog`, `TerminalLifetimeService`), the `terminals` table (migration 027) and `command_runs.terminal_id`.
+
+- **Which commands.** `dotnet run`, `dotnet watch`, `py_run` and `node_run` always start in a terminal; the name defaults to the project (`api`, `web`), or Claude passes `terminal`. `cmd_shell` starts in one when Claude passes `terminal` (and optionally `readyPattern`, `readyPort`).
+- **Each start is a normal run.** Policy, approval, drift and audit apply as for any command. `dotnet run` first builds (holding the workspace's turn), then runs `--no-build`.
+- **Three phases.** Prepare (the build) holds the workspace's turn. Start holds the turn (when the operation changes files) and a run slot until the program is ready, exits or `TerminalStartLockSeconds` passes. Live holds nothing and has no time limit: other commands run beside it.
+- **Ready.** First a known line (`Now listening on`, Vite's `Local:`, uvicorn's `Uvicorn running on` and others), then a port the program's process tree listens on, and for a shell script, a few quiet seconds. The tool call returns when ready, with the address and the last lines.
+- **Health.** While it runs: app down and back up (for watchers), new error lines, and a line that looks like a prompt. Claude sees changes as a 🖥 line after its next tool call, and in the workspace guide's Terminals block.
+- **Input.** Standard input stays open (pipes, no pseudo-terminal). `terminal.input` (typing into a typed command) is Auto by default; `terminal.shell_input` (typing into a shell script, which can be any command) is capped at Ask, and each line waits on an approval card. Every line typed is shown in amber in the Console and kept in Audit.
+- **Rerun.** The same command starts again in the same terminal. An approval of an unchanged typed command is reused for `TerminalApprovalDays` when the project files are unchanged; shell scripts always ask. **Forget the terminal approvals** on a workspace's Commands page clears them (`terminal.approvals_forget`).
+- **Stop.** Ctrl+C (SIGINT), then terminate, then kill the tree; on Windows the Job Object ends the tree. Claude stops with `cmd_terminal stop` or `cmd_stop`; the owner stops from the header, the Console, the workspace card or its Terminals page. The run records who stopped it (`stopped_by`).
+- **Waymark restarts.** On shutdown every terminal is stopped gracefully. On start, programs left from a crash are found by process id and start time and ended; their terminals show "Ended: Waymark restarted". Switching a workspace off or removing it stops its terminals.
+- **Limits.** At most `MaxLiveTerminals` programs at once. The log streams to `run-{id}.log` and rotates at `TerminalLogMaxMegabytes`, keeping `TerminalLogFiles` files. Terminals unused for 30 days are removed by maintenance.
+- **The owner only watches and stops.** The Console shows a terminal as a read-only view; only Claude starts programs and types into them.
 ## Output
 
 - `/console` shows ANSI output through Waymark's own renderer (`AnsiBuffer`, no xterm). The terminal is dark in both themes so the 16 colours keep their contrast; colours beyond the first 16 become inline styles.
@@ -72,11 +90,16 @@ Before a script, the card shows plain-language hints (`RiskHints`): deletes file
 | `Waymark:Commands:ApprovalMinutes` | 10 | how long an Ask waits before it is denied |
 | `Waymark:Commands:MaxParallelRuns` | 4 | runs at once |
 | `Waymark:Commands:RetentionDays` | 30 | how long finished runs and their logs are kept |
+| `Waymark:Commands:MaxLiveTerminals` | 8 | programs running in terminals at once |
+| `Waymark:Commands:TerminalStartLockSeconds` | 180 | the longest a starting terminal program holds the workspace's turn and a run slot |
+| `Waymark:Commands:TerminalLogMaxMegabytes` | 20 | size at which a terminal's log rotates |
+| `Waymark:Commands:TerminalLogFiles` | 3 | log files kept per terminal run, the current one included |
+| `Waymark:Commands:TerminalApprovalDays` | 7 | how long the approval of an unchanged terminal command is reused |
 | `Waymark:DataDirectory` | `%LOCALAPPDATA%\Waymark` | holds the database and the `runs` folder |
 
 ## Audit
 
-Every decision writes `command.approve` or `command.deny`. Every gate change and every trust reset writes a Config row (see above).
+Every decision writes `command.approve` or `command.deny`. Every stop writes who stopped the run. Every line typed into a terminal is audited. Every gate change and every trust reset writes a Config row (see above), and so does forgetting terminal approvals.
 
 ## Safety
 

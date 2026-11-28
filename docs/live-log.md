@@ -9,7 +9,7 @@ A console-style view of what Waymark is doing, on the admin UI at **Audit › Li
 | Tools | `#1234 code_read  Waymark  ok  42 ms  relativeFilePath=docs/HANDOFF.md` | `ToolPipeline`, once per call. Long argument values are cut and say how much was left out; values with a secret-like name are hidden. `#1234` is the call's audit reference, with an **open** button that shows its details in a side panel |
 | Watcher | `changed  Waymark  src/Foo.cs`, `watching`, `lost events` | `FileWatcherHost`. A burst shows its first 8 lines and then one summary line (`burst  Waymark  37 more changes`) |
 | Auth | pairing, approval, revocation, and requests to `/authorize`, `/token`, `/revoke`, `/register` | `AuditStore` (Auth and Approval entries) and `RequestLoggingMiddleware`. Only the path is logged, never the query |
-| Commands | `#12 waiting for you`, `approved`, `started`, the first 3 output lines, `succeeded  exit 0  0.4s` | `CommandCoordinator`. The full output stays in `/console` |
+| Commands | `#12 waiting for you`, `approved`, `started`, the first 3 output lines, `succeeded  exit 0  0.4s`; for a terminal also `ready  terminal web is up: ...` and `stopping` | `CommandCoordinator`. The full output stays in `/console`; a terminal's later events (app down, crashed) show in the header and the Console |
 | Errors | every Warning and Error line of any tab, plus any error logged by any other part of Waymark or ASP.NET, including failures caught by the safety net | the same sources; the tab shows a count |
 
 Not shown: page loads of the admin UI, successful MCP requests (the tool line replaces them), configuration changes (see Audit), and everything logged with a plain `logger.LogInformation(...)`. Those still go to the console and any other provider.
@@ -18,7 +18,7 @@ Failed or timed-out commands and failed tool calls are errors; denied or stopped
 
 ## Happening now
 
-A strip at the top lists what is in flight: running tool calls and commands that wait, queue or run, with a counter. The header shows a chip with the same count on every page. An item disappears when the work ends; nothing about it is kept (`LiveActivity`, in memory).
+A strip at the top lists what is in flight: running tool calls and commands that wait, queue or run, with a counter. The header shows a chip with the same count on every page. An item disappears when the work ends; nothing about it is kept (`LiveActivity`, in memory). A program in a terminal leaves this strip once it is ready: it is no longer work in flight. The header's apps chip shows it instead, with Stop.
 
 ## How it works
 

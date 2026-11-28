@@ -1,0 +1,10 @@
+@page "/workspaces/{WorkspaceId:long}/terminals"
+
+<WorkspaceShell WorkspaceId="WorkspaceId">
+    <WorkspaceTerminalsCard WorkspaceId="WorkspaceId" ShowAll="true" Title="Terminals" />
+</WorkspaceShell>
+
+@code {
+    [Parameter]
+    public long WorkspaceId { get; set; }
+}

@@ -32,6 +32,7 @@ public sealed class ToolPipeline(
     ToolPayloadService payloads,
     CallerContext callers,
     Waymark.Host.Memory.MemoryRepairNotices repairNotices,
+    TerminalNotices terminalNotices,
     ILogger<ToolPipeline> logger)
 {
     private const string UnknownClient = "unknown";
@@ -200,6 +201,14 @@ public sealed class ToolPipeline(
             {
                 bytes += Encoding.UTF8.GetByteCount(repairLine);
                 tokens += meter.CountTokens(repairLine);
+            }
+
+            // A terminal event Claude was not told about yet (a crash, the owner's stop, a prompt): at most one 🖥 line.
+            var terminalLine = await terminalNotices.AfterCallAsync(result, client, workspaceName, ct);
+            if (terminalLine is not null)
+            {
+                bytes += Encoding.UTF8.GetByteCount(terminalLine);
+                tokens += meter.CountTokens(terminalLine);
             }
         }
 

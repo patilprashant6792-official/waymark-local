@@ -26,5 +26,8 @@ public static class WorkspaceSections
     /// <summary>The workspace's notes: the owner's and Claude's hints, in place of instruction files in the repository.</summary>
     public static readonly WorkspaceSection Notes = new("notes", "Notes", Icons.Material.Outlined.StickyNote2, "notes");
 
-    public static IReadOnlyList<WorkspaceSection> All { get; } = [Overview, Instructions, Access, Commands, Flows, Notes];
+    /// <summary>The workspace's terminals: programs Claude keeps running (dev servers, watchers), with Stop.</summary>
+    public static readonly WorkspaceSection Terminals = new("terminals", "Terminals", Icons.Material.Outlined.Terminal, "terminals");
+
+    public static IReadOnlyList<WorkspaceSection> All { get; } = [Overview, Instructions, Access, Commands, Terminals, Flows, Notes];
 }

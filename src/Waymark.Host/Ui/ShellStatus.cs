@@ -12,11 +12,14 @@ using Waymark.Host.Edge;
 namespace Waymark.Host.Ui;
 
 /// <summary>
-/// What the header, the navigation and the Home tiles show: the pause switch, the tunnel, the public address and the number of
-/// pairings waiting. One shared instance; it follows the event bus and every open page redraws on <see cref="Changed"/>.
+/// What the header, the navigation and the Home tiles show: the pause switch, the tunnel, the public address, the number of
+/// pairings waiting and the terminals that keep programs running. One shared instance; it follows the event bus and every open page redraws on
+/// <see cref="Changed"/>.
 /// </summary>
 public sealed class ShellStatus : IDisposable
 {
+    private static readonly TimeSpan CrashShownFor = TimeSpan.FromHours(1);
+
     private readonly IConfigStore _config;
     private readonly IApprovalStore _approvals;
     private readonly IPublicUrlProvider _publicUrl;
@@ -25,11 +28,13 @@ public sealed class ShellStatus : IDisposable
     private readonly TimeProvider _time;
     private readonly ILogger<ShellStatus> _logger;
     private readonly ICommandRuns _commands;
+    private readonly ITerminals? _terminals;
     private readonly LiveActivity _activity;
     private readonly List<IDisposable> _subscriptions = [];
     private volatile bool _paused;
     private int _pendingApprovals;
     private int _pendingCommands;
+    private volatile IReadOnlyList<TerminalInfo> _terminalList = [];
 
     public ShellStatus(
         IConfigStore config,
@@ -41,7 +46,8 @@ public sealed class ShellStatus : IDisposable
         ICommandRuns commands,
         LiveActivity activity,
         TimeProvider time,
-        ILogger<ShellStatus> logger)
+        ILogger<ShellStatus> logger,
+        ITerminals? terminals = null)
     {
         _config = config;
         _approvals = approvals;
@@ -51,6 +57,7 @@ public sealed class ShellStatus : IDisposable
         _time = time;
         _logger = logger;
         _commands = commands;
+        _terminals = terminals;
         _activity = activity;
         _activity.Changed += RaiseChanged;
 
@@ -59,6 +66,7 @@ public sealed class ShellStatus : IDisposable
         _subscriptions.Add(events.Subscribe<TunnelStatusChanged>(_ => OnEventAsync()));
         _subscriptions.Add(events.Subscribe<PublicUrlChanged>(_ => OnEventAsync()));
         _subscriptions.Add(events.Subscribe<CommandRunChanged>(_ => OnEventAsync()));
+        _subscriptions.Add(events.Subscribe<TerminalChanged>(_ => OnEventAsync()));
     }
 
     /// <summary>Raised after any value changed. Handlers run on a background thread; pages must marshal with InvokeAsync.</summary>
@@ -74,6 +82,22 @@ public sealed class ShellStatus : IDisposable
     /// <summary>How many tool calls and commands are in flight right now.</summary>
     public int ActiveNow => _activity.Count;
 
+    /// <summary>Terminals whose program runs now, starting ones included.</summary>
+    public IReadOnlyList<TerminalInfo> LiveTerminals => _terminalList.Where(t => t.Terminal.State.IsLive()).ToList();
+
+    /// <summary>Terminals whose program is up (ready, or running with its app down).</summary>
+    public int RunningTerminals => _terminalList.Count(t => t.Terminal.State is TerminalState.Ready or TerminalState.AppDown);
+
+    public int StartingTerminals => _terminalList.Count(t => t.Terminal.State == TerminalState.Starting);
+
+    /// <summary>Terminals whose program crashed in the last hour, so the header can say so for a while.</summary>
+    public IReadOnlyList<TerminalInfo> CrashedTerminals => _terminalList
+        .Where(t => t.Terminal.State == TerminalState.Crashed && t.Terminal.EndedUtc is { } ended && _time.GetUtcNow() - ended < CrashShownFor)
+        .ToList();
+
+    /// <summary>Every terminal, as last read.</summary>
+    public IReadOnlyList<TerminalInfo> Terminals => _terminalList;
+
     public TunnelStatus Tunnel => _tunnel.Status;
 
     public string? PublicUrl => _publicUrl.Current;
@@ -88,6 +112,10 @@ public sealed class ShellStatus : IDisposable
             Volatile.Write(ref _pendingApprovals, pending.Count);
             var waiting = await _commands.ListPendingAsync(ct).ConfigureAwait(false);
             Volatile.Write(ref _pendingCommands, waiting.Count);
+            if (_terminals is not null)
+            {
+                _terminalList = await _terminals.ListAsync(new TerminalQuery(), ct).ConfigureAwait(false);
+            }
         }
         catch (Exception ex) when (ex is not OperationCanceledException)
         {

@@ -1,0 +1,106 @@
+@inherits LiveComponentBase
+@using Waymark.Core.Commands
+@using Waymark.Host.Ui
+@* Terminals as rows: state, name, command, address, how long it runs, and Stop. The owner can only stop; Claude starts them. *@
+
+@if (Items.Count == 0)
+{
+    <p class="wm-ws-none">@Empty</p>
+}
+else
+{
+    <div class="wm-ws-terminals" role="list" aria-label="Terminals">
+        @foreach (var info in Items)
+        {
+            var terminal = info.Terminal;
+            var chip = TerminalView.Chip(terminal);
+            <div class="wm-ws-terminal" role="listitem" @key="terminal.Id">
+                <WmStatus State="chip.State" Live="chip.Live" Text="@chip.Text" />
+                <a class="wm-ellipsis" href="console/terminal/@terminal.Id" title="@TerminalView.ShortCommand(terminal.CommandLine, 400)">
+                    <span class="wm-ws-terminal-name">@terminal.Name</span>
+                    <span class="wm-ws-terminal-meta">
+                        @if (terminal.State.IsLive() && TerminalView.ShortAddress(terminal) is { } address)
+                        {
+                            @(" · " + address)
+                        }
+                        @if (TerminalView.Age(terminal, Now) is { Length: > 0 } age)
+                        {
+                            @(" · " + (terminal.State.IsLive() ? "up " : "ended ") + age)
+                        }
+                        @if (!Compact)
+                        {
+                            @(" · " + TerminalView.ShortCommand(terminal.CommandLine, 60))
+                        }
+                        @if (info.UnreadErrors > 0 && terminal.State.IsLive())
+                        {
+                            @(" · " + info.UnreadErrors + " new error line(s)")
+                        }
+                    </span>
+                </a>
+                @if (terminal.State.IsLive())
+                {
+                    <WmButton Kind="ButtonKind.Danger" Small="true" Icon="@Icons.Material.Outlined.Stop" Disabled="@_stopping.Contains(terminal.Id)" OnClick="() => StopAsync(terminal.Id)">Stop</WmButton>
+                }
+                else
+                {
+                    <span></span>
+                }
+            </div>
+        }
+    </div>
+}
+
+@code {
+    private readonly HashSet<long> _stopping = [];
+
+    [Parameter, EditorRequired]
+    public IReadOnlyList<TerminalInfo> Items { get; set; } = [];
+
+    [Parameter]
+    public DateTimeOffset Now { get; set; }
+
+    /// <summary>Leave the command out (cards are narrow).</summary>
+    [Parameter]
+    public bool Compact { get; set; }
+
+    [Parameter]
+    public string Empty { get; set; } = "Nothing runs here. Claude starts apps and watchers in terminals when it runs them.";
+
+    [Inject]
+    private ITerminals Terminals { get; set; } = default!;
+
+    [Inject]
+    private ISnackbar Snackbar { get; set; } = default!;
+
+    [Inject]
+    private ILogger<TerminalRows> Logger { get; set; } = default!;
+
+    private async Task StopAsync(long id)
+    {
+        if (!_stopping.Add(id))
+        {
+            return;
+        }
+
+        try
+        {
+            if (!await Terminals.StopAsync(id, TerminalActors.Owner, Cancel))
+            {
+                Snackbar.Add("Nothing runs in that terminal now.", Severity.Info);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Terminal {TerminalId} could not be stopped", id);
+            Snackbar.Add("The terminal could not be stopped. See the log.", Severity.Error);
+        }
+        finally
+        {
+            _stopping.Remove(id);
+        }
+    }
+}

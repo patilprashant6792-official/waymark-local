@@ -1,9 +1,10 @@
 @page "/console/{RunId:long?}"
+@page "/console/terminal/{TerminalRef:long}"
 @inherits LiveComponentBase
 @using Waymark.Core.Commands
 @using Waymark.Host.Ui
 
-<PageFrame Title="Console" Wide="true" Lead="Everything Claude runs on this computer shows up here as it happens. You can watch it and stop it; only Claude starts commands.">
+<PageFrame Title="Console" Wide="true" Lead="Everything Claude runs on this computer shows up here as it happens. You can watch it and stop it; only Claude starts commands and types into them.">
     <Actions>
         <WmToggle Pressed="_followNew" Icon="@Icons.Material.Outlined.Bolt" OnClick="ToggleFollowAsync">@(_followNew ? "Following new commands" : "Follow new commands")</WmToggle>
     </Actions>
@@ -21,39 +22,189 @@
     <WmTabs Label="Where commands run" Tabs="TabList" Selected="@SelectedTab" SelectedChanged="OnTabChangedAsync" />
 
     <div class="wm-console">
-        <nav class="wm-console-list" aria-label="Commands">
+        <nav class="wm-console-list" aria-label="Terminals and commands">
+            @* The filter comes first so it stays in reach however many terminals there are, and it filters both lists. *@
             <div class="wm-console-filter">
-                <input class="wm-input" type="search" placeholder="Filter commands" aria-label="Filter commands" @bind="_runFilter" @bind:event="oninput" />
+                <input class="wm-input" type="search" placeholder="Filter terminals and commands" aria-label="Filter terminals and commands" @bind="_runFilter" @bind:event="oninput" />
             </div>
 
-            @if (TabRuns.Count == 0)
+            @if (TabTerminals.Count > 0)
             {
-                <div class="wm-console-empty">@(_runFilter.Trim().Length > 0 ? "No command matches the filter." : "Nothing has run here yet.")</div>
+                @* Two groups, each with its own header and its own scroll, so both stay in view however long either list is. *@
+                <section class="wm-console-group wm-console-group-terms" aria-labelledby="console-terms-head">
+                    <div id="console-terms-head" class="wm-console-group-head">
+                        <MudIcon Icon="@Icons.Material.Outlined.Terminal" Size="Size.Small" />
+                        <span>Terminals</span>
+                        <span class="wm-console-group-count">@TerminalsCount</span>
+                    </div>
+                    <div class="wm-console-scroll">
+                    @foreach (var info in ShownTerminals)
+                    {
+                        var terminal = info.Terminal;
+                        var chip = TerminalView.Chip(terminal);
+                        var active = _terminal?.Terminal.Id == terminal.Id;
+                        <a class="wm-term-card @TerminalView.CardClass(terminal) @(active ? "active" : "")" href="console/terminal/@terminal.Id" aria-current="@(active ? "true" : null)" title="@terminal.CommandLine" @key="terminal.Id">
+                            <span class="wm-term-card-top">
+                                <WmStatus State="chip.State" Live="chip.Live" Text="@terminal.Name" />
+                                <span class="wm-term-chip @TerminalView.CardClass(terminal)" title="@chip.Text">@chip.Text</span>
+                                <span class="wm-term-card-age">@TerminalView.Age(terminal, Time.GetUtcNow())</span>
+                            </span>
+                            <span class="wm-run-cmd wm-mono">@TerminalView.ShortCommand(terminal.CommandLine, 48)</span>
+                            @if (terminal.State.IsLive() && TerminalView.ShortAddress(terminal) is { } address)
+                            {
+                                <span class="wm-term-card-addr">@address</span>
+                            }
+                            @if (info.UnreadErrors > 0 && terminal.State.IsLive())
+                            {
+                                <span class="wm-term-card-err">@info.UnreadErrors new error line(s)</span>
+                            }
+                        </a>
+                    }
+                    @if (HiddenTerminals > 0 || _showAllEnded)
+                    {
+                        <button type="button" class="wm-term-card-more" aria-expanded="@(_showAllEnded ? "true" : "false")" @onclick="ToggleEnded">@(_showAllEnded ? "Show fewer ended terminals" : $"Show {HiddenTerminals} more ended terminal(s)")</button>
+                    }
+                    </div>
+                </section>
             }
 
-            @foreach (var commandRun in TabRuns)
-            {
-                <a class="wm-run @(commandRun.Id == _selected?.Id ? "active" : "")" href="console/@commandRun.Id" aria-current="@(commandRun.Id == _selected?.Id ? "true" : null)">
-                    <span class="wm-run-dot @DotClass(commandRun)" aria-hidden="true"></span>
-                    <span class="wm-run-main">
-                        <span class="wm-run-title">@Label(commandRun)</span>
-                        <span class="wm-run-cmd wm-mono">@Short(commandRun.CommandLine)</span>
-                        @if (commandRun.Purpose.Length > 0)
-                        {
-                            <span class="wm-run-why" title="@commandRun.Purpose">@commandRun.Purpose</span>
-                        }
-                    </span>
-                    <span class="wm-run-when">@DisplayFormat.Ago(commandRun.RequestedUtc, Time.GetUtcNow())</span>
-                </a>
-            }
+            <section class="wm-console-group wm-console-group-runs" aria-labelledby="console-runs-head">
+                <div id="console-runs-head" class="wm-console-group-head">
+                    <MudIcon Icon="@Icons.Material.Outlined.History" Size="Size.Small" />
+                    <span>One-time commands</span>
+                    <span class="wm-console-group-count">@TabRuns.Count</span>
+                    @if (CanClearHistory)
+                    {
+                        <WmIconButton Icon="@Icons.Material.Outlined.DeleteSweep" Label="@($"Clear the finished commands of {TabName}")" OnClick="ClearHistoryAsync" />
+                    }
+                </div>
+                <div class="wm-console-scroll">
+                    @if (TabRuns.Count == 0)
+                    {
+                        <div class="wm-console-empty">@(_runFilter.Trim().Length > 0 ? "No command matches the filter." : "Nothing has run here yet.")</div>
+                    }
+
+                    @foreach (var commandRun in TabRuns)
+                    {
+                        <a class="wm-run @(commandRun.Id == _selected?.Id && _terminal is null ? "active" : "")" href="console/@commandRun.Id" aria-current="@(commandRun.Id == _selected?.Id && _terminal is null ? "true" : null)">
+                            <span class="wm-run-dot @DotClass(commandRun)" aria-hidden="true"></span>
+                            <span class="wm-run-main">
+                                <span class="wm-run-title">@Label(commandRun)</span>
+                                <span class="wm-run-cmd wm-mono">@Short(commandRun.CommandLine)</span>
+                                @if (commandRun.Purpose.Length > 0)
+                                {
+                                    <span class="wm-run-why" title="@commandRun.Purpose">@commandRun.Purpose</span>
+                                }
+                            </span>
+                            <span class="wm-run-when">@DisplayFormat.Ago(commandRun.RequestedUtc, Time.GetUtcNow())</span>
+                        </a>
+                    }
+                </div>
+            </section>
         </nav>
 
         <section class="wm-console-main" aria-label="Output">
-            @if (_selected is not { } run)
+            @if (_terminal is { } shown)
+            {
+                var terminal = shown.Terminal;
+                var chip = TerminalView.Chip(terminal);
+                <div class="wm-term-head">
+                    <div class="wm-term-title">
+                        <WmStatus State="chip.State" Text="@chip.Text" Live="chip.Live" />
+                        <strong>@terminal.Name</strong>
+                        <span class="wm-muted">terminal in @terminal.Scope</span>
+                        @if (TerminalView.Link(terminal) is { } link && terminal.State.IsLive())
+                        {
+                            <a class="wm-term-link" href="@link" target="_blank" rel="noopener noreferrer">@link</a>
+                        }
+                    </div>
+                    <div class="wm-term-tools">
+                        @if (terminal.State.IsLive())
+                        {
+                            <WmButton Kind="ButtonKind.Danger" Small="true" Icon="@Icons.Material.Outlined.Stop" Disabled="_busy" OnClick="StopAsync">Stop</WmButton>
+                        }
+
+                        <WmButton Small="true" Icon="@Icons.Material.Outlined.ContentCopy" OnClick="CopyOutputAsync">Copy output</WmButton>
+                        <WmButton Kind="ButtonKind.Ghost" Small="true" Icon="@Icons.Material.Outlined.KeyboardDoubleArrowDown" OnClick="ToEndAsync">End</WmButton>
+                    </div>
+                </div>
+
+                <div class="wm-term-meta">
+                    @if (TerminalView.Age(terminal, Time.GetUtcNow()) is { Length: > 0 } age)
+                    {
+                        <span>@(terminal.State.IsLive() ? "up " + age : "ended " + age)</span>
+                    }
+                    @if (_selected is { } current)
+                    {
+                        <span>run #@current.Id · @Label(current)</span>
+                        <span>asked by @current.Actor</span>
+                        @if (current.DecidedBy is not null)
+                        {
+                            <span>approved by you</span>
+                        }
+                    }
+                    @if (terminal.Pid is { } pid && terminal.State.IsLive())
+                    {
+                        <span>process @pid</span>
+                    }
+                    @if (terminal.Ports.Count > 0)
+                    {
+                        <span>port @string.Join(", ", terminal.Ports)</span>
+                    }
+                    @if (ReadLine(shown) is { Length: > 0 } read)
+                    {
+                        <span>@read</span>
+                    }
+                    @if (_selected?.Purpose is { Length: > 0 } why)
+                    {
+                        <span class="wm-ellipsis" title="@why">why: @why</span>
+                    }
+                </div>
+
+                @* The note often repeats the chip ("Stopped by Claude."); show it only when it adds something. *@
+                @if (!string.IsNullOrWhiteSpace(terminal.StateNote) && !string.Equals(terminal.StateNote.Trim().TrimEnd('.'), chip.Text, StringComparison.OrdinalIgnoreCase))
+                {
+                    <div class="wm-term-note">@terminal.StateNote</div>
+                }
+
+                @if (shown.PendingPrompt is { } prompt)
+                {
+                    <div class="wm-term-banner" role="status">It seems to wait for an answer: “@prompt”. Claude answers it.</div>
+                }
+
+                <div class="wm-term-bar" role="search" aria-label="Search this output">
+                    <input id="wm-term-search" class="wm-input wm-term-search" type="search" placeholder="Search output  ( / )" aria-label="Search this output" @bind="_query" @bind:event="oninput" @bind:after="OnQueryChangedAsync" @onkeydown="OnSearchKeyAsync" />
+                    <span class="wm-muted wm-term-count" aria-live="polite">@_findInfo</span>
+                    <WmIconButton id="wm-term-prev" Icon="@Icons.Material.Outlined.KeyboardArrowUp" Label="Previous match" Disabled="@(_query.Trim().Length == 0)" OnClick="() => StepAsync(false)" />
+                    <WmIconButton id="wm-term-next" Icon="@Icons.Material.Outlined.KeyboardArrowDown" Label="Next match" Disabled="@(_query.Trim().Length == 0)" OnClick="() => StepAsync(true)" />
+                    <WmToggle id="wm-term-error" Icon="@Icons.Material.Outlined.ErrorOutline" OnClick="NextErrorAsync">Next error</WmToggle>
+                    <WmToggle id="wm-term-wrap" Pressed="_wrap" OnClick="ToggleWrapAsync">Wrap lines</WmToggle>
+                </div>
+
+                <div id="wm-term" class="wm-term @(_wrap ? string.Empty : "nowrap")" tabindex="0" role="log" aria-label="Output of the terminal">
+                    @if (_buffer.DroppedLines > 0)
+                    {
+                        <div class="wm-term-gap">@DisplayFormat.Count(_buffer.DroppedLines) earlier lines are not shown here. The whole output is stored with the run.</div>
+                    }
+
+                    @foreach (var block in _buffer.Blocks)
+                    {
+                        <ConsoleBlock @key="block.Id" Block="block" Buffer="_buffer" Version="block.Version" />
+                    }
+
+                    @if (_selected?.Status == CommandRunStatus.WaitingApproval)
+                    {
+                        <div class="wm-term-wait">Waiting for your decision above. Nothing has run.</div>
+                    }
+                </div>
+
+                <div class="wm-term-readonly"><span class="wm-term-readonly-tag">Read-only</span> @(terminal.State.IsLive() ? "Only Claude types here; everything it sends is shown in amber and kept in Audit. You can stop it." : "This terminal has ended. Only Claude can start it again; what it sent is shown in amber and kept in Audit.")</div>
+            }
+            else if (_selected is not { } run)
             {
                 <div class="wm-console-empty big">
                     <MudIcon Icon="@Icons.Material.Outlined.Computer" Size="Size.Large" />
-                    <div>Pick a command on the left, or wait: the next one Claude starts appears here by itself.</div>
+                    <div>Pick a terminal or a command on the left, or wait: the next one Claude starts appears here by itself.</div>
                 </div>
             }
             else
@@ -72,6 +223,10 @@
 
                         <WmButton Small="true" Icon="@Icons.Material.Outlined.ContentCopy" OnClick="CopyOutputAsync">Copy output</WmButton>
                         <WmButton Kind="ButtonKind.Ghost" Small="true" Icon="@Icons.Material.Outlined.Code" OnClick="CopyCommandAsync">Copy command</WmButton>
+                        @if (!run.Status.IsActive() && run.TerminalId is null)
+                        {
+                            <WmButton Kind="ButtonKind.Ghost" Small="true" Icon="@Icons.Material.Outlined.DeleteOutline" Disabled="_busy" OnClick="DeleteRunAsync">Delete</WmButton>
+                        }
                         <WmButton Kind="ButtonKind.Ghost" Small="true" Icon="@Icons.Material.Outlined.KeyboardDoubleArrowDown" OnClick="ToEndAsync">End</WmButton>
                     </div>
                 </div>
@@ -86,6 +241,10 @@
                     @if (run.DecidedBy is not null)
                     {
                         <span>approved by you</span>
+                    }
+                    @if (run.StoppedBy is { } by)
+                    {
+                        <span>stopped by @(by == TerminalActors.Owner ? "you" : by)</span>
                     }
                     @if (run.Purpose.Length > 0)
                     {

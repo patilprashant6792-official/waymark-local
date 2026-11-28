@@ -9,7 +9,7 @@ namespace Waymark.Host.Commands;
 /// The owner's changes to how commands are treated: the Off/Ask/Auto gate of each operation, per workspace or for all of them, and forgetting the
 /// approved state of a workspace's project files. Every change is written to the audit trail.
 /// </summary>
-public sealed class CommandAdminService(ICommandPolicyStore policy, IAuditStore audit, IEventBus events, TimeProvider time)
+public sealed class CommandAdminService(ICommandPolicyStore policy, IAuditStore audit, IEventBus events, TimeProvider time, ITerminalStore? terminals = null)
 {
     public Task<IReadOnlyList<CommandGateSetting>> ListGatesAsync(CancellationToken ct) => policy.ListGatesAsync(ct);
 
@@ -76,6 +76,26 @@ public sealed class CommandAdminService(ICommandPolicyStore policy, IAuditStore 
         }
 
         return removed;
+    }
+
+    /// <summary>
+    /// Forgets the approvals kept for the terminal commands of a workspace (0 for the system terminals): the next start of each asks the owner again.
+    /// Returns how many were forgotten.
+    /// </summary>
+    public async Task<int> ForgetTerminalApprovalsAsync(long workspaceId, string scopeName, CancellationToken ct)
+    {
+        if (terminals is null)
+        {
+            return 0;
+        }
+
+        var forgotten = await terminals.ClearApprovalsAsync(workspaceId, ct).ConfigureAwait(false);
+        if (forgotten > 0)
+        {
+            await AuditAsync("terminal.approvals_forget", scopeName, $"{forgotten} terminal approval(s)", ct).ConfigureAwait(false);
+        }
+
+        return forgotten;
     }
 
     private Task AuditAsync(string action, string target, string? args, CancellationToken ct) =>

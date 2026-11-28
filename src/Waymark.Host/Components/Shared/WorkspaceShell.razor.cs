@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Components;
 using Waymark.Core.Code;
+using Waymark.Core.Commands;
 using Waymark.Core.Events;
 using Waymark.Core.Memory;
 using Waymark.Core.Workspaces;
@@ -22,6 +23,8 @@ public partial class WorkspaceShell : LiveComponentBase
     private string? _error;
     private long _shownId;
     private bool _loaded;
+    private int _liveTerminals;
+    private int _crashedTerminals;
 
     [Parameter, EditorRequired]
     public long WorkspaceId { get; set; }
@@ -42,6 +45,12 @@ public partial class WorkspaceShell : LiveComponentBase
     [Inject]
     private ILogger<WorkspaceShell> Logger { get; set; } = default!;
 
+    [Inject]
+    private ITerminals Terminals { get; set; } = default!;
+
+    [Inject]
+    private TimeProvider Time { get; set; } = default!;
+
     protected override void OnInitialized()
     {
         RefreshOn<WorkspaceChanged>(LoadAsync);
@@ -49,6 +58,26 @@ public partial class WorkspaceShell : LiveComponentBase
         RefreshOn<FeatureMapsChanged>(changed => changed.WorkspaceId == WorkspaceId ? LoadCountsAsync() : Task.CompletedTask);
         RefreshOn<NoteChanged>(changed => changed.WorkspaceId == WorkspaceId ? LoadCountsAsync() : Task.CompletedTask);
         RefreshOn<MemoryUsageRecorded>(recorded => recorded.WorkspaceIds.Contains(WorkspaceId) ? LoadCountsAsync() : Task.CompletedTask);
+        RefreshOn<TerminalChanged>(changed => changed.WorkspaceId == WorkspaceId ? LoadTerminalsAsync() : Task.CompletedTask);
+    }
+
+    private async Task LoadTerminalsAsync()
+    {
+        try
+        {
+            var terminals = await Terminals.ListAsync(new TerminalQuery(WorkspaceId: WorkspaceId), Cancel);
+            var now = Time.GetUtcNow();
+            _liveTerminals = terminals.Count(t => t.Terminal.State.IsLive());
+            _crashedTerminals = terminals.Count(t => t.Terminal.State == TerminalState.Crashed && t.Terminal.EndedUtc is { } ended && now - ended < TimeSpan.FromHours(1));
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "The terminals of workspace {WorkspaceId} could not be loaded", WorkspaceId);
+        }
     }
 
     protected override async Task OnParametersSetAsync()
@@ -65,6 +94,7 @@ public partial class WorkspaceShell : LiveComponentBase
 
         await LoadAsync();
         await LoadCountsAsync();
+        await LoadTerminalsAsync();
     }
 
     private async Task LoadCountsAsync()

@@ -1,6 +1,7 @@
 ﻿using Microsoft.AspNetCore.Components;
 using MudBlazor;
 using Waymark.Core.Code;
+using Waymark.Core.Commands;
 using Waymark.Core.Events;
 using Waymark.Core.Memory;
 using Waymark.Core.Workspaces;
@@ -19,6 +20,7 @@ public partial class Workspaces : LiveComponentBase
     private string? _error;
     private string? _pathRoot;
     private bool _loaded;
+    private IReadOnlyList<TerminalInfo> _terminals = [];
 
     [Inject]
     private IWorkspaceService Service { get; set; } = default!;
@@ -38,13 +40,37 @@ public partial class Workspaces : LiveComponentBase
     [Inject]
     private ILogger<Workspaces> Logger { get; set; } = default!;
 
+    [Inject]
+    private ITerminals Terminals { get; set; } = default!;
+
     protected override async Task OnInitializedAsync()
     {
         await LoadAsync();
+        await LoadTerminalsAsync();
         RefreshOn<WorkspaceChanged>(LoadAsync);
         RefreshOn<CodeIndexProgress>(OnProgressAsync);
         RefreshOn<FeatureMapsChanged>(LoadMemoryAsync);
         RefreshOn<NoteChanged>(LoadMemoryAsync);
+        RefreshOn<TerminalChanged>(LoadTerminalsAsync);
+    }
+
+    private IReadOnlyList<TerminalInfo> TerminalsOf(long workspaceId) =>
+        _terminals.Where(t => t.Terminal.WorkspaceId == workspaceId).OrderBy(t => t.Terminal.Name, StringComparer.Ordinal).ToList();
+
+    private async Task LoadTerminalsAsync()
+    {
+        try
+        {
+            _terminals = await Terminals.ListAsync(new TerminalQuery(), Cancel);
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogWarning(ex, "The terminals of the workspaces could not be loaded");
+        }
     }
 
     // Flow and note counts of every workspace: two GROUP BY queries, whatever the number of cards.

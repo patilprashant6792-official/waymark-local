@@ -24,4 +24,16 @@ public interface ICommandRuns
 
     /// <summary>Ends a run that waits, is queued or runs. False when it is not active.</summary>
     Task<bool> StopAsync(long runId, CancellationToken ct);
+
+    /// <summary>
+    /// Deletes one finished one-time run with its stored output, on the owner's behalf; the deletion is audited. False when the run does not exist,
+    /// is still waiting, queued or running, or belongs to a terminal (a terminal's runs go with the terminal).
+    /// </summary>
+    Task<bool> DeleteAsync(long runId, CancellationToken ct);
+
+    /// <summary>
+    /// Clears the one-time history of one place, a workspace or the computer itself (<paramref name="workspaceId"/> null): every finished run and its
+    /// stored output. Active runs and terminals stay. The clearing is audited. Returns how many runs were deleted.
+    /// </summary>
+    Task<int> ClearHistoryAsync(long? workspaceId, CancellationToken ct);
 }

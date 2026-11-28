@@ -26,6 +26,8 @@ public static class ToolPipelineExtensions
         mcp.Services.AddSingleton<IWorkspaceSetup, WorkspaceSetup>();
         mcp.Services.AddSingleton<WorkspaceGuideRenderer>();
         mcp.Services.AddSingleton<ToolGuideDelivery>();
+        // Terminal events (a crash, the owner's stop, an app down, a prompt, new errors) as one line after the next tool call.
+        mcp.Services.AddSingleton<TerminalNotices>();
         return mcp.WithRequestFilters(filters => filters
             .AddListToolsFilter(next => (context, ct) => context.Services!.GetRequiredService<ToolPipeline>().ListAsync(context, next, ct))
             .AddCallToolFilter(next => (context, ct) => context.Services!.GetRequiredService<ToolPipeline>().CallAsync(context, next, ct)));

@@ -318,6 +318,29 @@ public partial class CommandSettings : LiveComponentBase
         }
     }
 
+    // In a workspace: its terminals. On the Commands page for all workspaces: the system terminals (workspace 0).
+    private async Task ForgetTerminalApprovalsAsync()
+    {
+        var workspaceId = WorkspaceId ?? 0;
+        var name = Embedded ? ScopeName : "System";
+        var confirmed = await ConfirmDialogs.AskAsync(
+            Dialogs,
+            "Forget the terminal approvals?",
+            $"The next start of each terminal program in {(Embedded ? ScopeName : "the system terminals")} will ask for your approval again. Programs that run now keep running.",
+            "Forget");
+        if (!confirmed)
+        {
+            return;
+        }
+
+        var forgotten = 0;
+        await RunAsync(async () => forgotten = await Admin.ForgetTerminalApprovalsAsync(workspaceId, name, Cancel), "Terminal approvals forgotten");
+        if (forgotten == 0 && _error is null)
+        {
+            Snackbar.Add("There was no terminal approval to forget.", Severity.Info);
+        }
+    }
+
     private async Task RunAsync(Func<Task> change, string done)
     {
         _busy = true;

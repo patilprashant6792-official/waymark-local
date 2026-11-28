@@ -189,6 +189,14 @@
             }
         </section>
 
+        <section class="wm-card" aria-labelledby="cmd-terminal-approvals">
+            <h2 id="cmd-terminal-approvals" class="wm-card-title">Terminal approvals</h2>
+            <p class="wm-muted">When you approve a program that keeps running in a terminal (a dev server, a watcher), Claude can start the same command again in the same terminal for @Options.TerminalApprovalAge.TotalDays.ToString("0") days without asking you, as long as the command and the project files are unchanged. Shell scripts are never reused: each one asks.</p>
+            <div class="wm-row">
+                <WmButton Small="true" Disabled="_busy" OnClick="ForgetTerminalApprovalsAsync">@(Embedded ? $"Forget the terminal approvals of {ScopeName}" : "Forget the approvals of the system terminals")</WmButton>
+            </div>
+        </section>
+
         @if (!Embedded)
         {
             <section class="wm-card" aria-labelledby="cmd-limits">
@@ -202,8 +210,18 @@
                     <dd>@Options.RetentionDays days</dd>
                     <dt>Outputs stored in</dt>
                     <dd class="wm-mono">@Options.RunsDirectory</dd>
+                    <dt>Terminals running at once</dt>
+                    <dd>@Options.MaxLiveTerminals</dd>
+                    <dt>Terminal start</dt>
+                    <dd>holds the workspace's turn for at most @Options.TerminalStartLock.TotalSeconds.ToString("0") seconds, then keeps running without it</dd>
+                    <dt>Terminal stop</dt>
+                    <dd>Ctrl+C, then after @Options.GracefulStop.TotalSeconds.ToString("0") seconds a request to terminate, then the whole program is killed</dd>
+                    <dt>Terminal approvals</dt>
+                    <dd>reused for @Options.TerminalApprovalAge.TotalDays.ToString("0") days while the command and project files are unchanged</dd>
+                    <dt>Terminal log</dt>
+                    <dd>@(Options.TerminalLogMaxBytes / (1024 * 1024)) MB per file, @Options.TerminalLogFiles files kept</dd>
                 </dl>
-                <p class="wm-muted wm-note">Set with Waymark:Commands:ApprovalMinutes, MaxParallelRuns and RetentionDays in the configuration.</p>
+                <p class="wm-muted wm-note">Set with Waymark:Commands:ApprovalMinutes, MaxParallelRuns, RetentionDays, MaxLiveTerminals, TerminalStartLockSeconds, GracefulStopSeconds, TerminalApprovalDays, TerminalLogMaxMegabytes and TerminalLogFiles in the configuration.</p>
             </section>
         }
     </ChildContent>

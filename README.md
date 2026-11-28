@@ -318,7 +318,7 @@ That client is the only one connected, so there's no pairing and no tunnel. The 
 | Memory | `memory_recall`, `memory_save` | flows and notes: search, read, save |
 | Packages | `pkg_search`, `pkg_find`, `pkg_outline`, `pkg_expand` | NuGet, PyPI and npm APIs at your pinned version |
 | Files | `file_write`, `file_edit_lines`, `file_replace`, `file_move`, `file_delete`, `folder_create`, `folder_move`, `folder_delete` | edits, copies between workspaces, previewed replace |
-| Commands | `cmd_project`, `cmd_git`, `cmd_proc`, `cmd_shell`, `cmd_wait`, `cmd_output`, `cmd_list`, `cmd_stop` | typed .NET / Python / Node / git actions, processes, shell; follow long runs |
+| Commands | `cmd_project`, `cmd_git`, `cmd_proc`, `cmd_shell`, `cmd_terminal`, `cmd_wait`, `cmd_output`, `cmd_list`, `cmd_stop` | typed .NET / Python / Node / git actions, processes, shell; follow long runs; dev servers and watchers that keep running in terminals, which you can watch and stop |
 
 Each group has its own guide that Claude reads once, on first use. They're the most carefully written part of Waymark: they tell Claude which call to make, what each mark in a result means, and when **not** to trust a result. Each one is the `Guide.md` of its module under `src/`.
 

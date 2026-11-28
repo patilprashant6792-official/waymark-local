@@ -251,7 +251,7 @@ internal sealed class FileWatcherHost(
         try
         {
             var relative = CodeFileWalker.ToRelative(change.Root, change.FullPath);
-            if (relative.StartsWith("..", StringComparison.Ordinal) || !CodeFileWalker.IsIndexable(relative, policy))
+            if (relative.StartsWith("..", StringComparison.Ordinal) || Waymark.Core.Platform.ScratchPaths.IsScratch(relative) || !CodeFileWalker.IsIndexable(relative, policy))
             {
                 return;
             }

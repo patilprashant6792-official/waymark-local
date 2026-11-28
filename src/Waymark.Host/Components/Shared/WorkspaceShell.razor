@@ -14,6 +14,14 @@
                 {
                     <span class="wm-muted">@progressText</span>
                 }
+                @if (_liveTerminals > 0)
+                {
+                    <a href="@WorkspaceSections.Terminals.Href(head.Id)"><WmStatus State="StatusState.Healthy" Live="true" Text="@($"{_liveTerminals} running")" /></a>
+                }
+                @if (_crashedTerminals > 0)
+                {
+                    <a href="@WorkspaceSections.Terminals.Href(head.Id)"><WmStatus State="StatusState.Failed" Text="@($"{_crashedTerminals} crashed")" /></a>
+                }
                 @if (_repo is { } repo)
                 {
                     <a class="wm-gh-link" href="@repo.Url" target="_blank" rel="noopener noreferrer" aria-label="@($"Open {repo.FullName} on GitHub (new tab)")">
