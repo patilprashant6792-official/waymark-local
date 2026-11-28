@@ -177,6 +177,43 @@ public sealed class CommandRunStore(ISqliteConnectionFactory connections, IWrite
             return paths;
         }, ct);
 
+    public Task<CommandRun?> DeleteFinishedAsync(long id, CancellationToken ct) =>
+        writes.ExecuteAsync<CommandRun?>(async (connection, tx, k) =>
+        {
+            var row = await connection.QuerySingleOrDefaultAsync<RunRow>(new CommandDefinition(
+                "SELECT " + Columns + " FROM command_runs WHERE id = @id AND terminal_id IS NULL AND status NOT IN (" + ActiveStatuses + ")",
+                new { id },
+                tx,
+                cancellationToken: k));
+            if (row is null)
+            {
+                return null;
+            }
+
+            await connection.ExecuteAsync(new CommandDefinition("DELETE FROM command_runs WHERE id = @id", new { id }, tx, cancellationToken: k));
+            return ToRun(row);
+        }, ct);
+
+    public Task<IReadOnlyList<CommandRun>> DeleteFinishedInAsync(long? workspaceId, CancellationToken ct) =>
+        writes.ExecuteAsync<IReadOnlyList<CommandRun>>(async (connection, tx, k) =>
+        {
+            // One place at a time: a workspace, or the computer itself (no workspace). Waiting, queued and running runs and every terminal's runs stay.
+            const string Where = "terminal_id IS NULL AND status NOT IN (" + ActiveStatuses + ") AND " +
+                "((@workspaceId IS NULL AND workspace_id IS NULL) OR workspace_id = @workspaceId)";
+            var rows = await connection.QueryAsync<RunRow>(new CommandDefinition(
+                "SELECT " + Columns + " FROM command_runs WHERE " + Where,
+                new { workspaceId },
+                tx,
+                cancellationToken: k));
+            var runs = rows.Select(ToRun).ToList();
+            if (runs.Count > 0)
+            {
+                await connection.ExecuteAsync(new CommandDefinition("DELETE FROM command_runs WHERE " + Where, new { workspaceId }, tx, cancellationToken: k));
+            }
+
+            return runs;
+        }, ct);
+
     private static CommandRun ToRun(RunRow row) =>
         new(
             row.Id,

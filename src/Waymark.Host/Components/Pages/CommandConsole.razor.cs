@@ -72,18 +72,85 @@ public partial class CommandConsole : LiveComponentBase
     [Inject]
     private ITerminals Terminals { get; set; } = default!;
 
+    [Inject]
+    private IDialogService Dialogs { get; set; } = default!;
+
+    // Finished one-time runs of the tab can be cleared; waiting, queued and running ones cannot.
+    private bool CanClearHistory => AllTabRuns.Any(r => !r.Status.IsActive()) && !_busy;
+
+    private string TabName => Tabs.FirstOrDefault(t => t.Id == _tab)?.Name ?? "this tab";
     // The history: one-off runs. A terminal's runs are shown in its terminal.
     private IReadOnlyList<CommandRun> AllTabRuns => _allRuns
         .Where(r => r.TerminalId is null && (_tab == SystemTab ? r.WorkspaceId is null : r.WorkspaceId == _tab))
         .Take(TabLimit)
         .ToList();
 
-    // The terminals of the tab: running ones first, then by name.
-    private IReadOnlyList<TerminalInfo> TabTerminals => _terminalInfos
-        .Where(t => _tab == SystemTab ? t.Terminal.WorkspaceId is null : t.Terminal.WorkspaceId == _tab)
-        .OrderByDescending(t => t.Terminal.State.IsLive())
-        .ThenBy(t => t.Terminal.Name, StringComparer.Ordinal)
-        .ToList();
+    // How many ended terminals the list shows before "Show more": the live ones always show, old ones should not push History out of sight.
+    private const int EndedShown = 3;
+
+    private bool _showAllEnded;
+
+    // The terminals of the tab that match the filter box: running ones first by name, then the ones that ended, most recent first.
+    private IReadOnlyList<TerminalInfo> TabTerminals
+    {
+        get
+        {
+            var filter = _runFilter.Trim();
+            return _terminalInfos
+                .Where(t => _tab == SystemTab ? t.Terminal.WorkspaceId is null : t.Terminal.WorkspaceId == _tab)
+                .Where(t => filter.Length == 0 || TerminalMatches(t.Terminal, filter))
+                .OrderByDescending(t => t.Terminal.State.IsLive())
+                .ThenBy(t => t.Terminal.State.IsLive() ? t.Terminal.Name : string.Empty, StringComparer.Ordinal)
+                .ThenByDescending(t => t.Terminal.EndedUtc ?? t.Terminal.StartedUtc ?? DateTimeOffset.MinValue)
+                .ToList();
+        }
+    }
+
+    // What the list shows of them: every live one, the one on screen, and the most recent ended ones unless the owner asked for all.
+    private IReadOnlyList<TerminalInfo> ShownTerminals
+    {
+        get
+        {
+            var all = TabTerminals;
+            if (_showAllEnded || _runFilter.Trim().Length > 0)
+            {
+                return all;
+            }
+
+            var ended = 0;
+            return all.Where(t => t.Terminal.State.IsLive() || t.Terminal.Id == _terminal?.Terminal.Id || ++ended <= EndedShown).ToList();
+        }
+    }
+
+    private int HiddenTerminals => TabTerminals.Count - ShownTerminals.Count;
+
+    // The count beside the Terminals header: "2 running · 9 ended", or just one of the two.
+    private string TerminalsCount
+    {
+        get
+        {
+            var live = TabTerminals.Count(t => t.Terminal.State.IsLive());
+            var ended = TabTerminals.Count - live;
+            var parts = new List<string>(2);
+            if (live > 0)
+            {
+                parts.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{live} running"));
+            }
+
+            if (ended > 0)
+            {
+                parts.Add(string.Create(System.Globalization.CultureInfo.InvariantCulture, $"{ended} ended"));
+            }
+
+            return string.Join(" · ", parts);
+        }
+    }
+
+    private static bool TerminalMatches(Waymark.Core.Commands.Terminal terminal, string filter) =>
+        terminal.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)
+        || (terminal.CommandLine?.Contains(filter, StringComparison.OrdinalIgnoreCase) ?? false);
+
+    private void ToggleEnded() => _showAllEnded = !_showAllEnded;
 
     // What the list shows: the runs of the tab that match the filter box.
     private IReadOnlyList<CommandRun> TabRuns
@@ -106,6 +173,7 @@ public partial class CommandConsole : LiveComponentBase
         await LoadRunsAsync();
         await LoadTerminalsAsync();
         RefreshOn<CommandRunChanged>(OnRunChangedAsync);
+        RefreshOn<CommandRunsDeleted>(OnRunsDeletedAsync);
         RefreshOn<CommandOutputChunk>(OnChunkAsync);
         RefreshOn<WorkspaceChanged>(LoadWorkspacesAsync);
         RefreshOn<TerminalChanged>(OnTerminalChangedAsync);
@@ -532,6 +600,109 @@ public partial class CommandConsole : LiveComponentBase
         }
     }
 
+    // ---- deleting history: the owner's own housekeeping; Audit keeps its separate record of what ran ----
+
+    private async Task DeleteRunAsync()
+    {
+        if (_selected is not { } run || run.Status.IsActive() || run.TerminalId is not null)
+        {
+            return;
+        }
+
+        var confirmed = await ConfirmDialogs.AskAsync(
+            Dialogs,
+            "Delete this command?",
+            $"Remove run #{run.Id} ({Label(run)}) and its stored output from the history?",
+            "Delete",
+            "This cannot be undone. Audit keeps its own record of what ran.",
+            destructive: true);
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            if (await Runs.DeleteAsync(run.Id, Cancel))
+            {
+                Snackbar.Add($"Run #{run.Id} was deleted.", Severity.Success);
+            }
+            else
+            {
+                Snackbar.Add("That command could not be deleted: it is running again, belongs to a terminal, or was already deleted.", Severity.Info);
+            }
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Run {RunId} could not be deleted", run.Id);
+            Snackbar.Add("The command could not be deleted. See the log.", Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    private async Task ClearHistoryAsync()
+    {
+        var place = TabName;
+        var confirmed = await ConfirmDialogs.AskAsync(
+            Dialogs,
+            "Clear the command history?",
+            $"Remove every finished one-time command of {place} and its stored output, not only the ones shown? Commands that wait, are queued or run now, and every terminal with its runs, are kept.",
+            "Clear",
+            "This cannot be undone. Audit keeps its own record of what ran.",
+            destructive: true);
+        if (!confirmed)
+        {
+            return;
+        }
+
+        _busy = true;
+        try
+        {
+            var removed = await Runs.ClearHistoryAsync(_tab == SystemTab ? null : _tab, Cancel);
+            Snackbar.Add(
+                removed switch
+                {
+                    0 => "There was nothing to clear.",
+                    1 => "1 command was cleared.",
+                    _ => $"{removed} commands were cleared.",
+                },
+                removed == 0 ? Severity.Info : Severity.Success);
+        }
+        catch (OperationCanceledException)
+        {
+            // The page was closed.
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "The history of {Place} could not be cleared", place);
+            Snackbar.Add("The history could not be cleared. See the log.", Severity.Error);
+        }
+        finally
+        {
+            _busy = false;
+        }
+    }
+
+    // Deleted here or in another browser tab: the lists drop those runs, and a deleted run that was on screen leaves it.
+    private async Task OnRunsDeletedAsync(CommandRunsDeleted deleted)
+    {
+        await LoadRunsAsync();
+        if (_terminal is null && _selected is { } shown && deleted.RunIds.Contains(shown.Id))
+        {
+            _selected = null;
+            _buffer = new AnsiBuffer();
+            _lastSeq = 0;
+            _findInfo = string.Empty;
+        }
+    }
     private async Task CopyOutputAsync()
     {
         if (_selected is null && _terminal is null)

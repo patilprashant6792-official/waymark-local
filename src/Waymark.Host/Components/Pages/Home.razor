@@ -199,7 +199,8 @@
         }
         else if (Status.CrashedTerminals.Count > 0)
         {
-            <p class="wm-tile-sub"><a href="console">@Status.CrashedTerminals.Count terminal app(s) crashed in the last hour</a></p>
+            @* Straight to the crash: the first crashed terminal's output, not the Console's default tab. *@
+            <p class="wm-tile-sub"><a href="console/terminal/@Status.CrashedTerminals[0].Terminal.Id">@(Status.CrashedTerminals.Count == 1 ? "1 app" : $"{Status.CrashedTerminals.Count} apps") in terminals crashed in the last hour</a></p>
         }
         <a class="wm-tile-link" href="audit?view=live">Open the live log <MudIcon Icon="@Icons.Material.Outlined.ArrowForward" Size="Size.Small" /></a>
     </article>;

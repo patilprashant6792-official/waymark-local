@@ -29,4 +29,16 @@ public interface ICommandRunStore
 
     /// <summary>Deletes finished runs that ended before the cutoff and returns the output files that belonged to them.</summary>
     Task<IReadOnlyList<string>> DeleteEndedBeforeAsync(DateTimeOffset cutoff, CancellationToken ct);
+
+    /// <summary>
+    /// Deletes one finished one-time run (not waiting, queued or running, and in no terminal) and returns it, so its stored output can be removed
+    /// and the deletion audited. Null when there is no such run.
+    /// </summary>
+    Task<CommandRun?> DeleteFinishedAsync(long id, CancellationToken ct);
+
+    /// <summary>
+    /// Deletes every finished one-time run of one place, a workspace or the computer itself (<paramref name="workspaceId"/> null), and returns them.
+    /// Active runs and the runs of terminals stay.
+    /// </summary>
+    Task<IReadOnlyList<CommandRun>> DeleteFinishedInAsync(long? workspaceId, CancellationToken ct);
 }

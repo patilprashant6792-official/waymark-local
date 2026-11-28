@@ -3,6 +3,9 @@ namespace Waymark.Core.Commands;
 /// <summary>A run was created or moved to another status.</summary>
 public sealed record CommandRunChanged(long RunId, long? WorkspaceId, CommandRunStatus Status);
 
+/// <summary>The owner deleted runs from the history: pages that list them drop these ids.</summary>
+public sealed record CommandRunsDeleted(long? WorkspaceId, IReadOnlyList<long> RunIds);
+
 /// <summary>New output of a running command. <see cref="Seq"/> counts the chunks of that run from 1.</summary>
 public sealed record CommandOutputChunk(long RunId, long? WorkspaceId, long Seq, string Text);
 

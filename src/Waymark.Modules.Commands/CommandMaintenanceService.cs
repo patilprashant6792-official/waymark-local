@@ -64,14 +64,9 @@ public sealed class CommandMaintenanceService(
         {
             var cutoff = time.GetUtcNow() - TimeSpan.FromDays(options.RetentionDays);
             var files = await runs.DeleteEndedBeforeAsync(cutoff, stop).ConfigureAwait(false);
-            var root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(options.RunsDirectory)) + Path.DirectorySeparatorChar;
             foreach (var file in files)
             {
-                DeleteStoredOutput(file, root);
-                foreach (var rotated in TerminalLog.CompanionPaths(file, options.TerminalLogFiles))
-                {
-                    DeleteStoredOutput(rotated, root);
-                }
+                RunOutputFiles.Delete(file, options.RunsDirectory, options.TerminalLogFiles, logger);
             }
 
             var removed = await terminals.DeleteUnusedBeforeAsync(cutoff, stop).ConfigureAwait(false);
@@ -87,23 +82,6 @@ public sealed class CommandMaintenanceService(
         catch (Exception ex)
         {
             logger.LogError(ex, "Old command runs could not be removed.");
-        }
-    }
-
-    // Only files inside the runs folder are ever deleted, whatever the stored path says.
-    private void DeleteStoredOutput(string file, string runsRoot)
-    {
-        try
-        {
-            var comparison = Waymark.Core.Platform.PathComparisons.Comparison;
-            if (Path.GetFullPath(file).StartsWith(runsRoot, comparison) && File.Exists(file))
-            {
-                File.Delete(file);
-            }
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-            logger.LogWarning(ex, "The stored output '{File}' could not be deleted.", file);
         }
     }
 }

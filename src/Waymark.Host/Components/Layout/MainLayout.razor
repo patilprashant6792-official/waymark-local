@@ -32,7 +32,7 @@
             {
                 <a class="wm-header-link" href="console"><WmStatus State="StatusState.Attention" Text="@CommandText" /></a>
             }
-            <a class="wm-header-link" href="audit?view=live"><WmStatus State="StatusState.Working" Text="@ActiveText" /></a>
+            <a class="wm-header-link" href="audit?view=live" title="Tool calls and commands in progress: open the live log"><WmStatus State="ActiveState" Text="@ActiveText" /></a>
             @if (Status.RunningTerminals > 0 || Status.StartingTerminals > 0 || Status.CrashedTerminals.Count > 0)
             {
                 <div class="wm-apps">
@@ -55,7 +55,10 @@
                         <div id="wm-apps-pop" class="wm-apps-pop" role="dialog" aria-label="Programs running in terminals">
                             <div class="wm-apps-head">
                                 <strong>Terminals</strong>
-                                <WmButton Kind="ButtonKind.Danger" Small="true" Icon="@Icons.Material.Outlined.Stop" Disabled="@(_busy || Status.LiveTerminals.Count == 0)" OnClick="StopAllAppsAsync">Stop all apps</WmButton>
+                                @if (Status.LiveTerminals.Count > 0)
+                                {
+                                    <WmButton Kind="ButtonKind.Danger" Small="true" Icon="@Icons.Material.Outlined.Stop" Disabled="_busy" OnClick="StopAllAppsAsync">Stop all apps</WmButton>
+                                }
                             </div>
                             @foreach (var info in Status.LiveTerminals.Concat(Status.CrashedTerminals))
                             {
@@ -63,8 +66,8 @@
                                 var chip = TerminalView.Chip(terminal);
                                 <div class="wm-apps-row" @key="terminal.Id">
                                     <WmStatus State="chip.State" Live="chip.Live" Text="@chip.Text" />
-                                    <a class="wm-apps-name" href="console/terminal/@terminal.Id" @onclick="CloseApps">@terminal.Scope / @terminal.Name</a>
-                                    <span class="wm-muted wm-mono">@(TerminalView.ShortAddress(terminal) ?? TerminalView.ShortCommand(terminal.CommandLine, 32))</span>
+                                    <a class="wm-apps-name" href="console/terminal/@terminal.Id" title="@terminal.Scope / @terminal.Name" @onclick="CloseApps">@terminal.Scope / @terminal.Name</a>
+                                    <span class="wm-muted wm-mono wm-apps-what" title="@terminal.CommandLine">@(terminal.State.IsLive() ? TerminalView.ShortAddress(terminal) ?? TerminalView.ShortCommand(terminal.CommandLine, 32) : "ended " + TerminalView.Age(terminal, Time.GetUtcNow()))</span>
                                     @if (terminal.State.IsLive())
                                     {
                                         <WmButton Kind="ButtonKind.Danger" Small="true" Icon="@Icons.Material.Outlined.Stop" Disabled="_busy" OnClick="() => StopAppAsync(terminal.Id)">Stop</WmButton>

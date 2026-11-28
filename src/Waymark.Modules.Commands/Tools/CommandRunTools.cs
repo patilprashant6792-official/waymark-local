@@ -33,8 +33,8 @@ public sealed class CommandRunTools(CommandService service)
         "  ef_migrations_add: name*, project*, startupProject, context, outputDir\n" +
         "  ef_migrations_remove: project*, startupProject, context\n" +
         "  ef_database_update: project*, startupProject, context, migration or revertAll\n" +
-        "  run: project*, configuration, framework, launchProfile, noBuild, appArgs (array) + TERMINAL OPTIONS   - builds, then runs the app in a terminal until it is stopped\n" +
-        "  watch: project*, configuration, framework, launchProfile, appArgs (array) + TERMINAL OPTIONS   - dotnet watch in a terminal: rebuilds and hot-reloads on every change\n" +
+        "  run: project*, configuration, framework, launchProfile, noLaunchProfile, noBuild, appArgs (array) + TERMINAL OPTIONS   - builds, then runs the app in a terminal until it is stopped, with the project's default launch profile like dotnet run\n" +
+        "  watch: project*, configuration, framework, launchProfile, noLaunchProfile, appArgs (array) + TERMINAL OPTIONS   - dotnet watch in a terminal: rebuilds and hot-reloads on every change\n" +
         "PYTHON ACTIONS (every one accepts project and timeoutMinutes; paths are relative to the workspace; packages are installed as wheels only, nothing is built):\n" +
         "  py_info: -   - versions of Python, pip, uv, ruff, pyright and mypy, and the project's lock file and virtual environment\n" +
         "  py_list: tool (uv|pip), venv   - packages installed in the project's virtual environment\n" +

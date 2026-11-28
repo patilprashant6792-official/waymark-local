@@ -45,11 +45,14 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
     [Inject]
     private ITerminals Terminals { get; set; } = default!;
 
+    [Inject]
+    private TimeProvider Time { get; set; } = default!;
+
     private string AppsText => Status.RunningTerminals == 1 ? "1 app live" : $"{Status.RunningTerminals} apps live";
 
     private string StartingText => $"{Status.StartingTerminals} starting";
 
-    private string CrashedText => $"{Status.CrashedTerminals.Count} crashed";
+    private string CrashedText => Status.CrashedTerminals.Count == 1 ? "1 app crashed" : $"{Status.CrashedTerminals.Count} apps crashed";
 
     private (StatusState State, string Text) ServerChip =>
         Status.Paused ? (StatusState.Attention, "Paused") : (StatusState.Healthy, "Server running");
@@ -66,7 +69,15 @@ public partial class MainLayout : LayoutComponentBase, IDisposable
 
     private string CommandText => Status.PendingCommands == 1 ? "1 command waiting" : $"{Status.PendingCommands} commands waiting";
 
-    private string ActiveText => Status.ActiveNow == 1 ? "1 running" : $"{Status.ActiveNow} running";
+    // Tool calls and commands in flight right now (the live log), not the apps in terminals, which have their own chip.
+    private string ActiveText => Status.ActiveNow switch
+    {
+        0 => "Idle",
+        1 => "1 call in progress",
+        var n => $"{n} calls in progress",
+    };
+
+    private StatusState ActiveState => Status.ActiveNow == 0 ? StatusState.Off : StatusState.Working;
 
     private string ShellClass => (_navCollapsed ? " nav-collapsed" : string.Empty) + (_navAnimate ? " nav-anim" : string.Empty);
 

@@ -350,8 +350,8 @@ public static class DotnetRecipes
 
     // dotnet watch builds, runs and hot-reloads the app on every change, so the Console and Claude see the build errors as they happen. It builds the
     // project itself, so it holds the workspace's turn until the app is up. The launch profile is an option of dotnet watch itself, which reads
-    // launchSettings.json for the app it starts: after 'run --' it would reach dotnet run too late. Without launchProfile both run and watch start
-    // the app with no profile, the same way. Options after the first -- go to dotnet run, the app's own after a second.
+    // launchSettings.json for the app it starts: after 'run --' it would reach dotnet run too late. Run and watch choose the profile the same way
+    // (AddLaunchProfile). Options after the first -- go to dotnet run, the app's own after a second.
     private static CommandPlan Watch(RecipeContext c)
     {
         var project = c.ExistingProject("project");
@@ -386,17 +386,27 @@ public static class DotnetRecipes
         };
     }
 
+    // The app starts the way the developer's own 'dotnet run' starts it: with the project's default launch profile (the first one in
+    // Properties/launchSettings.json), so it gets the environment (Development), addresses and variables its owner expects. launchProfile picks
+    // another one; noLaunchProfile starts it bare (Production, port 5000). A profile's launchBrowser never opens anything here: the terminal's
+    // environment suppresses it (ChildEnvironment.BuildForTerminal).
     private static void AddLaunchProfile(RecipeContext c, List<string> args)
     {
         var profile = c.Options.Token("launchProfile", RecipeRules.LaunchProfile(), "a launch profile name");
-        if (profile is null)
+        var none = c.Options.Flag("noLaunchProfile");
+        if (profile is not null && none)
         {
-            args.Add("--no-launch-profile");
+            throw new ArgumentException("Give either 'launchProfile' or 'noLaunchProfile', not both.");
         }
-        else
+
+        if (profile is not null)
         {
             args.Add("--launch-profile");
             args.Add(profile);
+        }
+        else if (none)
+        {
+            args.Add("--no-launch-profile");
         }
     }
 

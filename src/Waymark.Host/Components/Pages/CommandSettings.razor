@@ -214,10 +214,14 @@
                     <dd>@Options.MaxLiveTerminals</dd>
                     <dt>Terminal start</dt>
                     <dd>holds the workspace's turn for at most @Options.TerminalStartLock.TotalSeconds.ToString("0") seconds, then keeps running without it</dd>
+                    <dt>Terminal stop</dt>
+                    <dd>Ctrl+C, then after @Options.GracefulStop.TotalSeconds.ToString("0") seconds a request to terminate, then the whole program is killed</dd>
+                    <dt>Terminal approvals</dt>
+                    <dd>reused for @Options.TerminalApprovalAge.TotalDays.ToString("0") days while the command and project files are unchanged</dd>
                     <dt>Terminal log</dt>
                     <dd>@(Options.TerminalLogMaxBytes / (1024 * 1024)) MB per file, @Options.TerminalLogFiles files kept</dd>
                 </dl>
-                <p class="wm-muted wm-note">Set with Waymark:Commands:ApprovalMinutes, MaxParallelRuns, RetentionDays, MaxLiveTerminals, TerminalStartLockSeconds, TerminalLogMaxMegabytes, TerminalLogFiles and TerminalApprovalDays in the configuration.</p>
+                <p class="wm-muted wm-note">Set with Waymark:Commands:ApprovalMinutes, MaxParallelRuns, RetentionDays, MaxLiveTerminals, TerminalStartLockSeconds, GracefulStopSeconds, TerminalApprovalDays, TerminalLogMaxMegabytes and TerminalLogFiles in the configuration.</p>
             </section>
         }
     </ChildContent>

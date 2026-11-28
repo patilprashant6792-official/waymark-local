@@ -57,17 +57,20 @@
 @media (prefers-reduced-motion: reduce) { .wm-cell[data-flash] > .wm-cell-body > :is(.wm-tile, .wm-panel), .wm-cell[data-flash] > .wm-cell-body > .wm-panel > .wm-panel-head { animation-duration: 0.9s; } }
 
 /* ---------- console ---------- */
-.wm-console { display: grid; grid-template-columns: 300px minmax(0, 1fr); height: clamp(460px, calc(100vh - 340px), 900px); overflow: hidden; background: var(--wm-surface); border: 1px solid var(--wm-line); border-radius: var(--wm-r-card); }
-.wm-console-list { overflow-y: auto; border-right: 1px solid var(--wm-line); }
+/* fills the window down to the page's bottom margin (the Console starts about 230px from the top), never shorter than 420px */
+.wm-console { display: grid; grid-template-columns: 300px minmax(0, 1fr); height: max(420px, calc(100dvh - 254px)); overflow: hidden; background: var(--wm-surface); border: 1px solid var(--wm-line); border-radius: var(--wm-r-card); }
+/* the list is a column: the filter, then the two groups, each scrolling on its own so both stay in view */
+.wm-console-list { display: flex; flex-direction: column; min-height: 0; overflow: hidden; border-right: 1px solid var(--wm-line); }
+.wm-console-list > .wm-console-filter { flex: none; }
 .wm-console-main { display: flex; flex-direction: column; gap: var(--wm-space-2); min-width: 0; min-height: 0; padding: var(--wm-space-3); }
 .wm-console-empty { padding: var(--wm-space-4); color: var(--wm-muted); }
 .wm-console-empty.big { display: flex; flex: 1; flex-direction: column; align-items: center; justify-content: center; gap: var(--wm-space-3); min-height: 260px; text-align: center; }
-.wm-run { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 10px; padding: 10px var(--wm-space-3); color: inherit; text-decoration: none; border-left: 2px solid transparent; }
+.wm-run { display: grid; grid-template-columns: 12px minmax(0, 1fr) auto; align-items: center; gap: 8px; padding: 6px var(--wm-space-3); color: inherit; text-decoration: none; border-left: 2px solid transparent; }
 .wm-run + .wm-run { border-top: 1px solid var(--wm-line); }
 .wm-run:hover { background: var(--wm-hover); }
 .wm-run.active { border-left-color: var(--wm-text); background: var(--wm-selected); }
 .wm-run:focus-visible { outline-offset: -2px; }
-.wm-run-main { display: flex; flex-direction: column; min-width: 0; line-height: 1.35; }
+.wm-run-main { display: flex; flex-direction: column; min-width: 0; line-height: 1.3; }
 .wm-run-title { font-weight: 600; }
 .wm-run-cmd { display: block; overflow: hidden; font-size: var(--wm-text-sm); color: var(--wm-muted); text-overflow: ellipsis; white-space: nowrap; }
 .wm-run-when { font-size: var(--wm-text-xs); white-space: nowrap; color: var(--wm-muted); }
@@ -80,13 +83,25 @@
 .wm-run-dot.run { background: var(--wm-info); animation: wm-pulse 1.2s ease-in-out infinite; }
 @media (max-width: 900px) {
     .wm-console { grid-template-columns: minmax(0, 1fr); height: auto; }
-    .wm-console-list { max-height: 220px; border-right: 0; border-bottom: 1px solid var(--wm-line); }
+    .wm-console-list { height: 420px; border-right: 0; border-bottom: 1px solid var(--wm-line); }
     .wm-term { flex: none; height: 60vh; }
 }
 
 /* ---------- terminals: programs that keep running ---------- */
-.wm-console-section { padding: 10px var(--wm-space-3) 4px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--wm-hint); }
-.wm-term-card { display: flex; flex-direction: column; gap: 2px; margin: 4px var(--wm-space-2); padding: 8px 10px; color: inherit; text-decoration: none; border: 1px solid var(--wm-line); border-left: 3px solid var(--wm-hint); border-radius: var(--wm-r-sm); }
+/* two groups in the Console list: terminals on their own tinted panel, one-time commands below their own header */
+.wm-console-group-head { display: flex; align-items: center; gap: 6px; padding: 8px var(--wm-space-3) 4px; font-size: 0.6875rem; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase; color: var(--wm-muted); }
+.wm-console-group-count { margin-left: auto; font-weight: 400; letter-spacing: 0; text-transform: none; color: var(--wm-hint); }
+/* the Clear button sits in the header row without making it taller */
+.wm-console-group-head .mud-icon-button { margin: -8px -6px -8px 0; color: var(--wm-muted); }
+.wm-console-group-head .mud-icon-button:hover { color: var(--wm-err); }
+.wm-console-group { display: flex; flex-direction: column; min-height: 0; }
+.wm-console-scroll { flex: 1 1 auto; min-height: 0; overflow-x: hidden; overflow-y: auto; }
+/* the space below the filter is split 50/50; a short terminal list takes only what it needs and the commands get the rest */
+.wm-console-group-terms { flex: 1 1 0; max-height: max-content; margin: 4px var(--wm-space-2) 6px; padding-bottom: 2px; background: color-mix(in srgb, var(--wm-info) 6%, transparent); border: 1px solid color-mix(in srgb, var(--wm-info) 28%, var(--wm-line)); border-radius: var(--wm-r-card); }
+.wm-console-group-terms .wm-term-card { margin-left: 6px; margin-right: 6px; background: var(--wm-surface); }
+.wm-console-group-terms .wm-term-card.active { background: var(--wm-selected); }
+.wm-console-group-runs { flex: 1 1 0; border-top: 1px solid var(--wm-line); }
+.wm-term-card { display: flex; flex-direction: column; gap: 1px; margin: 3px var(--wm-space-2); padding: 5px 8px; color: inherit; text-decoration: none; border: 1px solid var(--wm-line); border-left: 3px solid var(--wm-hint); border-radius: var(--wm-r-sm); }
 .wm-term-card:hover { background: var(--wm-hover); }
 .wm-term-card.active { background: var(--wm-selected); border-color: var(--wm-text); }
 .wm-term-card.ok { border-left-color: var(--wm-ok); }
@@ -94,7 +109,12 @@
 .wm-term-card.warn { border-left-color: var(--wm-warn); }
 .wm-term-card.err { border-left-color: var(--wm-err); }
 .wm-term-card-top { display: flex; align-items: center; gap: 8px; min-width: 0; font-weight: 600; }
-.wm-term-card-age { margin-left: auto; font-size: var(--wm-text-xs); font-weight: 400; white-space: nowrap; color: var(--wm-muted); }
+/* the name stays whole (up to 60% of the row), the state chip gives way (ellipsis), the age never does */
+.wm-term-card-top > :first-child { flex: 0 0 auto; max-width: 60%; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wm-term-card-top > .wm-term-chip { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.wm-term-card-age { flex: none; margin-left: auto; font-size: var(--wm-text-xs); font-weight: 400; white-space: nowrap; color: var(--wm-muted); }
+.wm-term-card-more { margin: 2px var(--wm-space-2) 6px; padding: 4px 10px; font: inherit; font-size: var(--wm-text-sm); color: var(--wm-muted); text-align: left; background: none; border: 1px dashed var(--wm-line); border-radius: var(--wm-r-sm); cursor: pointer; }
+.wm-term-card-more:hover { color: inherit; background: var(--wm-hover); }
 .wm-term-card-addr { font-size: var(--wm-text-sm); color: var(--wm-info); }
 .wm-term-card-err { font-size: var(--wm-text-sm); color: var(--wm-err); }
 .wm-term-chip { padding: 0 8px; font-size: var(--wm-text-xs); font-weight: 600; line-height: 18px; white-space: nowrap; border-radius: var(--wm-r-ctl); color: var(--wm-muted); border: 1px solid var(--wm-line); }
@@ -112,9 +132,11 @@
 .wm-apps-toggle:hover { background: var(--wm-selected); }
 .wm-apps-pop { position: absolute; top: calc(100% + 8px); left: 0; z-index: 200; display: flex; flex-direction: column; gap: var(--wm-space-2); width: min(460px, 90vw); padding: var(--wm-space-3); background: var(--wm-surface); border: 1px solid var(--wm-line); border-radius: var(--wm-r-card); box-shadow: var(--wm-elev-2); }
 .wm-apps-head { display: flex; align-items: center; justify-content: space-between; gap: var(--wm-space-2); }
-.wm-apps-row { display: grid; grid-template-columns: auto minmax(0, 1fr) auto auto; align-items: center; gap: var(--wm-space-2); padding: 6px 0; border-top: 1px solid var(--wm-line); }
+.wm-apps-row { display: grid; grid-template-columns: auto minmax(0, 1fr) minmax(0, 1fr) auto; align-items: center; gap: var(--wm-space-2); padding: 6px 0; border-top: 1px solid var(--wm-line); }
 .wm-apps-name { overflow: hidden; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; color: inherit; }
+.wm-apps-what { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .wm-apps-foot { margin: 0; font-size: var(--wm-text-xs); color: var(--wm-muted); }
+.wm-ws-terminals + .wm-apps-foot, .wm-ws-none + .wm-apps-foot { margin-top: var(--wm-space-3); }
 
 /* workspaces: what runs in each */
 .wm-ws-live { border-color: color-mix(in srgb, var(--wm-ok) 55%, var(--wm-line)); }

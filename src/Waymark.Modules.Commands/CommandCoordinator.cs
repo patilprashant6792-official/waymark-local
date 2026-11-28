@@ -388,6 +388,68 @@ public sealed class CommandCoordinator : ICommandRuns
         return true;
     }
 
+    public async Task<bool> DeleteAsync(long runId, CancellationToken ct)
+    {
+        // A run the coordinator still holds is finishing right now; it can be deleted once it has finished.
+        if (_active.ContainsKey(runId))
+        {
+            return false;
+        }
+
+        var deleted = await _runs.DeleteFinishedAsync(runId, ct).ConfigureAwait(false);
+        if (deleted is null)
+        {
+            return false;
+        }
+
+        RemoveStoredOutput(deleted);
+        _logger.LogInformation("The owner deleted command run {RunId} from the history.", deleted.Id);
+        await AuditHistoryAsync("command.delete", deleted.WorkspaceName, string.Create(CultureInfo.InvariantCulture, $"run #{deleted.Id} {deleted.Operation}: {Cut(deleted.CommandLine)}")).ConfigureAwait(false);
+        await _events.PublishAsync(new CommandRunsDeleted(deleted.WorkspaceId, [deleted.Id])).ConfigureAwait(false);
+        return true;
+    }
+
+    public async Task<int> ClearHistoryAsync(long? workspaceId, CancellationToken ct)
+    {
+        var deleted = await _runs.DeleteFinishedInAsync(workspaceId, ct).ConfigureAwait(false);
+        if (deleted.Count == 0)
+        {
+            return 0;
+        }
+
+        foreach (var run in deleted)
+        {
+            RemoveStoredOutput(run);
+        }
+
+        var place = deleted[0].WorkspaceName;
+        _logger.LogInformation("The owner cleared the command history of {Place}: {Count} run(s).", place, deleted.Count);
+        await AuditHistoryAsync("command.history_clear", place, string.Create(CultureInfo.InvariantCulture, $"{deleted.Count} finished one-time run(s) deleted, #{deleted.Min(r => r.Id)} to #{deleted.Max(r => r.Id)}")).ConfigureAwait(false);
+        await _events.PublishAsync(new CommandRunsDeleted(workspaceId, [.. deleted.Select(r => r.Id)])).ConfigureAwait(false);
+        return deleted.Count;
+    }
+
+    private void RemoveStoredOutput(CommandRun run)
+    {
+        if (!string.IsNullOrWhiteSpace(run.OutputPath))
+        {
+            RunOutputFiles.Delete(run.OutputPath, _options.RunsDirectory, _options.TerminalLogFiles, _logger);
+        }
+    }
+
+    // Deleting history is the owner's act in the admin UI, written down like approvals so Audit keeps a record of what went.
+    private async Task AuditHistoryAsync(string action, string place, string details)
+    {
+        try
+        {
+            var entry = AuditEntries.Create(_time, AuditCategory.Approval, action, OwnerName, place, AuditOutcome.Ok, SensitiveDataScanner.Redact(details).Text, null, null);
+            await _audit.AppendAsync(entry, CancellationToken.None).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogWarning(ex, "'{Action}' could not be written to the audit log.", action);
+        }
+    }
     // ---- the run ----
 
     private async Task ExecuteAsync(ActiveRun run)

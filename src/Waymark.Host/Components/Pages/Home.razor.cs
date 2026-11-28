@@ -267,6 +267,7 @@ public partial class Home : LiveComponentBase
         RefreshOn<WorkspaceChanged>(LoadAsync);
         RefreshOn<NuGetCacheChanged>(LoadAsync);
         RefreshOn<CommandRunChanged>(LoadAsync);
+        RefreshOn<CommandRunsDeleted>(LoadAsync);
         _progressSubscription = Events.Subscribe<CodeIndexProgress>(OnProgressAsync);
         Status.Changed += OnStatusChanged;
         _ = TickAsync();

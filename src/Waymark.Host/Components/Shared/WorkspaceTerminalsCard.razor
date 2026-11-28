@@ -44,7 +44,7 @@
     [Parameter, EditorRequired]
     public long WorkspaceId { get; set; }
 
-    /// <summary>Every terminal with its last state; otherwise only the ones that run or ended in the last hour.</summary>
+    /// <summary>Every terminal with its last state; otherwise ("Running apps") only the ones that run, and those that crashed in the last hour.</summary>
     [Parameter]
     public bool ShowAll { get; set; }
 
@@ -62,9 +62,11 @@
 
     private int LiveCount => _all.Count(t => t.Terminal.State.IsLive());
 
+    // A card titled "Running apps" lists what runs and what broke recently; terminals stopped on purpose belong on the Terminals page.
     private IReadOnlyList<TerminalInfo> Shown => ShowAll
         ? _all
-        : _all.Where(t => t.Terminal.State.IsLive() || t.Terminal.EndedUtc is { } ended && Time.GetUtcNow() - ended < TimeSpan.FromHours(1)).ToList();
+        : _all.Where(t => t.Terminal.State.IsLive()
+            || t.Terminal.State == TerminalState.Crashed && t.Terminal.EndedUtc is { } ended && Time.GetUtcNow() - ended < TimeSpan.FromHours(1)).ToList();
 
     protected override void OnInitialized() =>
         RefreshOn<TerminalChanged>(changed => changed.WorkspaceId == WorkspaceId ? LoadAsync() : Task.CompletedTask);
